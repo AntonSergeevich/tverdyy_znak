@@ -175,9 +175,13 @@ class Command(BaseCommand):
     def _user(self, email: str, last_name: str, first_name: str) -> User:
         user = User.objects.filter(email=email).first()
         if user is None:
-            user = User.objects.create_user(
+            return User.objects.create_user(
                 email=email, password=DEMO_PASSWORD, last_name=last_name, first_name=first_name
             )
+        # Пароль переустанавливаем всегда: команда должна оставлять стенд
+        # в известном состоянии, а не в том, до которого его довели опыты.
+        user.set_password(DEMO_PASSWORD)
+        user.save(update_fields=["password", "updated_at"])
         return user
 
     @staticmethod

@@ -87,7 +87,9 @@
     {% for point in dynamics %}
       <div class="bars__item">
         <span class="small muted">{{ point.average|points }}</span>
-        <div class="bars__bar" style="height:{{ point.average|percent_of:100 }}%"></div>
+        <div class="bars__track">
+          <div class="bars__bar" style="height:{{ point.average|percent_of:100 }}%"></div>
+        </div>
         <span class="bars__caption">{{ point.label }}</span>
       </div>
     {% endfor %}

@@ -1,4 +1,6 @@
 """Настройки разработки. На проде не использовать."""
+from decouple import config
+
 from .base import *  # noqa: F403
 
 DEBUG = True
@@ -9,7 +11,9 @@ MIDDLEWARE.insert(1, "debug_toolbar.middleware.DebugToolbarMiddleware")  # noqa:
 INTERNAL_IPS = ["127.0.0.1"]
 
 # Проверка N+1 в dev: панель показывает число запросов на каждой странице (ТЗ 9.1).
-DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG}
+# DEBUG_TOOLBAR=False отключает её, когда нужен чистый скриншот вёрстки.
+_TOOLBAR_ON = config("DEBUG_TOOLBAR", default=True, cast=bool)
+DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG and _TOOLBAR_ON}
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 

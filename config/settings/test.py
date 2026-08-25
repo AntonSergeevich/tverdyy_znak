@@ -4,6 +4,9 @@ from .base import *  # noqa: F403
 DEBUG = False
 ALLOWED_HOSTS = ["*", "testserver"]
 
+# Только быстрый хэшер и только для тестов.
+# Эти настройки нельзя запускать против рабочей базы: Django прозрачно
+# перехэширует пароли под первый хэшер из списка и сохранит их в MD5.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 CACHES = {
@@ -25,6 +28,10 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
+
+# WhiteNoise в тестах не нужен и шумит предупреждением об отсутствующем
+# STATIC_ROOT: собранной статики на прогоне тестов нет.
+MIDDLEWARE = [m for m in MIDDLEWARE if "whitenoise" not in m]  # noqa: F405
 
 # Фиксированный ключ шифрования полей — тесты должны быть детерминированными.
 FIELD_ENCRYPTION_KEYS = ["YDAsdHtFGHDeFqoAwZma3QbaLjU1W9Q2IZ_NjOti_eY="]
