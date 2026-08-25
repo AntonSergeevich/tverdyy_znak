@@ -49,6 +49,14 @@ class Organization(TimeStampedModel):
     address = models.CharField("адрес", max_length=300, blank=True)
     telegram_chat_id = models.CharField("Telegram chat_id для заявок", max_length=64, blank=True)
 
+    # ── Банковские реквизиты для оплаты ─────────────────────────────────────
+    # Показываются только в кабинете родителя. В подвале сайта — лишь
+    # наименование, ИНН, ОГРНИП и адрес: номер счёта там ни к чему.
+    bank_name = models.CharField("банк", max_length=200, blank=True)
+    bank_bik = models.CharField("БИК", max_length=9, blank=True)
+    bank_account = models.CharField("расчётный счёт", max_length=20, blank=True)
+    bank_corr_account = models.CharField("корреспондентский счёт", max_length=20, blank=True)
+
     timezone = models.CharField(
         "часовой пояс", max_length=64, default="Asia/Krasnoyarsk", choices=_timezone_choices
     )

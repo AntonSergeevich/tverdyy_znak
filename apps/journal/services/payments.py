@@ -48,6 +48,10 @@ class ManualProvider(PaymentProvider):
             payload={
                 "receiver": organization.legal_name or organization.name,
                 "inn": organization.inn,
+                "account": organization.bank_account,
+                "bank": organization.bank_name,
+                "bik": organization.bank_bik,
+                "corr_account": organization.bank_corr_account,
                 "purpose": purpose,
                 "amount": str(payment.amount),
             },

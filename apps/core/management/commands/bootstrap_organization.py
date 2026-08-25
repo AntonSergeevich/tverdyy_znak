@@ -86,7 +86,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--slug", default="tverdyy-znak")
         parser.add_argument("--name", default="Твёрдый знак")
-        parser.add_argument("--domain", default="")
+        parser.add_argument("--domain", default="tverdyy-znak.ru")
         parser.add_argument("--year", default="2026/27")
 
     @transaction.atomic

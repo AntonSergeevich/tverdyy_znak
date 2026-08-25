@@ -268,6 +268,20 @@ input[type=range]::-moz-range-thumb {
 .faq details[open] summary::after { content: '−'; }
 .faq__answer { padding: 0 20px 18px; color: var(--ink-2); }
 
+/* Сетка карточек: grid, а не flex. На flex последняя карточка в неполном
+   ряду растягивалась во всю ширину и уносила с собой пропорции фото. */
+.teachers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: clamp(16px, 2vw, 24px);
+}
+.teacher-card { display: flex; flex-direction: column; }
+.teacher-card .photo-placeholder { aspect-ratio: 4 / 5; font-size: clamp(48px, 6vw, 72px); }
+.teacher-card__photo { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+.teacher-card__bio { margin-top: 10px; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+.teacher-card__bio p { margin: 0 0 6px; }
+.teacher-card__bio p:last-child { margin-bottom: 0; }
+
 .photo-placeholder {
   aspect-ratio: 4 / 3; background: var(--peach-soft); border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;

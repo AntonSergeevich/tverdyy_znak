@@ -165,12 +165,23 @@
       </tbody>
     </table>
   </div>
+  {# Банковские реквизиты показываем только здесь, за авторизацией. #}
   <div class="card" style="margin-top:16px">
     <p class="card__title">Реквизиты для оплаты</p>
-    <p class="requisites">
-      {{ organization.legal_name|default:organization.name }} · ИНН {{ organization.inn|default:"—" }} ·
-      ОГРНИП {{ organization.ogrnip|default:"—" }}<br>
-      В назначении платежа укажите фамилию ребёнка и месяц.
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          <tr><th>Получатель</th><td>{{ organization.legal_name|default:organization.name }}</td></tr>
+          <tr><th>ИНН</th><td>{{ organization.inn|default:"—" }}</td></tr>
+          <tr><th>Расчётный счёт</th><td>{{ organization.bank_account|default:"—" }}</td></tr>
+          <tr><th>Банк</th><td>{{ organization.bank_name|default:"—" }}</td></tr>
+          <tr><th>БИК</th><td>{{ organization.bank_bik|default:"—" }}</td></tr>
+          <tr><th>Корр. счёт</th><td>{{ organization.bank_corr_account|default:"—" }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted" style="margin-top:12px">
+      В назначении платежа укажите фамилию ребёнка и месяц — так оплата найдётся быстрее.
     </p>
   </div>
 {% else %}

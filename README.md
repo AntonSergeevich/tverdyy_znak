@@ -35,6 +35,7 @@ python manage.py generate_fernet_key      # → FIELD_ENCRYPTION_KEYS
 createdb tverdyy_znak
 python manage.py migrate
 python manage.py bootstrap_organization --domain localhost
+python manage.py setup_client_data        # реквизиты и карточки педагогов
 python manage.py seed_demo                # демо-данные, только при DEBUG=True
 python manage.py runserver
 ```
@@ -72,7 +73,8 @@ docs/              архитектура, деплой, статус, исхо�
 ## Документация
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — решения и почему они такие
-- [docs/DEPLOY.md](docs/DEPLOY.md) — развёртывание на Beget VPS, бэкапы, восстановление
+- [docs/DEPLOY-WINDOWS.md](docs/DEPLOY-WINDOWS.md) — PyCharm + PowerShell: от клона до деплоя одной командой
+- [docs/DEPLOY.md](docs/DEPLOY.md) — развёртывание на VPS, бэкапы, восстановление
 - [docs/STATUS.md](docs/STATUS.md) — что сделано, что осталось, вопросы к заказчику
 - [docs/spec/design-handoff.md](docs/spec/design-handoff.md) — исходная передача дизайна
 - [docs/spec/tasks-frontend.md](docs/spec/tasks-frontend.md) — исходный список задач по фронту
