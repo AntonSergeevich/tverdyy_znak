@@ -137,9 +137,23 @@ scp .env.example root@85.198.66.41:/srv/tverdyy-znak/.env
 ssh root@85.198.66.41 "chmod 600 /srv/tverdyy-znak/.env && nano /srv/tverdyy-znak/.env"
 ```
 
-Обязательно заполнить: `DJANGO_SECRET_KEY`, `POSTGRES_PASSWORD`,
-`DATABASE_URL` (с тем же паролем), `FIELD_ENCRYPTION_KEYS`,
-`TG_BOT_TOKEN`, `TG_CHAT_ID`.
+Секреты генерируются одной командой — зависимостей у неё нет,
+работает на голом Python:
+
+```powershell
+python scripts\gen_secrets.py
+```
+
+Вывод скопировать в `.env` на сервере, заменив пустые строки
+`DJANGO_SECRET_KEY`, `FIELD_ENCRYPTION_KEYS`, `POSTGRES_PASSWORD`
+и `DATABASE_URL`.
+
+Отдельно заполнить `TG_BOT_TOKEN` и `TG_CHAT_ID`. Без них сайт поднимется
+и заявки будут сохраняться, но уведомления в Telegram не придут:
+задача пометит отправку неудачной и повторит её, когда токен появится.
+
+`FIELD_ENCRYPTION_KEYS` нельзя терять — без него не прочитать
+зашифрованные даты рождения и документы учеников.
 
 Запуск, сертификат и первичные данные:
 
