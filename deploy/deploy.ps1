@@ -14,7 +14,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Server  = "root@85.198.66.41",
+    [string]$Server  = "tz@85.198.66.41",   # приложение работает не от root
     [string]$Path    = "/srv/tverdyy-znak",
     [string]$Branch  = "",
     [switch]$SkipPush,

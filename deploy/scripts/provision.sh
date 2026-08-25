@@ -37,6 +37,13 @@ chmod 700 "/home/$APP_USER/.ssh"
 chmod 600 "/home/$APP_USER/.ssh/authorized_keys" 2>/dev/null || true
 chown -R "$APP_USER:$APP_USER" "/home/$APP_USER/.ssh"
 
+echo "== Каталог приложения как доверенный для git"
+# Каталог принадлежит $APP_USER, и git из-под root отказывается с ним
+# работать: «detected dubious ownership». Помечаем доверенным для обоих —
+# иначе любая команда, случайно запущенная не тем пользователем, падает.
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+sudo -u "$APP_USER" git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+
 echo "== Файрвол"
 ufw --force default deny incoming
 ufw --force default allow outgoing
@@ -58,8 +65,14 @@ fi
 systemctl reload ssh
 
 echo
-echo "Готово. Дальше:"
-echo "  1. su - $APP_USER && cd $APP_DIR"
+echo "Готово."
+echo
+echo "Дальше подключаемся НЕ от root, а от $APP_USER — тем же ключом:"
+echo "  ssh $APP_USER@<адрес сервера>"
+echo
+echo "Приложение работает от непривилегированного пользователя, и все"
+echo "команды деплоя выполняются от него же:"
+echo "  1. cd $APP_DIR"
 echo "  2. git clone <репозиторий> ."
-echo "  3. cp .env.example .env && chmod 600 .env  # заполнить секреты"
+echo "  3. cp .env.example .env && chmod 600 .env   # заполнить секреты"
 echo "  4. docker compose up -d --build"

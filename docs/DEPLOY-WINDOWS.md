@@ -128,17 +128,27 @@ ssh root@85.198.66.41 "sed -i 's/\r$//' /tmp/provision.sh && bash /tmp/provision
 ```
 
 Скрипт ставит Docker, заводит пользователя `tz`, включает фаервол и
-fail2ban и отключает вход по паролю.
+fail2ban и отключает вход по паролю. Ваш ключ он копирует и пользователю
+`tz` тоже.
+
+**Дальше подключаемся от `tz`, а не от root.** Приложение работает
+от непривилегированного пользователя, ему принадлежит `/srv/tverdyy-znak`,
+и git из-под root на этом каталоге откажется работать
+(«detected dubious ownership»). Проверка:
+
+```powershell
+ssh tz@85.198.66.41 "whoami; docker ps"
+```
 
 ## 7. Первый деплой
 
 ```powershell
 # Код на сервер
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && git clone https://github.com/AntonSergeevich/tverdyy_znak.git . && git checkout claude/tverdyy-znak-django-sdrptm"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && git clone https://github.com/AntonSergeevich/tverdyy_znak.git . && git checkout claude/tverdyy-znak-django-sdrptm"
 
 # Секреты: заполнить .env на сервере
-scp .env.example root@85.198.66.41:/srv/tverdyy-znak/.env
-ssh root@85.198.66.41 "chmod 600 /srv/tverdyy-znak/.env && nano /srv/tverdyy-znak/.env"
+scp .env.example tz@85.198.66.41:/srv/tverdyy-znak/.env
+ssh tz@85.198.66.41 -t "chmod 600 /srv/tverdyy-znak/.env && nano /srv/tverdyy-znak/.env"
 ```
 
 Секреты генерируются одной командой — зависимостей у неё нет,
@@ -163,22 +173,22 @@ python scripts\gen_secrets.py
 
 ```powershell
 # 1. Поднять базу, Redis и приложение
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose up -d --build db redis web worker beat"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose up -d --build db redis web worker beat"
 
 # 2. Выпустить сертификат и поднять nginx.
 #    Первый выпуск идёт в режиме standalone: webroot требует работающего
 #    nginx, а nginx не стартует без сертификата.
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && bash deploy/scripts/issue-cert.sh"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && bash deploy/scripts/issue-cert.sh"
 
 # 3. Справочники, реквизиты и карточки педагогов
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py bootstrap_organization --domain tverdyy-znak.ru"
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py setup_client_data"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py bootstrap_organization --domain tverdyy-znak.ru"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py setup_client_data"
 
 # 4. Учётная запись владельца
-ssh root@85.198.66.41 -t "cd /srv/tverdyy-znak && docker compose exec web python manage.py createsuperuser"
+ssh tz@85.198.66.41 -t "cd /srv/tverdyy-znak && docker compose exec web python manage.py createsuperuser"
 
 # 5. Финальная проверка
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py check --deploy"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py check --deploy"
 ```
 
 `check --deploy` должен пройти без предупреждений. Если ругается —
@@ -188,7 +198,7 @@ ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python
 (`assets/teachers/` коммитится), останется собрать из них WebP:
 
 ```powershell
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python scripts/prepare_teacher_photos.py && docker compose exec -T web python manage.py setup_client_data"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python scripts/prepare_teacher_photos.py && docker compose exec -T web python manage.py setup_client_data"
 ```
 
 ## 8. Обычный деплой
@@ -215,15 +225,15 @@ ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python
 ## 9. Что смотреть, когда что-то не так
 
 ```powershell
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose ps"
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose logs --tail=100 web"
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose logs --tail=50 worker"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose ps"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose logs --tail=100 web"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose logs --tail=50 worker"
 
 # Django-консоль на сервере
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec web python manage.py shell"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec web python manage.py shell"
 
 # Ручной бэкап
-ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec backup sh /scripts/backup.sh"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec backup sh /scripts/backup.sh"
 ```
 
 Восстановление из бэкапа и проверка миграций на копии боевой базы —
