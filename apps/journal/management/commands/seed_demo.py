@@ -66,7 +66,7 @@ class Command(BaseCommand):
                 defaults={"hourly_rate": Decimal("1200.00")},
             )
 
-            subject = Subject.objects.filter(academic_year=year, name="Математика").first()
+            subject = Subject.objects.filter(academic_year=year, name="Алгебра").first()
             teacher.subjects.add(subject)
 
             group, _ = Group.objects.get_or_create(

@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
+from apps.journal.models import Subject
 from apps.site_public.forms import LeadForm
 from apps.site_public.models import FaqItem, LegalDocument, TeacherCard
 from apps.site_public.services.leads import check_rate_limit, create_lead
@@ -37,6 +38,54 @@ SCALE_LEVELS = [
 ]
 INITIAL_SCORE = 64
 
+# Особенности обучения — четыре опоры формата.
+FEATURES = [
+    {
+        "title": "Предметные погружения",
+        "text": "Предмет изучается блоком, а не по 40 минут в разные дни: "
+                "тема успевает сложиться в целое.",
+    },
+    {
+        "title": "100-балльная система",
+        "text": "За модуль по каждому предмету — до 100 баллов за конкретную работу. "
+                "Видно, где подросток сейчас.",
+    },
+    {
+        "title": "Индивидуальная дорожная карта",
+        "text": "Цели по предметам разложены по модулям. Подросток видит маршрут "
+                "и своё место на нём.",
+    },
+    {
+        "title": "Гибридный формат",
+        "text": "Часть программы осваивается в классе, часть — самостоятельно "
+                "с поддержкой наставника.",
+    },
+]
+
+# Как проходит поступление — четыре шага.
+ADMISSION_STEPS = [
+    {
+        "title": "Знакомство",
+        "text": "Вы оставляете заявку на сайте или связываетесь с нами удобным способом. "
+                "Мы знакомимся с вашей семьёй и отвечаем на все вопросы.",
+    },
+    {
+        "title": "Условия поступления",
+        "text": "Мы рассказываем об условиях поступления, программе и формате обучения. "
+                "Вы получаете всю необходимую информацию.",
+    },
+    {
+        "title": "Тестирование и собеседование",
+        "text": "Ребёнок проходит тестирование по основным предметам и собеседование "
+                "с наставником. Мы оцениваем потенциал и мотивацию.",
+    },
+    {
+        "title": "Зачисление в семейный класс",
+        "text": "Мы принимаем решение и сообщаем результаты. "
+                "Добро пожаловать в семейный класс!",
+    },
+]
+
 SEGMENTS = [
     {
         "value": "self_study",
@@ -61,7 +110,16 @@ SEGMENTS = [
 
 def _landing_context(request, form=None) -> dict:
     organization = request.organization
+    # Программа берётся из справочника, а не дублируется в шаблоне:
+    # поменяли нагрузку в админке — таблица на сайте изменилась.
+    subjects = list(
+        Subject.objects.filter(academic_year__is_current=True).order_by("position", "name")
+    )
     return {
+        "subjects": subjects,
+        "subjects_total_hours": sum(subject.weekly_hours for subject in subjects),
+        "features": FEATURES,
+        "admission_steps": ADMISSION_STEPS,
         "form": form or LeadForm(),
         "scale_levels": SCALE_LEVELS,
         "initial_score": INITIAL_SCORE,

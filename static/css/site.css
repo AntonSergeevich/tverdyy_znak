@@ -270,6 +270,26 @@ input[type=range]::-moz-range-thumb {
 
 /* Сетка карточек: grid, а не flex. На flex последняя карточка в неполном
    ряду растягивалась во всю ширину и уносила с собой пропорции фото. */
+/* Программа ФГОС */
+table.programme td:last-child, table.programme th:last-child { text-align: center; }
+table.programme tfoot th { border-top: 2px solid var(--line); font-size: 15px; color: var(--ink); }
+
+/* Шаги поступления */
+.steps {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: clamp(16px, 2vw, 24px);
+}
+.steps__item {
+  background: var(--surface); border: 1px solid var(--line);
+  padding: clamp(16px, 2vw, 24px); display: flex; flex-direction: column; gap: 6px;
+}
+.steps__number {
+  font-size: 40px; color: var(--accent); line-height: 1;
+  border-bottom: 2px solid var(--accent); align-self: flex-start;
+  padding-bottom: 4px; margin-bottom: 6px;
+}
+
 .teachers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

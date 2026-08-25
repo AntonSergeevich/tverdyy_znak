@@ -27,6 +27,16 @@ FACE_BIAS = 0.38                   # доля отступа сверху при
 WEBP_QUALITY = 86
 SUPPORTED = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic"}
 
+# Имя файла = слаг педагога. Скрипт обрабатывает и «чужие» имена, но
+# на сайт попадут только эти: setup_client_data ищет media/teachers/<слаг>.webp.
+KNOWN_SLUGS = {
+    "babadzhanova": "Бабаджанова Алина Алимовна — основатель центра",
+    "manasyan": "Манасян Сергей Керопович — математика, физика, информатика",
+    "polskaya": "Польская Юлия Евгеньевна — химия и биология",
+    "margarita": "Маргарита Андреевна — английский язык",
+    "anna": "Анна Константиновна — профориентолог",
+}
+
 
 def crop_portrait(image: Image.Image) -> Image.Image:
     """
@@ -99,13 +109,43 @@ def main(argv: list[str]) -> int:
         print(f"В {SRC_DIR} нет подходящих файлов. Ожидаются: {', '.join(sorted(SUPPORTED))}")
         return 1
 
+    done: list[str] = []
     for source in sources:
         try:
             process(source)
+            done.append(source.stem.lower())
         except Exception as error:  # noqa: BLE001 — одна битая картинка не должна ронять пакет
             print(f"{source.name}: не удалось обработать — {error}")
 
-    print(f"\nГотово. Дальше: python manage.py setup_client_data")
+    return _report(done)
+
+
+def _report(done: list[str]) -> int:
+    """Понятный итог: что встанет на сайт, что нет и что делать дальше."""
+    ready = [slug for slug in KNOWN_SLUGS if slug in done]
+    unknown = [slug for slug in done if slug not in KNOWN_SLUGS]
+    missing = [slug for slug in KNOWN_SLUGS if slug not in done]
+
+    print()
+    if ready:
+        print(f"На сайт встанут ({len(ready)} из {len(KNOWN_SLUGS)}):")
+        for slug in ready:
+            print(f"  {slug}.webp — {KNOWN_SLUGS[slug]}")
+
+    if unknown:
+        print("\nЭти файлы обработаны, но на сайт НЕ попадут — имя не совпадает")
+        print("ни с одним педагогом:")
+        for slug in unknown:
+            print(f"  {slug}.webp")
+        print("\nПереименуйте ОРИГИНАЛЫ в assets/teachers/ и запустите скрипт заново.")
+
+    if missing:
+        print("\nНе хватает фотографий:")
+        for slug in missing:
+            print(f"  {slug} — {KNOWN_SLUGS[slug]}")
+
+    if ready:
+        print("\nДальше: python manage.py setup_client_data")
     return 0
 
 

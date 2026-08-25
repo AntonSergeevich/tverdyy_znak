@@ -101,6 +101,16 @@
       <span class="kicker">Как устроено</span>
       <h2 class="h-display">Модуль, баллы, карта, наставник</h2>
     </div>
+
+    <div class="grid grid--tight" style="margin-bottom:clamp(24px,3vw,40px)">
+      {% for feature in features %}
+        <div class="card">
+          <p class="card__title">{{ feature.title }}</p>
+          <p class="small" style="color:var(--ink-2)">{{ feature.text }}</p>
+        </div>
+      {% endfor %}
+    </div>
+
     <div class="grid">
       <div class="stack stack--lg" style="flex:1 1 420px">
         <div class="card">
@@ -127,6 +137,43 @@
       <div style="flex:1 1 320px;max-width:520px">
         {% include "public/partials/scale_panel.html" with scale_id="scale-how" %}
       </div>
+    </div>
+  </div>
+</section>
+
+{# ── Программа ФГОС ──────────────────────────────────────────────────────── #}
+<section class="section" id="programma">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Программа</span>
+      <h2 class="h-display">Программа ФГОС</h2>
+      <p class="lead">
+        Основные дисциплины и недельная нагрузка. Подготовка к ОГЭ и ЕГЭ
+        встроена в предметы, а не вынесена в отдельные платные курсы.
+      </p>
+    </div>
+    <div class="table-wrap" style="max-width:760px">
+      <table class="data programme">
+        <thead>
+          <tr><th style="width:56px">№</th><th>Основные дисциплины</th><th style="width:140px">Уроков в неделю</th></tr>
+        </thead>
+        <tbody>
+          {% for subject in subjects %}
+            <tr>
+              <td class="muted">{{ forloop.counter }}</td>
+              <td>{{ subject.name }}</td>
+              <td><strong>{{ subject.weekly_hours }}</strong></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="muted">Программа на учебный год заполняется.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if subjects %}
+          <tfoot>
+            <tr><th></th><th>Всего</th><th>{{ subjects_total_hours }}</th></tr>
+          </tfoot>
+        {% endif %}
+      </table>
     </div>
   </div>
 </section>
@@ -337,6 +384,26 @@
         </details>
       {% endfor %}
     </div>
+  </div>
+</section>
+
+{# ── Поступление ─────────────────────────────────────────────────────────── #}
+<section class="section" id="postuplenie">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Поступление</span>
+      <h2 class="h-display">Как попасть в семейный класс</h2>
+      <p class="lead">Четыре шага. Решение принимается после встречи, а не по анкете.</p>
+    </div>
+    <ol class="steps">
+      {% for step in admission_steps %}
+        <li class="steps__item">
+          <span class="steps__number numeral">{{ forloop.counter }}</span>
+          <p class="card__title">{{ step.title }}</p>
+          <p class="small" style="color:var(--ink-2)">{{ step.text }}</p>
+        </li>
+      {% endfor %}
+    </ol>
   </div>
 </section>
 
