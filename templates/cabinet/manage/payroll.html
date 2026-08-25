@@ -1,0 +1,38 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}ФОТ{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:payroll' %}" aria-current="page">ФОТ</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Расчёт ФОТ</h1>
+  <form class="btn-row" method="get">
+    <input class="input" type="date" name="from" value="{{ start|date:'Y-m-d' }}" aria-label="Период с" style="width:auto">
+    <input class="input" type="date" name="to" value="{{ end|date:'Y-m-d' }}" aria-label="Период по" style="width:auto">
+    <button class="btn btn--quiet" type="submit">Пересчитать</button>
+    <a class="btn btn--quiet" href="{% url 'cabinet:export_payroll' %}?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}">Выгрузить xlsx</a>
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Педагог</th><th>Часы</th><th>Ставка</th><th>К выплате</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>{{ row.teacher.user.full_name }}</td>
+        <td>{{ row.hours }}</td>
+        <td>{{ row.rate|money }} ₽</td>
+        <td><strong>{{ row.amount|money }} ₽</strong></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="muted">Педагогов пока нет.</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><th>Итого</th><th></th><th></th><th>{{ total|money }} ₽</th></tr></tfoot>
+  </table>
+</div>
+{% endblock %}

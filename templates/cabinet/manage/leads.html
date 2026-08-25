@@ -1,0 +1,39 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Заявки{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:leads' %}" aria-current="page">Заявки</a>
+  <a href="{% url 'cabinet:students' %}">Ученики</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Заявки</h1>
+</div>
+
+<div class="chips" style="margin-bottom:16px">
+  <a class="chip" href="?" {% if not active_status %}aria-current="true"{% endif %}>Все</a>
+  {% for value, label in statuses %}
+    <a class="chip" href="?status={{ value }}" {% if active_status == value %}aria-current="true"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</div>
+
+{% if leads %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Когда</th><th>Кто</th><th>Класс</th><th>Звонить</th><th>Источник</th><th>Статус</th></tr></thead>
+      <tbody>
+      {% for lead in leads %}
+        {% include "cabinet/manage/partials/lead_row.html" %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <p class="empty-state__title">Заявок с таким фильтром нет</p>
+    <p>Как только с сайта придёт новая заявка, она появится здесь и в Telegram.</p>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}Планирование модуля{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:teacher_today' %}">Сегодня</a>
+  <a href="#" aria-current="page">План модуля</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ subject.name }}</h1>
+    <p class="muted">{{ group.name }} · {{ module }} · {{ module.starts_on|date:"d.m" }}—{{ module.ends_on|date:"d.m.Y" }}</p>
+  </div>
+  <a class="btn btn--quiet" href="{% url 'cabinet:export_module' module.pk %}">Выгрузить успеваемость</a>
+</div>
+
+<div id="plan-items">
+  {% include "cabinet/teacher/partials/plan_items.html" %}
+</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 12px">Тематическое планирование</h2>
+<p class="small muted" style="margin-bottom:12px">Темы занятий на модуль вперёд — их видит родитель в кабинете.</p>
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Дата</th><th>Тема</th><th>Оценивание</th></tr></thead>
+    <tbody>
+    {% for lesson in lessons %}
+      <tr id="topic-{{ lesson.pk }}">
+        <td>{{ lesson.starts_at|date:"d.m H:i" }}</td>
+        <td>
+          <input class="input" type="text" name="topic" value="{{ lesson.topic }}"
+                 aria-label="Тема занятия {{ lesson.starts_at|date:'d.m' }}"
+                 hx-post="{% url 'cabinet:lesson_topic_save' lesson.pk %}"
+                 hx-trigger="change"
+                 hx-target="#topic-{{ lesson.pk }} td:last-child"
+                 hx-swap="innerHTML"
+                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        </td>
+        <td>
+          {% if lesson.is_graded %}<span class="level level--elevated">с баллами</span>
+          {% else %}<span class="level level--base">без баллов</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="muted">Занятий по этому предмету в модуле пока нет.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

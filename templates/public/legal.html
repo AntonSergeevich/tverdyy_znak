@@ -1,0 +1,29 @@
+{% extends "public/base_public.html" %}
+
+{% block title %}{{ document.title|default:kind_label }} — Твёрдый знак{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width:760px">
+    <span class="kicker">Правовые документы</span>
+    <h1 class="h-display" style="font-size:clamp(28px,4vw,48px);margin:12px 0 8px">
+      {{ document.title|default:kind_label|capfirst }}
+    </h1>
+    <p class="small muted">
+      {% if document %}Редакция от {{ document.edited_on|date:"d.m.Y" }} · версия {{ document.version }}
+      {% else %}Версия {{ policy_version }}{% endif %}
+    </p>
+
+    {% if document %}
+      <div style="margin-top:24px;font-size:16px;line-height:1.7">{{ document.body|linebreaks }}</div>
+    {% else %}
+      <div class="empty-state" style="margin-top:24px">
+        <p class="empty-state__title">Текст документа ещё не опубликован</p>
+        <p>Документ готовится и должен пройти вычитку юристом. Пока его нет,
+           заявки принимаются с отдельным согласием на обработку персональных данных,
+           а сам факт согласия фиксируется с датой и версией текста.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

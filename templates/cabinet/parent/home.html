@@ -1,0 +1,177 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}Кабинет родителя{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:parent_home' %}" aria-current="page">Мой ребёнок</a>
+{% endblock %}
+
+{% block content %}
+{% if children|length > 1 %}
+  <div class="chips" style="margin-bottom:16px">
+    {% for child in children %}
+      <a class="chip" href="?child={{ child.pk }}" {% if child.pk == student.pk %}aria-current="true"{% endif %}>{{ child.short_name }}</a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{# Главный экран отвечает на три вопроса сразу: как учится, что на неделе, что с оплатой. #}
+<div class="stat-row">
+  <div class="stat">
+    <div class="stat__label">Ребёнок</div>
+    <div class="stat__value" style="font-size:24px">{{ student.short_name }}</div>
+    <div class="small muted">{{ student.grade_level }} класс</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Текущий модуль</div>
+    <div class="stat__value">{% if module %}№{{ module.number }}{% else %}—{% endif %}</div>
+    <div class="small muted">
+      {% if module %}{{ module.starts_on|date:"d.m" }}—{{ module.ends_on|date:"d.m.Y" }}{% else %}модуль не начат{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">До конца модуля</div>
+    <div class="stat__value">{% if days_left is not None %}{{ days_left }}{% else %}—{% endif %}</div>
+    <div class="small muted">дней</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Оплата</div>
+    {% with next_payment=payments|first %}
+      <div class="stat__value" style="font-size:24px">
+        {% if next_payment %}{{ next_payment.amount|money }} ₽{% else %}—{% endif %}
+      </div>
+      <div class="small muted">
+        {% if next_payment %}{{ next_payment.get_status_display }}{% else %}начислений нет{% endif %}
+      </div>
+    {% endwith %}
+  </div>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Баллы по предметам</h2>
+{% if results %}
+  {% for result in results %}
+    <div class="subject-row">
+      <div class="subject-row__head">
+        <span style="font-weight:600">{{ result.subject.name }}</span>
+        <span>
+          <span class="subject-row__points">{{ result.total_points|points }}</span>
+          <span class="muted">/ 100</span>
+          {# Уровень передаётся цветом И текстом — цвет не единственный носитель смысла. #}
+          <span class="level {{ result.level|level_class }}" style="margin-left:10px">{{ result.get_level_display }}</span>
+        </span>
+      </div>
+      <div class="progress">
+        <div class="progress__fill {% if result.level == 'failed' %}progress__fill--failed{% elif result.level == 'advanced' %}progress__fill--advanced{% endif %}"
+             style="width:{{ result.total_points|percent_of:100 }}%"></div>
+      </div>
+      {% if result.gap_to_next_level %}
+        <span class="small muted">до следующего уровня не хватает {{ result.gap_to_next_level|points }} баллов</span>
+      {% endif %}
+      {% if not result.is_passed %}
+        <span class="small" style="color:var(--warn)">
+          Незачёт: на каникулярной неделе нужны консультации, чтобы добрать баллы.
+        </span>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <p class="empty-state__title">В этом модуле баллов пока нет</p>
+    <p>Они появятся, как только педагоги проведут первые оцениваемые занятия.</p>
+  </div>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Динамика по модулям</h2>
+{% if history %}
+  {# Простой график без библиотек: столбцы — средний балл за модуль. #}
+  <div class="bars" role="img" aria-label="Средний балл по модулям">
+    {% for point in dynamics %}
+      <div class="bars__item">
+        <span class="small muted">{{ point.average|points }}</span>
+        <div class="bars__bar" style="height:{{ point.average|percent_of:100 }}%"></div>
+        <span class="bars__caption">{{ point.label }}</span>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="table-wrap" style="margin-top:16px">
+    <table class="data">
+      <thead><tr><th>Модуль</th><th>Предмет</th><th>Баллы</th><th>Уровень</th></tr></thead>
+      <tbody>
+      {% for result in history %}
+        <tr>
+          <td>{{ result.module }}</td>
+          <td>{{ result.subject.name }}</td>
+          <td>{{ result.total_points|points }}</td>
+          <td><span class="level {{ result.level|level_class }}">{{ result.get_level_display }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">Первый модуль ещё не закрыт — сравнивать пока не с чем.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Расписание на неделю</h2>
+{% if week %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Когда</th><th>Предмет</th><th>Тема</th><th>Педагог</th></tr></thead>
+      <tbody>
+      {% for lesson in week %}
+        <tr>
+          <td>{{ lesson.starts_at|date:"d.m, H:i" }}</td>
+          <td>{{ lesson.subject.name }}</td>
+          <td class="muted">{{ lesson.topic|default:"—" }}</td>
+          <td class="muted">{{ lesson.teacher.short_name|default:"—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">На этой неделе занятий нет.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Комментарии педагогов</h2>
+{% if comments %}
+  <div class="stack">
+    {% for grade in comments %}
+      <div class="card">
+        <p class="small muted">{{ grade.grade_item.subject.name }} · {{ grade.graded_at|date:"d.m.Y" }}</p>
+        <p>{{ grade.comment }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">Комментариев пока нет.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Оплаты</h2>
+{% if payments %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Назначение</th><th>Период</th><th>Сумма</th><th>Статус</th></tr></thead>
+      <tbody>
+      {% for payment in payments %}
+        <tr>
+          <td>{{ payment.title }}</td>
+          <td class="muted">{{ payment.period_start|date:"d.m" }}—{{ payment.period_end|date:"d.m.Y" }}</td>
+          <td>{{ payment.amount|money }} ₽</td>
+          <td>{{ payment.get_status_display }}{% if payment.paid_on %} · {{ payment.paid_on|date:"d.m.Y" }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <p class="card__title">Реквизиты для оплаты</p>
+    <p class="requisites">
+      {{ organization.legal_name|default:organization.name }} · ИНН {{ organization.inn|default:"—" }} ·
+      ОГРНИП {{ organization.ogrnip|default:"—" }}<br>
+      В назначении платежа укажите фамилию ребёнка и месяц.
+    </p>
+  </div>
+{% else %}
+  <p class="muted">Начислений пока нет.</p>
+{% endif %}
+{% endblock %}

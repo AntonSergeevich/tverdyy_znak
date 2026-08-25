@@ -1,0 +1,41 @@
+{% extends "public/base_public.html" %}
+
+{% block title %}Заявка принята — Твёрдый знак{% endblock %}
+{% block head_extra %}{{ block.super }}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width:760px">
+    <span class="kicker">Заявка принята</span>
+    <h1 class="h-display" style="font-size:clamp(32px,4.5vw,64px);margin:12px 0 20px">Спасибо, мы получили заявку</h1>
+    <p class="lead">Позвоним в выбранное вами окно. Разговор занимает около 60 минут.</p>
+
+    <div class="stack stack--lg" style="margin-top:28px">
+      <div class="card">
+        <p class="card__title">Что подготовить к разговору</p>
+        <ul style="margin:0;padding-left:18px;line-height:1.8">
+          <li>какой класс и что сейчас с формой обучения;</li>
+          <li>какие предметы даются легко, а какие тянут;</li>
+          <li>сдавал ли ребёнок аттестацию и где;</li>
+          <li>что для вас важнее всего в ближайший год.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="card__title">Если нужно раньше</p>
+        <p>Позвоните нам: {{ organization.contact_phone|default:"телефон уточняется" }}.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:28px"><a class="btn btn--ghost btn--lg" href="{% url 'public:landing' %}">Вернуться на главную</a></p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Цель Метрики срабатывает только если пользователь согласился на аналитику.
+  window.addEventListener('load', function () {
+    if (window.ym && '{{ YANDEX_METRIKA_ID }}') { window.ym('{{ YANDEX_METRIKA_ID }}', 'reachGoal', 'lead'); }
+  });
+</script>
+{% endblock %}

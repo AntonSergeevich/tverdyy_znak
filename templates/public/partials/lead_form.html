@@ -1,0 +1,57 @@
+{% load static %}
+<form class="form" id="lead-form" data-lead-form
+      method="post" action="{% url 'public:lead_create' %}"
+      hx-post="{% url 'public:lead_create' %}" hx-target="#lead-form" hx-swap="outerHTML">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-error" role="alert">{{ form.non_field_errors.0 }}</div>
+  {% endif %}
+
+  <div class="field {% if form.name.errors %}field--invalid{% endif %}">
+    <label for="{{ form.name.id_for_label }}">Как вас зовут</label>
+    {{ form.name }}
+    {% if form.name.errors %}<p class="field-error" id="err-name">{{ form.name.errors.0 }}</p>{% endif %}
+  </div>
+
+  <div class="field {% if form.phone.errors %}field--invalid{% endif %}">
+    <label for="{{ form.phone.id_for_label }}">Телефон</label>
+    {{ form.phone }}
+    {% if form.phone.errors %}<p class="field-error">{{ form.phone.errors.0 }}</p>{% endif %}
+  </div>
+
+  <div class="grid grid--tight">
+    <div class="field {% if form.grade.errors %}field--invalid{% endif %}">
+      <label for="{{ form.grade.id_for_label }}">Класс ребёнка</label>
+      {{ form.grade }}
+      {% if form.grade.errors %}<p class="field-error">{{ form.grade.errors.0 }}</p>{% endif %}
+    </div>
+    <div class="field {% if form.call_window.errors %}field--invalid{% endif %}">
+      <label for="{{ form.call_window.id_for_label }}">Когда удобно позвонить</label>
+      {{ form.call_window }}
+      {% if form.call_window.errors %}<p class="field-error">{{ form.call_window.errors.0 }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="{{ form.comment.id_for_label }}">Что важно рассказать заранее</label>
+    {{ form.comment }}
+  </div>
+
+  <input type="hidden" name="segment" value="{{ form.segment.value|default:'' }}">
+  <span class="hp-field" aria-hidden="true">{{ form.company_site }}</span>
+  {{ form.form_rendered_at }}
+
+  <div class="field {% if form.consent.errors %}field--invalid{% endif %}">
+    <label class="checkbox">
+      {{ form.consent }}
+      <span>
+        Я даю согласие на обработку персональных данных — своих и своего ребёнка —
+        на условиях <a href="{% url 'public:legal_privacy' %}" target="_blank" rel="noopener">политики обработки</a>.
+      </span>
+    </label>
+    {% if form.consent.errors %}<p class="field-error">{{ form.consent.errors.0 }}</p>{% endif %}
+  </div>
+
+  <button class="btn btn--lg" type="submit" data-segment-cta>Записаться на бесплатную диагностику</button>
+  <span class="small muted">60 минут, без обязательств — решение принимаете вы.</span>
+</form>

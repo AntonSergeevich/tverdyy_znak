@@ -1,0 +1,7 @@
+{% load journal_extras %}
+<tr id="payment-{{ payment.pk }}">
+  <td>{{ payment.student.short_name }}</td>
+  <td>{{ payment.title }}</td>
+  <td>{{ payment.amount|money }} ₽</td>
+  <td>{{ payment.get_status_display }}{% if payment.paid_on %} · {{ payment.paid_on|date:"d.m.Y" }}{% endif %}</td>
+</tr>

@@ -1,0 +1,101 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}Мой кабинет{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:student_home' %}" aria-current="page">Мой кабинет</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Привет, {{ student.first_name }}</h1>
+  <span class="muted">{% if module %}{{ module }} · до конца {{ module.days_left }} дн.{% endif %}</span>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:24px 0 8px">Мои баллы</h2>
+{% if results %}
+  {% for result in results %}
+    <div class="subject-row">
+      <div class="subject-row__head">
+        <span style="font-weight:600">{{ result.subject.name }}</span>
+        <span>
+          <span class="subject-row__points">{{ result.total_points|points }}</span><span class="muted">/ 100</span>
+          <span class="level {{ result.level|level_class }}" style="margin-left:10px">{{ result.get_level_display }}</span>
+        </span>
+      </div>
+      <div class="progress">
+        <div class="progress__fill {% if result.level == 'failed' %}progress__fill--failed{% elif result.level == 'advanced' %}progress__fill--advanced{% endif %}"
+             style="width:{{ result.total_points|percent_of:100 }}%"></div>
+      </div>
+      {% if result.gap_to_next_level %}
+        <span class="small muted">до следующего уровня — {{ result.gap_to_next_level|points }} баллов</span>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state"><p class="empty-state__title">Баллов в этом модуле пока нет</p>
+    <p>Они появятся после первых оцениваемых занятий.</p></div>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Как день</h2>
+<div id="mood-block">{% include "cabinet/student/partials/mood.html" %}</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Мои цели</h2>
+<p class="small muted" style="margin-bottom:12px">
+  Открытые цели видят наставник и родитель. Скрытые — только вы: они не попадают ни в отчёты, ни в выгрузки.
+</p>
+<div id="goals-block">{% include "cabinet/student/partials/goals.html" %}</div>
+
+<form class="grid grid--tight" style="margin-top:16px;align-items:flex-end"
+      hx-post="{% url 'cabinet:goal_create' %}" hx-target="#goals-block" hx-swap="innerHTML">
+  {% csrf_token %}
+  <div class="field">
+    <label for="goal-title">Новая цель</label>
+    <input class="input" type="text" id="goal-title" name="title" placeholder="Например: разобраться с тригонометрией">
+  </div>
+  <div class="field">
+    <label for="goal-visibility">Кто видит</label>
+    <select class="input" id="goal-visibility" name="visibility">
+      <option value="open">открытая — видят наставник и родитель</option>
+      <option value="hidden">скрытая — вижу только я</option>
+    </select>
+  </div>
+  <button class="btn" type="submit" style="flex:0 0 auto">Добавить</button>
+</form>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Домашние задания</h2>
+{% if homework %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Предмет</th><th>Задание</th><th>Срок</th><th>Максимум</th></tr></thead>
+      <tbody>
+      {% for item in homework %}
+        <tr>
+          <td>{{ item.subject.name }}</td>
+          <td>{{ item.title|default:"Домашняя работа" }}</td>
+          <td class="muted">{{ item.due_date|date:"d.m.Y"|default:"—" }}</td>
+          <td>{{ item.max_points|points }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">Заданий с оцениванием сейчас нет.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Расписание на неделю</h2>
+{% if week %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Когда</th><th>Предмет</th><th>Тема</th></tr></thead>
+      <tbody>
+      {% for lesson in week %}
+        <tr><td>{{ lesson.starts_at|date:"d.m, H:i" }}</td><td>{{ lesson.subject.name }}</td><td class="muted">{{ lesson.topic|default:"—" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">На этой неделе занятий нет.</p>
+{% endif %}
+{% endblock %}

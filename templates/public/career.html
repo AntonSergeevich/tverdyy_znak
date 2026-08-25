@@ -1,0 +1,48 @@
+{% extends "public/base_public.html" %}{% load journal_extras %}
+
+{% block title %}Профориентация — Твёрдый знак{% endblock %}
+{% block canonical %}<link rel="canonical" href="https://{{ request.get_host }}{{ canonical_path }}">{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Отдельный продукт · 8–11 класс</span>
+      <h1 class="h-display" style="font-size:clamp(34px,5vw,72px)">Профориентация</h1>
+      <p class="lead">Работа на несколько месяцев, а не тест на двадцать вопросов.
+         Разбираем интересы, пробуем в деле и собираем план на 10–11 класс.</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <p class="card__title">1. Разговор</p>
+        <p>Что нравится, что получается, чего избегает. Наставник собирает картину без готовых ответов.</p>
+      </div>
+      <div class="card">
+        <p class="card__title">2. Проба</p>
+        <p>Несколько направлений в деле: задача, срок, результат, который можно показать.</p>
+      </div>
+      <div class="card">
+        <p class="card__title">3. План</p>
+        <p>Какие предметы нужны, что сдавать, что подтянуть и в каком порядке. План попадает в дорожную карту.</p>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:32px">
+      <div class="card" style="flex:1 1 320px">
+        <p class="card__title">Стоимость</p>
+        <p class="numeral" style="font-size:44px">
+          {% if organization.price_career %}{{ organization.price_career|money }} ₽{% else %}уточняется{% endif %}
+        </p>
+        <p class="small muted">Оплачивается отдельно от полного формата.</p>
+      </div>
+      <div class="card" style="flex:1 1 320px">
+        <p class="card__title">Что мы не обещаем</p>
+        <p>Мы не обещаем поступление и не выбираем профессию за подростка.
+           Наша работа — чтобы выбор был осознанным и подкреплённым планом.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:28px"><a class="btn btn--lg" href="{% url 'public:landing' %}#zayavka">Записаться на бесплатную диагностику</a></p>
+  </div>
+</section>
+{% endblock %}

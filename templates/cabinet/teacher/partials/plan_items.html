@@ -1,0 +1,72 @@
+{% load journal_extras %}
+<div class="budget {% if budget.remaining < 0 %}budget--over{% endif %}">
+  <span>Распределено <strong>{{ budget.distributed|points }}</strong> из {{ budget.limit|points }} баллов</span>
+  <span class="label">осталось {{ budget.remaining|points }}</span>
+</div>
+
+{% if error %}<div class="form-error" role="alert" style="margin-top:12px">{{ error }}</div>{% endif %}
+
+{% if items %}
+  <div class="table-wrap" style="margin-top:16px">
+    <table class="data">
+      <thead><tr><th>Работа</th><th>Тип</th><th>Дата</th><th>Максимум</th><th></th></tr></thead>
+      <tbody>
+      {% for item in items %}
+        <tr>
+          <td>{{ item.title|default:item.get_kind_display }}</td>
+          <td class="muted">{{ item.get_kind_display }}</td>
+          <td class="muted">{{ item.due_date|date:"d.m.Y"|default:"—" }}</td>
+          <td><strong>{{ item.max_points|points }}</strong></td>
+          <td>
+            <form hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+                  hx-target="#plan-items" hx-swap="innerHTML">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete_item">
+              <input type="hidden" name="item" value="{{ item.pk }}">
+              <button class="btn btn--quiet" type="submit">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state" style="margin-top:16px">
+    <p class="empty-state__title">Структура модуля ещё не задана</p>
+    <p>Можно разложить 100 баллов по умолчанию: зачёт 25, две проверочные по 10,
+       контрольная 15 и 40 баллов по занятиям с оцениванием.</p>
+    <form hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+          hx-target="#plan-items" hx-swap="innerHTML" style="margin-top:16px">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="default_structure">
+      <button class="btn" type="submit">Создать структуру по умолчанию</button>
+    </form>
+  </div>
+{% endif %}
+
+<form class="grid grid--tight" style="margin-top:20px;align-items:flex-end"
+      hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+      hx-target="#plan-items" hx-swap="innerHTML">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="add_item">
+  <div class="field">
+    <label for="new-title">Название работы</label>
+    <input class="input" type="text" id="new-title" name="title" placeholder="Проверочная по теме">
+  </div>
+  <div class="field">
+    <label for="new-kind">Тип</label>
+    <select class="input" id="new-kind" name="kind">
+      {% for value, label in kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="new-points">Баллы</label>
+    <input class="input" type="text" inputmode="decimal" id="new-points" name="max_points" value="10">
+  </div>
+  <div class="field">
+    <label for="new-date">Дата</label>
+    <input class="input" type="date" id="new-date" name="due_date">
+  </div>
+  <button class="btn" type="submit" style="flex:0 0 auto">Добавить</button>
+</form>

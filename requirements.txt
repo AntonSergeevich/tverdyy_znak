@@ -1,0 +1,16 @@
+# Версии зафиксированы по проверенному набору: именно на нём проходят тесты.
+Django==5.2.17
+psycopg[binary]==3.3.4
+redis==8.1.0
+celery==5.6.3
+django-htmx==1.29.0
+django-axes==8.3.1
+argon2-cffi==25.1.0
+cryptography==50.0.0
+openpyxl==3.1.5
+requests==2.34.2
+Pillow==12.3.0
+gunicorn==26.2.0
+whitenoise==6.12.0
+sentry-sdk==2.68.1
+python-decouple==3.8

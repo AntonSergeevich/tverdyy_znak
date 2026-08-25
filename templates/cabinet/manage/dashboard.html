@@ -1,0 +1,68 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}Панель{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}" aria-current="page">Панель</a>
+  <a href="{% url 'cabinet:leads' %}">Заявки</a>
+  <a href="{% url 'cabinet:students' %}">Ученики</a>
+  <a href="{% url 'cabinet:payroll' %}">ФОТ</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Панель</h1>
+  <form class="btn-row" method="get">
+    <input class="input" type="date" name="from" value="{{ start|date:'Y-m-d' }}" aria-label="Период с" style="width:auto">
+    <input class="input" type="date" name="to" value="{{ end|date:'Y-m-d' }}" aria-label="Период по" style="width:auto">
+    <button class="btn btn--quiet" type="submit">Показать</button>
+  </form>
+</div>
+
+<div class="stat-row">
+  <div class="stat"><div class="stat__label">Учеников сейчас</div><div class="stat__value">{{ students_now }}</div></div>
+  <div class="stat"><div class="stat__label">Выручка за период</div><div class="stat__value">{{ revenue|money }} ₽</div></div>
+  <div class="stat"><div class="stat__label">ФОТ за период</div><div class="stat__value">{{ payroll_total|money }} ₽</div></div>
+  <div class="stat"><div class="stat__label">Результат</div><div class="stat__value">{{ result|money }} ₽</div></div>
+  <div class="stat"><div class="stat__label">Заявок за период</div><div class="stat__value">{{ total_leads }}</div></div>
+  <div class="stat"><div class="stat__label">Конверсия в «учится»</div><div class="stat__value">{{ conversion }}%</div></div>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 12px">Воронка заявок</h2>
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Этап</th><th>Заявок</th><th>Доля</th></tr></thead>
+    <tbody>
+    {% for step in funnel %}
+      <tr>
+        <td>{{ step.label }}</td>
+        <td>{{ step.count }}</td>
+        <td>
+          <div class="progress" style="max-width:280px"><div class="progress__fill" style="width:{{ step.share }}%"></div></div>
+          <span class="small muted">{{ step.share }}%</span>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 12px">Незачёты в текущем модуле</h2>
+{% if failing %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Ученик</th><th>Предмет</th><th>Баллы</th></tr></thead>
+      <tbody>
+      {% for result in failing %}
+        <tr>
+          <td>{{ result.student.short_name }}</td>
+          <td>{{ result.subject.name }}</td>
+          <td>{{ result.total_points|points }} <span class="level level--failed">незачёт</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">Незачётов нет{% if not module %} · текущий модуль не определён{% endif %}.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% load static %}
+
+{% block title %}{% block cabinet_title %}Кабинет{% endblock %} — Твёрдый знак{% endblock %}
+{% block head_extra %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block body %}
+{# В кабинетах нет никакой сторонней аналитики: здесь персональные данные детей (ТЗ 7). #}
+<header class="site-header">
+  <a class="logo" href="{% url 'cabinet:home' %}">
+    <span class="logo__mark" aria-hidden="true">Ъ</span>
+    <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
+  </a>
+  <nav class="cabinet-nav" aria-label="Разделы кабинета">
+    {% block cabinet_nav %}{% endblock %}
+  </nav>
+  <div class="header-actions">
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Тёмная тема" title="Тёмная тема">☾</button>
+    <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}
+      <button class="btn btn--quiet" type="submit">Выйти</button>
+    </form>
+  </div>
+</header>
+
+<main id="main" class="cabinet__body">
+  {% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+        <div class="message message--{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}
+
+{% block scripts %}{% block cabinet_scripts %}{% endblock %}{% endblock %}

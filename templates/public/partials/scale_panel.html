@@ -1,0 +1,40 @@
+{% load journal_extras %}
+{# Компонент 100-балльной шкалы. Используется на первом экране и в блоке «Как устроено». #}
+<div class="scale-panel" data-scale='[{% for level in scale_levels %}{"max":{{ level.max }},"name":"{{ level.name }}","hint":"{{ level.hint|escapejs }}","focus":"{{ level.focus }}","retake":"{{ level.retake }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'>
+  <div class="scale-panel__head">
+    <span class="label">100-балльная шкала</span>
+    <span class="small muted">потяните →</span>
+  </div>
+  <div class="scale-panel__value">
+    <span class="numeral" data-scale-value>{{ initial_score }}</span>
+    <span style="font-size:17px;font-weight:600" data-scale-level>уверенно</span>
+  </div>
+  <div class="scale-track">
+    <div class="scale-ticks" aria-hidden="true">
+      {% for tick in "12345678901234567890"|make_list %}<span></span>{% endfor %}
+    </div>
+    <input type="range" min="0" max="100" value="{{ initial_score }}"
+           id="{{ scale_id|default:'scale' }}"
+           aria-label="Баллы за модуль"
+           aria-valuetext="{{ initial_score }} баллов">
+  </div>
+  <p class="scale-hint" data-scale-hint>41–70 — типовые задачи ОГЭ и ЕГЭ решаются самостоятельно. Наставник смещает время на слабые темы.</p>
+  <div class="scale-rows">
+    <div class="scale-row">
+      <span class="scale-row__label">Уровень модуля</span>
+      <span class="scale-row__value" style="color:var(--accent-2)" data-scale-row-level>уверенно</span>
+    </div>
+    <div class="scale-row">
+      <span class="scale-row__label">Фокус наставника</span>
+      <span class="scale-row__value" data-scale-row-focus>типовые задачи</span>
+    </div>
+    <div class="scale-row">
+      <span class="scale-row__label">Пересдача модуля</span>
+      <span class="scale-row__value" data-scale-row-retake>не нужна</span>
+    </div>
+  </div>
+  <span class="small muted" style="line-height:1.45">
+    Баллы показывают, где подросток сейчас, и на что уходит время наставника.
+    Это рабочий инструмент, а не прогноз результата.
+  </span>
+</div>

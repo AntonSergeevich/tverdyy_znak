@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Вход в кабинет — Твёрдый знак{% endblock %}
+{% block head_extra %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block body %}
+<main id="main" class="section">
+  <div class="container" style="max-width:420px">
+    <a class="logo" href="/" style="margin-bottom:24px">
+      <span class="logo__mark" aria-hidden="true">Ъ</span>
+      <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
+    </a>
+    <h1 class="h-display" style="font-size:32px;margin-bottom:8px">Вход в кабинет</h1>
+    <p class="muted" style="margin-bottom:24px">Родителям, ученикам и педагогам.</p>
+
+    <form class="form" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {% if form.non_field_errors %}
+        <div class="form-error" role="alert">{{ form.non_field_errors.0 }}</div>
+      {% endif %}
+      <div class="field {% if form.username.errors %}field--invalid{% endif %}">
+        <label for="{{ form.username.id_for_label }}">Email или телефон</label>
+        {{ form.username }}
+      </div>
+      <div class="field {% if form.password.errors %}field--invalid{% endif %}">
+        <label for="{{ form.password.id_for_label }}">Пароль</label>
+        {{ form.password }}
+      </div>
+      <button class="btn btn--lg" type="submit">Войти</button>
+    </form>
+  </div>
+</main>
+{% endblock %}

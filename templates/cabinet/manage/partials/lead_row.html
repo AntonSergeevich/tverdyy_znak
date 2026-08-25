@@ -1,0 +1,26 @@
+<tr id="lead-{{ lead.pk }}">
+  <td class="muted">{{ lead.created_at|date:"d.m.Y H:i" }}</td>
+  <td>
+    <strong>{{ lead.name }}</strong><br>
+    <a href="tel:+{{ lead.phone }}">{{ lead.phone_display }}</a>
+    {% if lead.comment %}<br><span class="small muted">{{ lead.comment|truncatechars:120 }}</span>{% endif %}
+  </td>
+  <td>{{ lead.grade }}</td>
+  <td class="muted">{{ lead.get_call_window_display }}</td>
+  <td class="small muted">{{ lead.utm_source|default:"прямой" }}{% if lead.utm_campaign %} · {{ lead.utm_campaign }}{% endif %}</td>
+  <td>
+    <form class="stack" hx-post="{% url 'cabinet:lead_status' lead.pk %}"
+          hx-target="#lead-{{ lead.pk }}" hx-swap="outerHTML">
+      {% csrf_token %}
+      <select class="input" name="status" aria-label="Статус заявки" onchange="this.form.requestSubmit()">
+        {% for value, label in statuses %}
+          <option value="{{ value }}" {% if lead.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {# Причина отказа обязательна — без неё воронка ничего не объясняет. #}
+      <input class="input" type="text" name="decline_reason" value="{{ lead.decline_reason }}"
+             placeholder="Причина отказа" aria-label="Причина отказа">
+      {% if error %}<span class="field-error">{{ error }}</span>{% endif %}
+    </form>
+  </td>
+</tr>

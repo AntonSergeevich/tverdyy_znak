@@ -1,0 +1,121 @@
+# Продакшн-конфигурация для Beget VPS.
+# Секреты только в .env (chmod 600), в репозитории их нет.
+
+x-app-env: &app-env
+  env_file: [.env]
+  environment:
+    DJANGO_SETTINGS_MODULE: config.settings.prod
+  restart: unless-stopped
+  depends_on:
+    db: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tverdyy_znak}
+      POSTGRES_USER: ${POSTGRES_USER:-tz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tz} -d ${POSTGRES_DB:-tverdyy_znak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Наружу порт не выставляем: база доступна только внутри сети compose.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    <<: *app-env
+    build: .
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000
+             --workers 3 --threads 2 --timeout 60 --graceful-timeout 30
+             --max-requests 1000 --max-requests-jitter 100
+             --access-logfile - --error-logfile -"
+    volumes:
+      - static:/app/staticfiles
+      - media:/app/media
+      - private-media:/app/private-media
+      - logs:/app/logs
+    expose: ["8000"]
+
+  worker:
+    <<: *app-env
+    build: .
+    command: celery -A config worker --loglevel=info --concurrency=2 --max-tasks-per-child=200
+    volumes:
+      - media:/app/media
+      - private-media:/app/private-media
+      - logs:/app/logs
+
+  beat:
+    <<: *app-env
+    build: .
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - logs:/app/logs
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [web]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/app.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro
+      - static:/var/www/static:ro
+      - media:/var/www/media:ro
+      - certbot-www:/var/www/certbot:ro
+      - certbot-conf:/etc/letsencrypt:ro
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+    # Проверка дважды в сутки, продление — когда до конца меньше 30 дней.
+    entrypoint: >
+      sh -c "trap exit TERM;
+             while :; do certbot renew --webroot -w /var/www/certbot --quiet;
+             sleep 12h & wait $${!}; done"
+
+  backup:
+    build: .
+    env_file: [.env]
+    restart: unless-stopped
+    depends_on:
+      db: {condition: service_healthy}
+    volumes:
+      - ./deploy/scripts:/scripts:ro
+      - backups:/backups
+    entrypoint: ["sh", "/scripts/backup-loop.sh"]
+
+volumes:
+  pgdata:
+  redisdata:
+  static:
+  media:
+  private-media:
+  logs:
+  backups:
+  certbot-www:
+  certbot-conf:

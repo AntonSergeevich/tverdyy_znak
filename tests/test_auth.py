@@ -1,0 +1,132 @@
+"""Вход по email и телефону, второй фактор, истечение сессии (ТЗ 8.2)."""
+from __future__ import annotations
+
+import time
+
+import pytest
+from django.urls import reverse
+
+from apps.accounts import totp
+from apps.accounts.models import TwoFactorDevice, normalize_phone
+from tests.conftest import PASSWORD
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("+7 (913) 000-11-22", "79130001122"),
+        ("8 913 000 11 22", "79130001122"),
+        ("9130001122", "79130001122"),
+        ("", ""),
+    ],
+)
+def test_phone_normalization(raw, expected):
+    assert normalize_phone(raw) == expected
+
+
+def test_login_by_email(client, tenant_a):
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    response = client.post(
+        reverse("accounts:login"),
+        {"username": tenant_a.parent_user.email, "password": PASSWORD},
+    )
+    assert response.status_code == 302
+    assert response.wsgi_request.user.is_authenticated
+
+
+def test_login_by_phone(client, tenant_a):
+    tenant_a.parent_user.phone = "79130009999"
+    tenant_a.parent_user.save(update_fields=["phone"])
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    response = client.post(
+        reverse("accounts:login"), {"username": "+7 (913) 000-99-99", "password": PASSWORD}
+    )
+    assert response.status_code == 302
+
+
+def test_wrong_password_does_not_authenticate(client, tenant_a):
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    response = client.post(
+        reverse("accounts:login"), {"username": tenant_a.parent_user.email, "password": "nope"}
+    )
+    assert response.status_code == 200
+    assert not response.wsgi_request.user.is_authenticated
+
+
+def test_privileged_role_requires_two_factor(client, tenant_a):
+    """Владелец с одним паролем в кабинет не попадает."""
+    assert tenant_a.owner_user.requires_two_factor is True
+    assert tenant_a.parent_user.requires_two_factor is False
+
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    response = client.post(
+        reverse("accounts:login"), {"username": tenant_a.owner_user.email, "password": PASSWORD}
+    )
+    assert response.status_code == 302
+    assert response["Location"] == reverse("accounts:two_factor")
+    # Пока второй фактор не пройден, пользователь не считается вошедшим.
+    assert not response.wsgi_request.user.is_authenticated
+
+
+def test_two_factor_flow(client, tenant_a):
+    device = TwoFactorDevice.objects.create(
+        user=tenant_a.owner_user, secret=totp.generate_secret(), is_confirmed=True
+    )
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    client.post(
+        reverse("accounts:login"), {"username": tenant_a.owner_user.email, "password": PASSWORD}
+    )
+    response = client.post(
+        reverse("accounts:two_factor"), {"code": totp.code_now(device.secret)}
+    )
+    assert response.status_code == 302
+    assert response.wsgi_request.user == tenant_a.owner_user
+
+
+def test_two_factor_code_cannot_be_replayed(client, tenant_a):
+    """Один и тот же код не должен работать дважды."""
+    device = TwoFactorDevice.objects.create(
+        user=tenant_a.owner_user, secret=totp.generate_secret(), is_confirmed=True
+    )
+    code = totp.code_now(device.secret)
+    counter = totp.verify(device.secret, code)
+    assert counter is not None
+    assert totp.verify(device.secret, code, last_used_counter=counter) is None
+
+
+def test_recovery_code_works_once(tenant_a):
+    device = TwoFactorDevice.objects.create(
+        user=tenant_a.owner_user, secret=totp.generate_secret(), is_confirmed=True
+    )
+    codes = device.generate_recovery_codes(count=3)
+    assert device.consume_recovery_code(codes[0]) is True
+    assert device.consume_recovery_code(codes[0]) is False
+    assert len(device.recovery_codes) == 2
+
+
+def test_session_expires_after_idle_timeout(client, tenant_a, settings):
+    settings.SESSION_IDLE_TIMEOUT = 1
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    client.post(
+        reverse("accounts:login"), {"username": tenant_a.parent_user.email, "password": PASSWORD}
+    )
+    assert client.get(reverse("cabinet:parent_home")).status_code == 200
+
+    session = client.session
+    session["_last_seen_at"] = time.time() - 120
+    session.save()
+
+    response = client.get(reverse("cabinet:parent_home"))
+    assert response.status_code == 302
+    assert reverse("accounts:login") in response["Location"]
+
+
+def test_privileged_session_timeout_is_shorter(settings):
+    assert settings.SESSION_IDLE_TIMEOUT_STAFF < settings.SESSION_IDLE_TIMEOUT
+
+
+def test_no_personal_data_in_urls(client, tenant_a):
+    """Идентификаторы — UUID, перебор невозможен, ФИО в URL не попадает."""
+    url = reverse("cabinet:parent_child", args=[tenant_a.student.pk])
+    assert tenant_a.student.last_name not in url
+    assert len(str(tenant_a.student.pk)) == 36

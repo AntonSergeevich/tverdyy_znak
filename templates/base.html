@@ -1,0 +1,35 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Твёрдый знак — центр семейного обучения и профориентации{% endblock %}</title>
+  <meta name="description" content="{% block description %}Центр семейного обучения и профориентации в Красноярске: модули по 5 недель, наставник, 100-балльная система, аттестация в аккредитованной школе-партнёре.{% endblock %}">
+  {% block canonical %}{% endblock %}
+
+  {# Тема выставляется до первого пейнта — иначе будет вспышка светлого фона #}
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('tz-theme');
+        var dark = saved ? saved === 'dark'
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } catch (e) { /* приватный режим — остаёмся на светлой теме */ }
+    })();
+  </script>
+
+  <link rel="preload" href="{% static 'fonts/constantine-bold.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="{% static 'fonts/manrope-var-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'css/site.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+<a class="skip-link" href="#main">Перейти к содержимому</a>
+{% block body %}{% endblock %}
+<script src="{% static 'js/htmx.min.js' %}" defer></script>
+<script src="{% static 'js/site.js' %}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

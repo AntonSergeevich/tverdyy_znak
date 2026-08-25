@@ -1,0 +1,380 @@
+{% extends "public/base_public.html" %}{% load journal_extras %}
+
+{% block canonical %}<link rel="canonical" href="https://{{ request.get_host }}{{ canonical_path }}">{% endblock %}
+
+{% block content %}
+
+{# ── 1. Первый экран. Вёрстка по утверждённому макету 1a ─────────────────── #}
+<section class="hero">
+  <div class="hero__left">
+    <span class="hero__mark" aria-hidden="true">Ъ</span>
+    <span class="kicker">Центр семейного обучения и профориентации · 8–11 класс</span>
+    <h1 class="h-display">Один наставник вместо пяти репетиторов</h1>
+    <p class="lead" style="max-width:620px">
+      Подросток учится модулями по 5 недель, видит свою дорожную карту и получает баллы
+      за конкретную работу. Вы видите то же, что и он.
+    </p>
+
+    <div class="hero__price">
+      <span class="numeral">{{ organization.price_full_month|money }} ₽</span>
+      <span class="muted">в месяц · полный формат. Профориентация — отдельно</span>
+    </div>
+
+    <div class="btn-row">
+      <a class="btn btn--lg btn--grow" href="#zayavka" data-segment-cta>Записаться на бесплатную диагностику</a>
+      <a class="btn btn--lg btn--ghost" href="#kak">Как устроено обучение</a>
+    </div>
+    <span class="small muted">60 минут, без обязательств — решение принимаете вы</span>
+
+    <div class="stamps">
+      <span class="stamp">Модули по 5 недель</span>
+      <span class="stamp">Дорожная карта</span>
+      <span class="stamp">Аттестация в аккредитованной школе</span>
+    </div>
+  </div>
+
+  {% include "public/partials/scale_panel.html" with scale_id="scale-hero" %}
+</section>
+
+{# ── 2. Для кого ─────────────────────────────────────────────────────────── #}
+<section class="section" id="dlya-kogo">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Для кого</span>
+      <h2 class="h-display">Три ситуации, с которыми к нам приходят</h2>
+      <p class="lead">Выберите свою — подпись на кнопке заявки изменится под ваш запрос.</p>
+    </div>
+    <div class="grid">
+      <div class="segments" style="flex:1 1 420px">
+        {% for segment in segments %}
+          <button class="segment" type="button"
+                  data-segment="{{ segment.value }}"
+                  data-segment-label="{{ segment.cta }}"
+                  aria-pressed="false">
+            <span class="segment__title">{{ segment.title }}</span>
+            <span class="segment__text">{{ segment.text }}</span>
+          </button>
+        {% endfor %}
+      </div>
+      <div class="card" style="flex:1 1 300px">
+        <p class="card__title">Что происходит дальше</p>
+        <p class="lead" style="font-size:16px">
+          Диагностика — разговор на 60 минут: где подросток сейчас, что с аттестацией,
+          какие предметы держат, а какие тянут. По итогам вы получаете картину и решаете сами.
+        </p>
+        <p class="small muted" style="margin-top:12px">Мы не обещаем результатов экзамена — мы показываем, как устроена работа.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── 3. Сравнение расходов ───────────────────────────────────────────────── #}
+<section class="section" id="sravnenie">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Расходы</span>
+      <h2 class="h-display">Сколько это стоит рядом с репетиторами</h2>
+      <p class="lead">Сравниваем расходы, а не результаты: результат зависит от подростка, а счёт — считается.</p>
+    </div>
+    <div class="compare" style="max-width:760px">
+      <div class="compare__cell">
+        <div class="compare__label">4 репетитора, средний счёт</div>
+        <div class="compare__sum">≈ {{ organization.tutors_reference_price|money }} ₽</div>
+      </div>
+      <div class="compare__cell compare__cell--accent">
+        <div class="compare__label">полный формат</div>
+        <div class="compare__sum">{{ organization.price_full_month|money }} ₽</div>
+      </div>
+    </div>
+    <p class="small muted" style="margin-top:12px;max-width:760px">
+      Расчёт счёта по репетиторам: {{ organization.tutors_reference_note }}.
+      Ставки по Красноярску, данные на момент публикации.
+      {# TODO(вопрос): подтвердить у заказчика актуальную среднюю ставку по городу. #}
+    </p>
+  </div>
+</section>
+
+{# ── 4. Как устроено обучение ────────────────────────────────────────────── #}
+<section class="section" id="kak">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Как устроено</span>
+      <h2 class="h-display">Модуль, баллы, карта, наставник</h2>
+    </div>
+    <div class="grid">
+      <div class="stack stack--lg" style="flex:1 1 420px">
+        <div class="card">
+          <p class="card__title">Модули по 5–6 недель</p>
+          <p>Год разбит на шесть модулей. У каждого — свой смысловой фокус и дата закрытия.
+             Между модулями каникулярная неделя: она же время консультаций для тех, кто добирает баллы.</p>
+        </div>
+        <div class="card">
+          <p class="card__title">100 баллов за модуль по каждому предмету</p>
+          <p>Зачёт на последнем занятии, две проверочные, контрольная и занятия с оцениванием.
+             Педагог сам решает, какие занятия модуля идут с баллами. За поведение баллы не начисляются.</p>
+        </div>
+        <div class="card">
+          <p class="card__title">Дорожная карта</p>
+          <p>Академические цели по предметам разложены по модулям. Подросток видит, где он на маршруте,
+             и что именно закрывает следующий шаг.</p>
+        </div>
+        <div class="card">
+          <p class="card__title">Наставник</p>
+          <p>Один взрослый держит всю картину: предметы, сроки, аттестацию и разговор о будущем.
+             Родителю не нужно собирать расписание из четырёх репетиторов.</p>
+        </div>
+      </div>
+      <div style="flex:1 1 320px;max-width:520px">
+        {% include "public/partials/scale_panel.html" with scale_id="scale-how" %}
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── 5. Аттестация ───────────────────────────────────────────────────────── #}
+<section class="section" id="attestaciya">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Аттестация</span>
+      <h2 class="h-display">Аттестация в аккредитованной школе-партнёре</h2>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <p class="card__title">Где</p>
+        <p>Подросток числится на самообразовании и проходит промежуточную аттестацию
+           в аккредитованной школе-партнёре. Документ об образовании выдаёт она.</p>
+      </div>
+      <div class="card">
+        <p class="card__title">Когда</p>
+        <p>График аттестации согласуется на учебный год и заранее попадает в кабинет родителя.
+           {# TODO(вопрос): школа-партнёр, город, формат и частота аттестации. #}</p>
+      </div>
+      <div class="card">
+        <p class="card__title">Наша роль</p>
+        <p>Центр организует обучение и готовит к аттестации. Образовательную деятельность,
+           подлежащую лицензированию, центр не ведёт.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── 6. Педагоги ─────────────────────────────────────────────────────────── #}
+<section class="section" id="pedagogi">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Педагоги</span>
+      <h2 class="h-display">Кто ведёт занятия</h2>
+    </div>
+    <div class="grid">
+      {% for card in teacher_cards %}
+        <div class="card">
+          {% if card.photo %}
+            <img src="{{ card.photo.url }}" alt="{{ card.full_name }}" width="480" height="360" loading="lazy">
+          {% else %}
+            <div class="photo-placeholder" aria-hidden="true">Ъ</div>
+          {% endif %}
+          <p class="card__title" style="margin-top:12px">{{ card.full_name }}</p>
+          <p class="muted">{{ card.subject_line }}</p>
+          {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
+        </div>
+      {% empty %}
+        {% for _ in "1234"|make_list %}
+          <div class="card">
+            <div class="photo-placeholder" aria-hidden="true">Ъ</div>
+            <p class="card__title" style="margin-top:12px">Педагог</p>
+            <p class="muted">Предмет уточняется</p>
+            <p class="small muted">Карточки заполняются перед стартом набора.</p>
+          </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ── 7. Профориентация ───────────────────────────────────────────────────── #}
+<section class="section" id="proforientaciya">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Отдельный продукт</span>
+      <h2 class="h-display">Профориентация</h2>
+      <p class="lead">Не тест на 20 вопросов, а работа: интересы, проба в деле, план на 10–11 класс.
+         Берётся отдельно от полного формата.</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <p class="card__title">Что входит</p>
+        <p>Разговоры с наставником, пробы в нескольких направлениях, разбор вариантов после 11 класса,
+           план подготовки под выбранное направление.</p>
+      </div>
+      <div class="card">
+        <p class="card__title">Стоимость</p>
+        <p class="numeral" style="font-size:36px">
+          {% if organization.price_career %}{{ organization.price_career|money }} ₽{% else %}уточняется{% endif %}
+        </p>
+        <p class="small muted">{# TODO(вопрос): цена профориентации и её состав. #}Точная стоимость и состав программы согласуются на диагностике.</p>
+      </div>
+      <div class="card">
+        <p class="card__title">Кому подойдёт</p>
+        <p>Подростку, который не выбрал направление, и семье, которая хочет обсуждать будущее
+           не в последний год перед экзаменами.</p>
+        <p style="margin-top:14px"><a class="btn" href="{% url 'public:career' %}">Подробнее о профориентации</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── 8. Что требуется от родителя ────────────────────────────────────────── #}
+<section class="section" id="ot-roditelya">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Честно</span>
+      <h2 class="h-display">Что требуется от вас</h2>
+      <p class="lead">Формат работает, когда семья участвует. Мы не берём ребёнка «под ключ» —
+         мы работаем вместе с вами.</p>
+    </div>
+    <div class="grid">
+      <div class="card"><p class="card__title">Режим</p><p>Подросток приходит на занятия по расписанию. Пропуски приходится добирать на консультациях.</p></div>
+      <div class="card"><p class="card__title">Участие</p><p>Раз в модуль — разговор с наставником об итогах и о том, что меняем в следующем модуле.</p></div>
+      <div class="card"><p class="card__title">Документы</p><p>Заявление о переходе на самообразование и договор с аккредитованной школой-партнёром оформляет семья, мы помогаем с порядком действий.</p></div>
+      <div class="card"><p class="card__title">Оплата</p><p>Помесячно, по реквизитам. Все начисления и оплаты видны в кабинете родителя.</p></div>
+    </div>
+  </div>
+</section>
+
+{# ── 9. Помещение ────────────────────────────────────────────────────────── #}
+<section class="section" id="pomeshchenie">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Где занимаемся</span>
+      <h2 class="h-display">Помещение</h2>
+    </div>
+    <div class="grid">
+      {% for _ in "123"|make_list %}
+        <div class="photo-placeholder" aria-label="Фото помещения появится перед стартом набора">Ъ</div>
+      {% endfor %}
+    </div>
+    <p class="small muted" style="margin-top:12px">Реальные фотографии добавим перед стартом набора.</p>
+  </div>
+</section>
+
+{# ── 10. Стоимость ───────────────────────────────────────────────────────── #}
+<section class="section" id="stoimost">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Стоимость</span>
+      <h2 class="h-display">Цена открыто</h2>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <p class="card__title">Полный формат</p>
+        <p class="numeral" style="font-size:44px">{{ organization.price_full_month|money }} ₽</p>
+        <p class="muted">в месяц</p>
+        <ul style="margin:14px 0 0;padding-left:18px;line-height:1.7">
+          <li>занятия по всем предметам учебного плана</li>
+          <li>наставник и дорожная карта</li>
+          <li>кабинет с баллами и расписанием для родителя и подростка</li>
+          <li>консультации на каникулярной неделе</li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="card__title">Что оплачивается отдельно</p>
+        <ul style="margin:0;padding-left:18px;line-height:1.7">
+          <li>профориентация</li>
+          <li>аттестация в аккредитованной школе-партнёре — по её правилам</li>
+        </ul>
+        <p class="small muted" style="margin-top:14px">{# TODO(вопрос): состав «полного формата» и что ещё вне его. #}Итоговый состав фиксируется в договоре.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── 11. FAQ ─────────────────────────────────────────────────────────────── #}
+<section class="section" id="faq">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Вопросы</span>
+      <h2 class="h-display">Что спрашивают чаще всего</h2>
+    </div>
+    <div class="faq">
+      {% for item in faq_items %}
+        <details {% if forloop.first %}open{% endif %}>
+          <summary>{{ item.question }}</summary>
+          <div class="faq__answer">{{ item.answer|linebreaks }}</div>
+        </details>
+      {% empty %}
+        <details open>
+          <summary>У центра есть лицензия на образовательную деятельность?</summary>
+          <div class="faq__answer">Нет, и она не требуется для нашего формата. Подросток числится на самообразовании,
+            а промежуточную аттестацию проходит в аккредитованной школе-партнёре — документ выдаёт она.</div>
+        </details>
+        <details>
+          <summary>Как проходит аттестация?</summary>
+          <div class="faq__answer">По графику аккредитованной школы-партнёра. График согласуется на учебный год
+            и виден в кабинете родителя.</div>
+        </details>
+        <details>
+          <summary>Что, если формат не подойдёт?</summary>
+          <div class="faq__answer">Решение принимается после бесплатной диагностики, а не до неё.
+            Условия расторжения договора описаны в самом договоре, скрытых удержаний нет.</div>
+        </details>
+        <details>
+          <summary>Как оплачивать?</summary>
+          <div class="faq__answer">Помесячно, по реквизитам. Начисления и оплаты видны в кабинете родителя.</div>
+        </details>
+        <details>
+          <summary>Что с пропусками?</summary>
+          <div class="faq__answer">Баллы за пропущенные работы добираются на консультациях каникулярной недели.
+            Штрафов за пропуск нет, но модуль закрывать придётся.</div>
+        </details>
+        <details>
+          <summary>Готовите ли к ЕГЭ?</summary>
+          <div class="faq__answer">Подготовка к ОГЭ и ЕГЭ встроена в учебный план. Результат экзамена
+            зависит от подростка, поэтому обещаний по баллам мы не даём.</div>
+        </details>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ── 12. Заявка, контакты, карта ─────────────────────────────────────────── #}
+<section class="section" id="zayavka">
+  <div class="container grid">
+    <div style="flex:1 1 420px">
+      <div class="section__head">
+        <span class="kicker">Заявка</span>
+        <h2 class="h-display">Бесплатная диагностика</h2>
+        <p class="lead">Позвоним в выбранное окно и разберём ситуацию вашего ребёнка. 60 минут, без обязательств.</p>
+      </div>
+      {% include "public/partials/lead_form.html" %}
+    </div>
+    <div class="stack stack--lg" style="flex:1 1 300px">
+      <div class="card">
+        <p class="card__title">Контакты</p>
+        <p>{{ organization.contact_phone|default:"телефон уточняется" }}</p>
+        <p>{{ organization.contact_email|default:"email уточняется" }}</p>
+        <p class="muted">{{ organization.address|default:"адрес уточняется" }}</p>
+      </div>
+      <div class="card card--flat" style="padding:0">
+        {# Карта грузится по клику: iframe на первом экране стоил бы секунды загрузки. #}
+        <button class="photo-placeholder" type="button" style="width:100%;border:1px solid var(--line);cursor:pointer"
+                data-map-placeholder aria-label="Показать карту">Карта · нажмите, чтобы открыть</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('[data-map-placeholder]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var frame = document.createElement('iframe');
+      frame.src = 'https://yandex.ru/map-widget/v1/?text=' + encodeURIComponent('{{ organization.address|escapejs }}');
+      frame.width = '100%'; frame.height = '320'; frame.loading = 'lazy';
+      frame.title = 'Карта проезда'; frame.style.border = '1px solid var(--line)';
+      button.replaceWith(frame);
+    });
+  });
+</script>
+{% endblock %}

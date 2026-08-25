@@ -1,0 +1,40 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras static %}
+{% block cabinet_title %}Журнал занятия{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:teacher_today' %}">Сегодня</a>
+  <a href="{% url 'cabinet:module_plan' lesson.module_id lesson.subject_id lesson.group_id %}">План модуля</a>
+{% endblock %}
+
+{% block content %}
+<div id="lesson-header">
+  {% include "cabinet/teacher/partials/lesson_header.html" %}
+</div>
+
+{% if grade_item %}
+  <form class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
+        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    {% csrf_token %}
+    {% for row in rows %}
+      {% include "cabinet/teacher/partials/grade_row.html" %}
+    {% empty %}
+      <div class="empty-state">
+        <p class="empty-state__title">В группе пока нет учеников</p>
+        <p>Добавьте состав группы — и здесь появится список.</p>
+      </div>
+    {% endfor %}
+  </form>
+  <p class="small muted" style="margin-top:12px">
+    Баллы сохраняются сами. Если пропадёт сеть, введённое останется на устройстве
+    и уйдёт на сервер, когда связь вернётся.
+  </p>
+{% else %}
+  <div class="empty-state" style="margin-top:16px">
+    <p class="empty-state__title">Это занятие идёт без оценивания</p>
+    <p>Отметьте его как оцениваемое — тогда появится таблица баллов.
+       Баллы за поведение не начисляются: только за работу.</p>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block cabinet_scripts %}<script src="{% static 'js/journal.js' %}" defer></script>{% endblock %}

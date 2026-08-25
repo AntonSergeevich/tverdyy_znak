@@ -1,0 +1,94 @@
+{% extends "base.html" %}{% load static %}
+
+{% block head_extra %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ organization.name|default:'Твёрдый знак' }}">
+  <meta property="og:title" content="{% block og_title %}Один наставник вместо пяти репетиторов{% endblock %}">
+  <meta property="og:description" content="Центр семейного обучения и профориентации, 8–11 класс. Модули по 5 недель, дорожная карта, 100-балльная система.">
+  <meta property="og:image" content="{% static 'img/og-cover.svg' %}">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": ["EducationalOrganization", "LocalBusiness"],
+    "name": "{{ organization.name|default:'Твёрдый знак' }}",
+    "description": "Центр семейного обучения и профориентации для подростков 8–11 класса",
+    "telephone": "{{ organization.contact_phone }}",
+    "email": "{{ organization.contact_email }}",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Красноярск",
+      "streetAddress": "{{ organization.address }}",
+      "addressCountry": "RU"
+    },
+    "priceRange": "{{ organization.price_full_month }} ₽"
+  }
+  </script>
+{% endblock %}
+
+{% block body %}
+<header class="site-header">
+  <a class="logo" href="{% url 'public:landing' %}">
+    <span class="logo__mark" aria-hidden="true">Ъ</span>
+    <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
+  </a>
+  <nav class="site-nav" aria-label="Разделы страницы">
+    <a href="{% url 'public:landing' %}#kak">Как устроено</a>
+    <a href="{% url 'public:landing' %}#pedagogi">Педагоги</a>
+    <a href="{% url 'public:landing' %}#stoimost">Стоимость</a>
+    <a href="{% url 'public:landing' %}#faq">Вопросы</a>
+  </nav>
+  <div class="header-actions">
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Тёмная тема" title="Тёмная тема">☾</button>
+    <a class="btn" href="{% url 'public:landing' %}#zayavka">Диагностика</a>
+  </div>
+</header>
+
+<main id="main">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="container grid">
+    <div class="stack">
+      <span class="label" style="font-size:18px">Контакты</span>
+      {% if organization.contact_phone %}<a href="tel:{{ organization.contact_phone }}">{{ organization.contact_phone }}</a>{% endif %}
+      {% if organization.contact_email %}<a href="mailto:{{ organization.contact_email }}">{{ organization.contact_email }}</a>{% endif %}
+      {% if organization.address %}<span class="muted">{{ organization.address }}</span>{% endif %}
+    </div>
+    <div class="stack">
+      <span class="label" style="font-size:18px">Документы</span>
+      <a href="{% url 'public:legal_privacy' %}">Политика обработки персональных данных</a>
+      <a href="{% url 'public:legal_consent' %}">Согласие на обработку персональных данных</a>
+      <a href="{% url 'public:legal_terms' %}">Пользовательское соглашение</a>
+    </div>
+    <div class="stack">
+      <span class="label" style="font-size:18px">Кабинет</span>
+      <a href="{% url 'accounts:login' %}">Вход для родителей, учеников и педагогов</a>
+    </div>
+  </div>
+  {# Реквизиты ИП в подвале на всех страницах (ТЗ 4). Пока их нет — видно, чего не хватает. #}
+  <p class="requisites" style="margin-top:24px">
+    {{ organization.legal_name|default:"ИП — реквизиты уточняются" }} ·
+    ОГРНИП {{ organization.ogrnip|default:"—" }} ·
+    ИНН {{ organization.inn|default:"—" }} ·
+    {{ organization.address|default:"адрес уточняется" }}<br>
+    Центр семейного обучения и профориентации. Образовательную деятельность,
+    подлежащую лицензированию, не ведёт. Аттестация проходит в аккредитованной школе-партнёре.
+  </p>
+</footer>
+
+<aside class="cookie-bar" data-cookie-bar data-version="{{ LEGAL_DOC_VERSION }}" hidden>
+  <p style="flex:1 1 320px;margin:0">
+    Мы используем cookie, чтобы сайт работал и чтобы понимать, какие страницы полезны.
+    Необязательные можно отключить — сайт продолжит работать.
+    <a href="{% url 'public:legal_privacy' %}">Политика обработки данных</a>.
+  </p>
+  <span class="cookie-bar__actions">
+    <button class="btn" type="button" data-cookie-choice="all">Принять все</button>
+    <button class="btn btn--quiet" type="button" data-cookie-choice="necessary">Только необходимые</button>
+  </span>
+</aside>
+
+{% if YANDEX_METRIKA_ID %}<div data-metrika-id="{{ YANDEX_METRIKA_ID }}" hidden></div>{% endif %}
+{% endblock %}

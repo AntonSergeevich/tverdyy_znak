@@ -1,0 +1,34 @@
+{% load journal_extras %}
+<div class="journal-row" data-student="{{ row.student.pk }}" id="row-{{ row.student.pk }}">
+  <span class="journal-row__name">{{ row.student.short_name }}</span>
+
+  <label class="journal-row__points">
+    <span class="small muted">Балл из {{ grade_item.max_points|points }}</span>
+    <input class="input" type="text" inputmode="decimal" name="points"
+           value="{% if row.grade %}{{ row.grade.points|points }}{% endif %}"
+           aria-label="Балл для {{ row.student.short_name }}"
+           hx-post="{% url 'cabinet:grade_save' lesson.pk %}"
+           hx-trigger="change, resend"
+           hx-target="#row-{{ row.student.pk }}"
+           hx-swap="outerHTML"
+           hx-include="closest .journal-row"
+           data-resend>
+  </label>
+
+  <label class="journal-row__comment">
+    <span class="small muted">Комментарий</span>
+    <input class="input" type="text" name="comment" value="{{ row.grade.comment|default:'' }}"
+           aria-label="Комментарий для {{ row.student.short_name }}"
+           hx-post="{% url 'cabinet:grade_save' lesson.pk %}"
+           hx-trigger="change"
+           hx-target="#row-{{ row.student.pk }}"
+           hx-swap="outerHTML"
+           hx-include="closest .journal-row">
+  </label>
+
+  <input type="hidden" name="student" value="{{ row.student.pk }}">
+
+  <span class="journal-row__state {% if error %}state--error{% elif saved %}state--saved{% else %}state--pending{% endif %}" data-state>
+    {% if error %}{{ error }}{% elif saved %}сохранено{% elif row.grade %}{{ row.grade.graded_at|date:"d.m H:i" }}{% else %}—{% endif %}
+  </span>
+</div>

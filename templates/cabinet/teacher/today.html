@@ -1,0 +1,56 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}Занятия на сегодня{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:teacher_today' %}" aria-current="page">Сегодня</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(26px,3vw,40px)">Сегодня, {{ day|date:"d.m.Y" }}</h1>
+  <span class="muted">{{ teacher.short_name|default:"" }}</span>
+</div>
+
+{% if lessons %}
+  <div class="journal-list">
+    {% for lesson in lessons %}
+      <a class="journal-row" href="{% url 'cabinet:lesson_journal' lesson.pk %}">
+        <span class="journal-row__points numeral" style="font-size:22px">{{ lesson.starts_at|time:"H:i" }}</span>
+        <span class="journal-row__name">
+          {{ lesson.subject.name }} · {{ lesson.group.name }}
+          {% if lesson.topic %}<br><span class="small muted">{{ lesson.topic }}</span>{% endif %}
+        </span>
+        <span class="journal-row__state">
+          {% if lesson.is_graded %}<span class="level level--elevated">с оцениванием</span>
+          {% else %}<span class="level level--base">без баллов</span>{% endif %}
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <p class="empty-state__title">На сегодня занятий нет</p>
+    <p>Здесь появятся занятия из расписания — в один тап открывается журнал.</p>
+  </div>
+{% endif %}
+
+{% if upcoming %}
+  <h2 class="label" style="font-size:18px;margin:32px 0 12px">Ближайшие занятия</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Когда</th><th>Предмет</th><th>Группа</th><th>Тема</th><th>Планирование</th></tr></thead>
+      <tbody>
+      {% for lesson in upcoming %}
+        <tr>
+          <td>{{ lesson.starts_at|date:"d.m H:i" }}</td>
+          <td>{{ lesson.subject.name }}</td>
+          <td>{{ lesson.group.name }}</td>
+          <td>{{ lesson.topic|default:"—" }}</td>
+          <td><a href="{% url 'cabinet:module_plan' lesson.module_id lesson.subject_id lesson.group_id %}">План модуля</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

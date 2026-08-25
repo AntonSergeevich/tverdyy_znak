@@ -1,0 +1,25 @@
+<form class="stack" hx-post="{% url 'cabinet:mood_save' %}" hx-target="#mood-block" hx-swap="innerHTML">
+  {% csrf_token %}
+  <input type="hidden" name="day" value="today">
+  <div class="mood-scale">
+    {% for value, label in mood_choices %}
+      <button type="submit" name="value" value="{{ value }}"
+              aria-pressed="{% if today_mood.value == value %}true{% else %}false{% endif %}">{{ label }}</button>
+    {% endfor %}
+  </div>
+  {% if saved %}<span class="small state--saved">сохранено</span>{% endif %}
+</form>
+
+{% if not yesterday_mood %}
+  {# Пропуск двух дней подряд убивает практику, поэтому вчерашний день можно отметить задним числом. #}
+  <form class="stack" style="margin-top:12px" hx-post="{% url 'cabinet:mood_save' %}" hx-target="#mood-block" hx-swap="innerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="day" value="yesterday">
+    <span class="small muted">Вчера ({{ yesterday|date:"d.m" }}) не отмечено — можно поставить сейчас, штрафов за пропуск нет:</span>
+    <div class="mood-scale">
+      {% for value, label in mood_choices %}
+        <button type="submit" name="value" value="{{ value }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </form>
+{% endif %}

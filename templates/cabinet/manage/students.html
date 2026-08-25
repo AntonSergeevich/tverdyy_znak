@@ -1,0 +1,40 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Ученики{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:leads' %}">Заявки</a>
+  <a href="{% url 'cabinet:students' %}" aria-current="page">Ученики</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Ученики</h1>
+  <div class="btn-row">
+    <form method="get" class="btn-row">
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Фамилия" aria-label="Поиск" style="width:auto">
+      <button class="btn btn--quiet" type="submit">Найти</button>
+    </form>
+    <a class="btn btn--quiet" href="?deleted=1">Удалённые</a>
+    <a class="btn btn--quiet" href="{% url 'cabinet:export_students' %}">Выгрузить xlsx</a>
+  </div>
+</div>
+
+{% if students %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Ученик</th><th>Класс</th><th>Статус</th><th>Аттестация</th><th></th></tr></thead>
+      <tbody>
+      {% for student in students %}
+        {% include "cabinet/manage/partials/student_row.html" %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <p class="empty-state__title">{% if show_deleted %}Удалённых учеников нет{% else %}Учеников пока нет{% endif %}</p>
+    <p>{% if not show_deleted %}Ученики заводятся администратором после подписания договора.{% endif %}</p>
+  </div>
+{% endif %}
+{% endblock %}

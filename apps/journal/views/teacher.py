@@ -1,0 +1,354 @@
+"""
+Кабинет педагога.
+
+Оптимизирован под одну задачу: быстро выставить баллы после занятия (ТЗ 5.3).
+"""
+from __future__ import annotations
+
+from decimal import Decimal, InvalidOperation
+
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_http_methods
+
+from apps.accounts.permissions import role_required
+from apps.core.audit import AuditAction, log_audit
+from apps.journal.access import (
+    accessible_groups,
+    assert_can_grade,
+    get_lesson_or_403,
+    teacher_profile,
+)
+from apps.journal.models import (
+    Grade,
+    GradeItem,
+    GradeItemKind,
+    Group,
+    Lesson,
+    Module,
+    Student,
+    Subject,
+)
+from apps.journal.services.grading import (
+    create_default_structure,
+    points_budget,
+    set_grade,
+    validate_grade_item,
+)
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+def today(request):
+    """Список своих занятий на сегодня — в один тап открывается журнал."""
+    organization = request.organization
+    day = timezone.localdate()
+    profile = teacher_profile(request.user, organization)
+
+    lessons = (
+        Lesson.objects.filter(starts_at__date=day)
+        .select_related("subject", "group", "module", "teacher", "teacher__user")
+        .prefetch_related("grade_item")
+        .order_by("starts_at")
+    )
+    if profile is not None:
+        lessons = lessons.filter(teacher=profile)
+
+    upcoming = (
+        Lesson.objects.filter(starts_at__date__gt=day)
+        .select_related("subject", "group", "module")
+        .order_by("starts_at")
+    )
+    if profile is not None:
+        upcoming = upcoming.filter(teacher=profile)
+    upcoming = upcoming[:8]
+
+    return render(
+        request,
+        "cabinet/teacher/today.html",
+        {
+            "day": day,
+            "lessons": list(lessons),
+            "upcoming": list(upcoming),
+            "teacher": profile,
+            "groups": accessible_groups(request.user, organization).select_related("academic_year"),
+        },
+    )
+
+
+def _lesson_rows(lesson: Lesson):
+    """Ученики группы и их баллы за занятие — один запрос вместо N."""
+    grade_item = getattr(lesson, "grade_item", None)
+    grades = {}
+    if grade_item is not None:
+        grades = {
+            grade.student_id: grade
+            for grade in Grade.objects.filter(grade_item=grade_item).select_related("student")
+        }
+    students = (
+        Student.objects.filter(group_memberships__group=lesson.group)
+        .order_by("last_name", "first_name")
+        .distinct()
+    )
+    return [{"student": student, "grade": grades.get(student.id)} for student in students]
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+def lesson_journal(request, lesson_id):
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    grade_item = getattr(lesson, "grade_item", None)
+    budget = points_budget(lesson.module, lesson.subject, lesson.group)
+
+    log_audit(action=AuditAction.VIEW_STUDENT, request=request, obj=lesson, scope="lesson_journal")
+
+    return render(
+        request,
+        "cabinet/teacher/lesson_journal.html",
+        {
+            "lesson": lesson,
+            "grade_item": grade_item,
+            "rows": _lesson_rows(lesson),
+            "budget": budget,
+        },
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def lesson_toggle_graded(request, lesson_id):
+    """
+    Отметить занятие как оцениваемое и создать под него элемент оценивания.
+
+    Баллы за поведение не начисляются — тип элемента всегда «занятие».
+    """
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    make_graded = request.POST.get("is_graded") == "1"
+    error = ""
+    if make_graded and not hasattr(lesson, "grade_item"):
+        item = GradeItem(
+            organization=organization,
+            module=lesson.module,
+            subject=lesson.subject,
+            group=lesson.group,
+            lesson=lesson,
+            kind=GradeItemKind.LESSON,
+            title=lesson.topic or "Занятие с оцениванием",
+            max_points=organization.lesson_max_points,
+            due_date=lesson.local_date,
+        )
+        lesson.is_graded = True
+        try:
+            validate_grade_item(item)
+            item.save()
+            lesson.save(update_fields=["is_graded", "updated_at"])
+        except ValidationError as exc:
+            lesson.is_graded = False
+            error = "; ".join(m for msgs in exc.message_dict.values() for m in msgs)
+    elif not make_graded:
+        item = getattr(lesson, "grade_item", None)
+        if item is not None and Grade.objects.filter(grade_item=item).exists():
+            error = "Сначала удалите выставленные баллы за это занятие."
+        else:
+            if item is not None:
+                item.delete()
+            lesson.is_graded = False
+            lesson.save(update_fields=["is_graded", "updated_at"])
+
+    lesson.refresh_from_db()
+    return render(
+        request,
+        "cabinet/teacher/partials/lesson_header.html",
+        {
+            "lesson": lesson,
+            "grade_item": getattr(lesson, "grade_item", None),
+            "budget": points_budget(lesson.module, lesson.subject, lesson.group),
+            "error": error,
+        },
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def grade_save(request, lesson_id):
+    """
+    Автосохранение балла из журнала занятия (HTMX).
+
+    Возвращает строку ученика с индикатором сохранения. Ошибку показываем
+    рядом с полем, а не общим алертом: педагог должен видеть, что именно не так.
+    """
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    grade_item = getattr(lesson, "grade_item", None)
+    if grade_item is None:
+        raise PermissionDenied("Занятие без оценивания: сначала отметьте его как оцениваемое.")
+
+    student = get_object_or_404(
+        Student.objects.filter(group_memberships__group=lesson.group).distinct(),
+        pk=request.POST.get("student"),
+    )
+
+    raw = (request.POST.get("points") or "").strip().replace(",", ".")
+    comment = (request.POST.get("comment") or "").strip()
+    error = ""
+    grade = None
+    try:
+        points = Decimal(raw) if raw else None
+    except InvalidOperation:
+        points, error = None, "Балл должен быть числом."
+
+    if not error:
+        try:
+            grade = set_grade(
+                student=student, grade_item=grade_item, points=points,
+                actor=request.user, comment=comment, request=request,
+            )
+        except (ValidationError, PermissionDenied) as exc:
+            error = _first_message(exc)
+            grade = Grade.objects.filter(grade_item=grade_item, student=student).first()
+
+    return render(
+        request,
+        "cabinet/teacher/partials/grade_row.html",
+        {
+            "lesson": lesson,
+            "grade_item": grade_item,
+            "row": {"student": student, "grade": grade},
+            "error": error,
+            "saved": not error,
+        },
+        status=422 if error else 200,
+    )
+
+
+def _first_message(exc) -> str:
+    if isinstance(exc, ValidationError):
+        if hasattr(exc, "message_dict"):
+            return next(
+                (m for msgs in exc.message_dict.values() for m in msgs), "Не удалось сохранить."
+            )
+        return "; ".join(exc.messages)
+    return str(exc)
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+def module_plan(request, module_id, subject_id, group_id):
+    """
+    Планирование модуля: какие занятия с оцениванием и на сколько баллов.
+
+    Счётчик остатка от 100 виден постоянно, превышение блокируется сервисом.
+    """
+    organization = request.organization
+    module = get_object_or_404(Module.objects.select_related("academic_year"), pk=module_id)
+    subject = get_object_or_404(Subject, pk=subject_id)
+    group = get_object_or_404(
+        accessible_groups(request.user, organization), pk=group_id
+    )
+
+    items = (
+        GradeItem.objects.filter(module=module, subject=subject, group=group)
+        .select_related("lesson")
+        .order_by("position", "due_date")
+    )
+    lessons = (
+        Lesson.objects.filter(module=module, subject=subject, group=group)
+        .select_related("teacher", "teacher__user")
+        .prefetch_related("grade_item")
+        .order_by("starts_at")
+    )
+    return render(
+        request,
+        "cabinet/teacher/module_plan.html",
+        {
+            "module": module,
+            "subject": subject,
+            "group": group,
+            "items": list(items),
+            "lessons": list(lessons),
+            "budget": points_budget(module, subject, group),
+            "kinds": GradeItemKind.choices,
+        },
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def module_plan_action(request, module_id, subject_id, group_id):
+    organization = request.organization
+    module = get_object_or_404(Module, pk=module_id)
+    subject = get_object_or_404(Subject, pk=subject_id)
+    group = get_object_or_404(accessible_groups(request.user, organization), pk=group_id)
+    action = request.POST.get("action")
+    error = ""
+
+    try:
+        if action == "default_structure":
+            create_default_structure(module, subject, group, actor=request.user)
+        elif action == "add_item":
+            item = GradeItem(
+                organization=organization, module=module, subject=subject, group=group,
+                kind=request.POST.get("kind") or GradeItemKind.QUIZ,
+                title=(request.POST.get("title") or "").strip(),
+                max_points=Decimal((request.POST.get("max_points") or "0").replace(",", ".")),
+                due_date=request.POST.get("due_date") or None,
+            )
+            item.full_clean(exclude=["lesson"])
+            item.save()
+        elif action == "delete_item":
+            item = get_object_or_404(
+                GradeItem.objects.filter(module=module, subject=subject, group=group),
+                pk=request.POST.get("item"),
+            )
+            if Grade.objects.filter(grade_item=item).exists():
+                error = "По этой работе уже есть баллы. Сначала удалите их."
+            else:
+                item.delete()
+    except (ValidationError, InvalidOperation) as exc:
+        error = _first_message(exc) if isinstance(exc, ValidationError) else "Введите число баллов."
+
+    items = (
+        GradeItem.objects.filter(module=module, subject=subject, group=group)
+        .select_related("lesson")
+        .order_by("position", "due_date")
+    )
+    return render(
+        request,
+        "cabinet/teacher/partials/plan_items.html",
+        {
+            "module": module, "subject": subject, "group": group,
+            "items": list(items),
+            "budget": points_budget(module, subject, group),
+            "kinds": GradeItemKind.choices,
+            "error": error,
+        },
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def lesson_topic_save(request, lesson_id):
+    """Тематическое планирование: темы занятий на модуль вперёд (ТЗ 5.3)."""
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+    lesson.topic = (request.POST.get("topic") or "").strip()[:250]
+    lesson.save(update_fields=["topic", "updated_at"])
+    return render(
+        request, "cabinet/teacher/partials/topic_cell.html", {"lesson": lesson, "saved": True}
+    )
