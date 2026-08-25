@@ -66,18 +66,18 @@ chmod 600 .env
 
 ## 3. Сертификат
 
-Первый выпуск — до старта nginx с TLS-конфигом:
+Первый выпуск идёт в режиме `--standalone`, а не `--webroot`: webroot
+требует работающего nginx, а nginx не стартует без сертификата. Круг
+разрывается временным сервером самого certbot на 80 порту.
 
 ```bash
+cd /srv/tverdyy-znak
 docker compose up -d db redis web
-docker run --rm \
-  -v tverdyy-znak_certbot-www:/var/www/certbot \
-  -v tverdyy-znak_certbot-conf:/etc/letsencrypt \
-  certbot/certbot certonly --webroot -w /var/www/certbot \
-  -d tverdyy-znak.ru -d www.tverdyy-znak.ru \
-  --email admin@tverdyy-znak.ru --agree-tos --no-eff-email
-docker compose up -d
+bash deploy/scripts/issue-cert.sh
 ```
+
+Скрипт сам проверит A-запись домена, освободит 80 порт, выпустит
+сертификат и поднимет nginx.
 
 Дальше продление автоматическое: контейнер `certbot` проверяет дважды
 в сутки и обновляет, когда до конца меньше 30 дней.

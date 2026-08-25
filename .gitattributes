@@ -1,0 +1,19 @@
+# Нормализация переводов строк.
+# Без этого на Windows autocrlf превратит .sh в CRLF, и команда
+#   Get-Content deploy\scripts\provision.sh | ssh root@... "bash -s"
+# отправит на сервер \r, на котором bash падает с «$'\r': command not found».
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.ps1   text eol=crlf
+
+# Бинарники не трогаем.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.ico   binary
+*.xlsx  binary

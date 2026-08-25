@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Деплой «Твёрдого знака» на сервер одной командой.
 
@@ -9,6 +9,7 @@
 
 .EXAMPLE
     .\deploy\deploy.ps1
+    .\deploy\deploy.ps1 -SkipTests          # если локальной базы нет
     .\deploy\deploy.ps1 -Branch main -SkipPush
 #>
 [CmdletBinding()]
@@ -17,6 +18,7 @@ param(
     [string]$Path    = "/srv/tverdyy-znak",
     [string]$Branch  = "",
     [switch]$SkipPush,
+    [switch]$SkipTests,
     [switch]$Rebuild
 )
 
@@ -45,12 +47,24 @@ if ($dirty) {
     if ($answer -ne "y") { throw "Отменено. Сначала закоммитьте изменения." }
 }
 
+if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
+    throw "Не найден ssh. Установить: Settings → Приложения → Дополнительные компоненты → OpenSSH Client."
+}
+
 # ── Тесты: красный прогон на прод не выкатываем ─────────────────────────────
-Write-Step "Прогоняю тесты"
-$env:DJANGO_SETTINGS_MODULE = "config.settings.test"
-pytest -q
-if ($LASTEXITCODE -ne 0) { throw "Тесты не прошли — деплой остановлен." }
-Write-Ok "Тесты зелёные"
+# Тестам нужен локальный PostgreSQL. Если его нет — -SkipTests, но тогда
+# прогоните тесты хотя бы на сервере после выката.
+if ($SkipTests) {
+    Write-Host "`n== Тесты пропущены (-SkipTests)" -ForegroundColor Yellow
+} else {
+    Write-Step "Прогоняю тесты"
+    $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
+    pytest -q
+    if ($LASTEXITCODE -ne 0) {
+        throw "Тесты не прошли — деплой остановлен. Если дело в отсутствии локальной базы: .\deploy\deploy.ps1 -SkipTests"
+    }
+    Write-Ok "Тесты зелёные"
+}
 
 # ── Пуш ─────────────────────────────────────────────────────────────────────
 if (-not $SkipPush) {

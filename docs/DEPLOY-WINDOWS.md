@@ -14,17 +14,22 @@
 https://github.com/AntonSergeevich/tverdyy_znak.git
 ```
 
-Рабочая ветка — `claude/tverdyy-znak-django-sdrptm`. Переключиться на неё
-можно внизу справа в PyCharm или командой:
+Рабочая ветка — `claude/tverdyy-znak-django-sdrptm`, и весь код лежит
+именно в ней, а не в `main`. Если проект уже склонирован, но файлов
+не хватает — вы на старой ветке:
 
 ```powershell
+git fetch origin
 git checkout claude/tverdyy-znak-django-sdrptm
+git pull
 ```
 
 ## 2. Настроить окружение
 
+Подходит Python 3.12 или 3.13.
+
 ```powershell
-py -3.12 -m venv .venv
+py -3.13 -m venv .venv   # или py -3.12
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements-dev.txt
@@ -136,20 +141,30 @@ ssh root@85.198.66.41 "chmod 600 /srv/tverdyy-znak/.env && nano /srv/tverdyy-zna
 `DATABASE_URL` (с тем же паролем), `FIELD_ENCRYPTION_KEYS`,
 `TG_BOT_TOKEN`, `TG_CHAT_ID`.
 
-Сертификат Let's Encrypt и запуск:
+Запуск, сертификат и первичные данные:
 
 ```powershell
-ssh root@85.198.66.41 @"
-cd /srv/tverdyy-znak
-docker compose up -d db redis web
-docker run --rm -v tverdyy-znak_certbot-www:/var/www/certbot -v tverdyy-znak_certbot-conf:/etc/letsencrypt certbot/certbot certonly --webroot -w /var/www/certbot -d tverdyy-znak.ru -d www.tverdyy-znak.ru --email info@tverdyy-znak.ru --agree-tos --no-eff-email
-docker compose up -d --build
-docker compose exec -T web python manage.py bootstrap_organization --domain tverdyy-znak.ru
-docker compose exec -T web python manage.py setup_client_data
-docker compose exec -T web python manage.py createsuperuser --noinput --email admin@tverdyy-znak.ru || true
-docker compose exec -T web python manage.py check --deploy
-"@
+# 1. Поднять базу, Redis и приложение
+ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose up -d --build db redis web worker beat"
+
+# 2. Выпустить сертификат и поднять nginx.
+#    Первый выпуск идёт в режиме standalone: webroot требует работающего
+#    nginx, а nginx не стартует без сертификата.
+ssh root@85.198.66.41 "cd /srv/tverdyy-znak && bash deploy/scripts/issue-cert.sh"
+
+# 3. Справочники, реквизиты и карточки педагогов
+ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py bootstrap_organization --domain tverdyy-znak.ru"
+ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py setup_client_data"
+
+# 4. Учётная запись владельца
+ssh root@85.198.66.41 -t "cd /srv/tverdyy-znak && docker compose exec web python manage.py createsuperuser"
+
+# 5. Финальная проверка
+ssh root@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py check --deploy"
 ```
+
+`check --deploy` должен пройти без предупреждений. Если ругается —
+не запускаемся, а чиним.
 
 Фотографии педагогов попадут на сервер вместе с репозиторием
 (`assets/teachers/` коммитится), останется собрать из них WebP:
