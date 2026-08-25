@@ -33,6 +33,11 @@ ORGANIZATION = {
     "bank_account": "40802810820001048577",
     "bank_corr_account": "30101810745374525104",
     "timezone": "Asia/Krasnoyarsk",
+    # Полный формат = образовательная программа + наставнический блок.
+    "price_full_month": 70000,
+    "price_program_month": 40000,
+    "price_mentor_month": 30000,
+    "price_entry_year": 15000,
 }
 
 DOMAINS = ["tverdyy-znak.ru", "www.tverdyy-znak.ru"]
@@ -157,7 +162,7 @@ class Command(BaseCommand):
                 ("ОГРНИП", organization.ogrnip),
                 ("email", organization.contact_email),
                 ("Telegram chat_id для заявок", organization.telegram_chat_id),
-                ("цена профориентации", organization.price_career or ""),
+
             ]
             if not value
         ]

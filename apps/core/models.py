@@ -82,7 +82,14 @@ class Organization(TimeStampedModel):
 
     # ── Публичные тексты и цены ─────────────────────────────────────────────
     price_full_month = models.PositiveIntegerField("цена полного формата, ₽/мес", default=70000)
-    price_career = models.PositiveIntegerField("цена профориентации, ₽", default=0)
+    price_program_month = models.PositiveIntegerField(
+        "образовательная программа и подготовка к аттестации, ₽/мес", default=40000
+    )
+    price_mentor_month = models.PositiveIntegerField(
+        "наставник, профориентация и подготовка к поступлению, ₽/мес", default=30000
+    )
+    price_entry_year = models.PositiveIntegerField("вступительный взнос, ₽/год", default=15000)
+    price_career = models.PositiveIntegerField("цена профориентации отдельно, ₽", default=0)
     tutors_reference_price = models.PositiveIntegerField(
         "справочный счёт за репетиторов, ₽/мес", default=88000
     )

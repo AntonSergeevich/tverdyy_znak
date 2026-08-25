@@ -117,10 +117,14 @@ DNS: A-запись `tverdyy-znak.ru` и `www.tverdyy-znak.ru` → `85.198.66.41
 Resolve-DnsName tverdyy-znak.ru -Type A
 ```
 
-Дальше подготовка сервера одной командой из корня проекта:
+Дальше подготовка сервера. Скрипт копируется на сервер и запускается там,
+а не передаётся через конвейер: PowerShell отдаёт файл с виндовыми
+переводами строк, и bash спотыкается на `\r` («invalid option name»).
+`sed` в первой строке снимает этот риск раз и навсегда.
 
 ```powershell
-Get-Content deploy\scripts\provision.sh | ssh root@85.198.66.41 "bash -s"
+scp deploy\scripts\provision.sh root@85.198.66.41:/tmp/provision.sh
+ssh root@85.198.66.41 "sed -i 's/\r$//' /tmp/provision.sh && bash /tmp/provision.sh"
 ```
 
 Скрипт ставит Docker, заводит пользователя `tz`, включает фаервол и

@@ -48,7 +48,8 @@ class OrganizationAdmin(admin.ModelAdmin):
         }),
         ("Хранение данных", {"fields": ("data_retention_days", "lead_retention_days")}),
         ("Публичные цены", {
-            "fields": ("price_full_month", "price_career", "tutors_reference_price",
+            "fields": ("price_full_month", "price_program_month", "price_mentor_month",
+                       "price_entry_year", "price_career", "tutors_reference_price",
                        "tutors_reference_note"),
         }),
     )

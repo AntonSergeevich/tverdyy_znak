@@ -30,10 +30,12 @@
     <div class="grid" style="margin-top:32px">
       <div class="card" style="flex:1 1 320px">
         <p class="card__title">Стоимость</p>
-        <p class="numeral" style="font-size:44px">
-          {% if organization.price_career %}{{ organization.price_career|money }} ₽{% else %}уточняется{% endif %}
+        <p class="numeral" style="font-size:44px">{{ organization.price_mentor_month|money }} ₽</p>
+        <p class="muted">в месяц</p>
+        <p class="small muted" style="margin-top:10px">
+          Профориентация входит в наставнический блок вместе с сопровождением
+          наставника и подготовкой к поступлению.
         </p>
-        <p class="small muted">Оплачивается отдельно от полного формата.</p>
       </div>
       <div class="card" style="flex:1 1 320px">
         <p class="card__title">Что мы не обещаем</p>

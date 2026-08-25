@@ -270,6 +270,33 @@ input[type=range]::-moz-range-thumb {
 
 /* Сетка карточек: grid, а не flex. На flex последняя карточка в неполном
    ряду растягивалась во всю ширину и уносила с собой пропорции фото. */
+/* Тарифы */
+.price-card { display: flex; flex-direction: column; }
+.price-card__sum {
+  font-size: clamp(38px, 4vw, 56px); color: var(--accent);
+  margin-top: auto; padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* Преимущества программы */
+.benefits {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: clamp(12px, 1.6vw, 20px);
+}
+.benefits__item {
+  background: var(--surface); border: 1px solid var(--line);
+  padding: clamp(14px, 1.8vw, 20px);
+  display: flex; gap: 14px; align-items: baseline;
+  font-size: 16px; line-height: 1.45; color: var(--ink-2);
+}
+.benefits__number { font-size: 28px; color: var(--accent); flex: 0 0 auto; }
+
+/* Пример учебного дня */
+table.schedule th { color: var(--ink); font-weight: 700; white-space: nowrap; }
+table.schedule td { color: var(--ink-2); }
+table.schedule tr:last-child th, table.schedule tr:last-child td { border-bottom: 0; }
+
 /* Программа ФГОС */
 table.programme td:last-child, table.programme th:last-child { text-align: center; }
 table.programme tfoot th { border-top: 2px solid var(--line); font-size: 15px; color: var(--ink); }

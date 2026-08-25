@@ -1,7 +1,9 @@
 #!/bin/bash
 # Первичная подготовка чистого сервера Ubuntu 24.04 под «Твёрдый знак».
-# Запускать от root ОДИН раз:
-#   ssh root@85.198.66.41 'bash -s' < deploy/scripts/provision.sh
+# Запускать от root ОДИН раз. С Windows — копированием, а не конвейером:
+# PowerShell отдаёт файл с CRLF, и bash падает на «invalid option name».
+#   scp deploy/scripts/provision.sh root@СЕРВЕР:/tmp/provision.sh
+#   ssh root@СЕРВЕР "sed -i 's/\r$//' /tmp/provision.sh && bash /tmp/provision.sh"
 set -euo pipefail
 
 APP_USER="${APP_USER:-tz}"

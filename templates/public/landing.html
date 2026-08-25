@@ -17,7 +17,7 @@
 
     <div class="hero__price">
       <span class="numeral">{{ organization.price_full_month|money }} ₽</span>
-      <span class="muted">в месяц · полный формат. Профориентация — отдельно</span>
+      <span class="muted">в месяц · полный формат. Вступительный взнос {{ organization.price_entry_year|money }} ₽ в год</span>
     </div>
 
     <div class="btn-row">
@@ -141,6 +141,24 @@
   </div>
 </section>
 
+{# ── Преимущества программы ──────────────────────────────────────────────── #}
+<section class="section" id="preimushchestva">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Что даёт программа</span>
+      <h2 class="h-display">Преимущества</h2>
+    </div>
+    <ol class="benefits">
+      {% for benefit in program_benefits %}
+        <li class="benefits__item">
+          <span class="benefits__number numeral">{{ forloop.counter }}</span>
+          <span>{{ benefit }}</span>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
 {# ── Программа ФГОС ──────────────────────────────────────────────────────── #}
 <section class="section" id="programma">
   <div class="container">
@@ -174,6 +192,42 @@
           </tfoot>
         {% endif %}
       </table>
+    </div>
+  </div>
+</section>
+
+{# ── Пример учебного дня ─────────────────────────────────────────────────── #}
+<section class="section" id="uchebnyy-den">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Распорядок</span>
+      <h2 class="h-display">Пример учебного дня</h2>
+      <p class="lead">
+        День собран так, чтобы предметы шли блоками, а между ними были паузы
+        на еду и разгрузку. Точное расписание зависит от модуля и класса.
+      </p>
+    </div>
+    <div class="grid">
+      <div class="card" style="flex:1 1 360px">
+        <p class="card__title">Основное расписание</p>
+        <table class="data schedule">
+          <tbody>
+            {% for time, what in schedule_main %}
+              <tr><th style="width:130px">{{ time }}</th><td>{{ what }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="flex:1 1 300px">
+        <p class="card__title">Дополнительные занятия</p>
+        <table class="data schedule">
+          <tbody>
+            {% for time, what in schedule_extra %}
+              <tr><th style="width:130px">{{ time }}</th><td>{{ what }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </section>
@@ -316,25 +370,45 @@
       <h2 class="h-display">Цена открыто</h2>
     </div>
     <div class="grid">
-      <div class="card">
-        <p class="card__title">Полный формат</p>
-        <p class="numeral" style="font-size:44px">{{ organization.price_full_month|money }} ₽</p>
+      <div class="card price-card">
+        <p class="card__title">Образовательная программа</p>
+        <p class="small muted">Занятия по программе ФГОС и подготовка к промежуточной аттестации</p>
+        <p class="price-card__sum numeral">{{ organization.price_program_month|money }} ₽</p>
         <p class="muted">в месяц</p>
-        <ul style="margin:14px 0 0;padding-left:18px;line-height:1.7">
-          <li>занятия по всем предметам учебного плана</li>
-          <li>наставник и дорожная карта</li>
-          <li>кабинет с баллами и расписанием для родителя и подростка</li>
-          <li>консультации на каникулярной неделе</li>
-        </ul>
       </div>
-      <div class="card">
-        <p class="card__title">Что оплачивается отдельно</p>
-        <ul style="margin:0;padding-left:18px;line-height:1.7">
-          <li>профориентация</li>
-          <li>аттестация в аккредитованной школе-партнёре — по её правилам</li>
-        </ul>
-        <p class="small muted" style="margin-top:14px">{# TODO(вопрос): состав «полного формата» и что ещё вне его. #}Итоговый состав фиксируется в договоре.</p>
+      <div class="card price-card">
+        <p class="card__title">Наставник</p>
+        <p class="small muted">Сопровождение наставника, профориентация и подготовка к поступлению</p>
+        <p class="price-card__sum numeral">{{ organization.price_mentor_month|money }} ₽</p>
+        <p class="muted">в месяц</p>
       </div>
+      <div class="card price-card">
+        <p class="card__title">Вступительный взнос</p>
+        <p class="small muted">Прикрепление к аккредитованной школе-партнёру и комплект учебников</p>
+        <p class="price-card__sum numeral">{{ organization.price_entry_year|money }} ₽</p>
+        <p class="muted">в год</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:clamp(16px,2vw,24px)">
+      <p class="card__title">Полный формат — {{ organization.price_full_month|money }} ₽ в месяц</p>
+      {# TODO(вопрос): можно ли брать только образовательную программу
+         без наставнического блока. Пока утверждаем только то, что известно. #}
+      <p style="color:var(--ink-2)">
+        Это образовательная программа и наставнический блок вместе.
+        Что входит в каждый из них, разбираем на бесплатной диагностике.
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:clamp(16px,2vw,24px)">
+      <p class="card__title">Дополнительно оплачивается</p>
+      <div class="chips" style="margin-top:10px">
+        {% for item in extra_costs %}<span class="chip">{{ item }}</span>{% endfor %}
+      </div>
+      <p class="small muted" style="margin-top:14px">
+        Аттестация проходит в аккредитованной школе-партнёре по её правилам.
+        Итоговый состав услуг фиксируется в договоре.
+      </p>
     </div>
   </div>
 </section>
