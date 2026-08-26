@@ -154,3 +154,45 @@ def test_students_export_omits_sensitive_fields(tenant_a):
     headers = [cell.value for cell in sheet[1]]
     assert "Дата рождения" not in headers
     assert "Документ" not in headers
+
+
+def test_setup_client_data_does_not_overwrite_admin_edits(tenant_a):
+    """
+    Деплой не должен молча возвращать тексты и цены к значениям из кода.
+
+    Команда выполняется на каждом выкате, а первый экран и цены владелец
+    правит в админке: перетереть их — значит откатить чужую работу без
+    предупреждения. Реквизиты, наоборот, выставляются всегда: они обязаны
+    совпадать с документами ИП.
+    """
+    from django.core.management import call_command
+
+    from apps.core.models import Organization
+
+    tenant_a.organization.slug = "tverdyy-znak"
+    tenant_a.organization.hero_title = "Свой заголовок"
+    tenant_a.organization.price_full_month = 12345
+    tenant_a.organization.inn = "000000000000"
+    tenant_a.organization.save()
+
+    call_command("setup_client_data", "--slug", "tverdyy-znak")
+    organization = Organization.objects.get(pk=tenant_a.organization.pk)
+
+    assert organization.hero_title == "Свой заголовок"
+    assert organization.price_full_month == 12345
+    assert organization.inn == "241502815698"
+
+
+def test_setup_client_data_force_restores_values_from_code(tenant_a):
+    from django.core.management import call_command
+
+    from apps.core.models import Organization
+
+    tenant_a.organization.slug = "tverdyy-znak"
+    tenant_a.organization.hero_title = "Свой заголовок"
+    tenant_a.organization.save()
+
+    call_command("setup_client_data", "--slug", "tverdyy-znak", "--force")
+    organization = Organization.objects.get(pk=tenant_a.organization.pk)
+
+    assert organization.hero_title != "Свой заголовок"

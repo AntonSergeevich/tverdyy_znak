@@ -22,36 +22,44 @@ from apps.core.models import Organization, OrganizationDomain
 from apps.core.tenancy import organization_context
 from apps.site_public.models import TeacherCard
 
-ORGANIZATION = {
+# Реквизиты. Эти поля команда выставляет всегда: они обязаны совпадать
+# с документами ИП, и «поправить в админке» здесь — не фича, а ошибка.
+REQUISITES = {
     "name": "Твёрдый знак",
     "legal_name": "Индивидуальный предприниматель Бабаджанова Алина Алимовна",
     "inn": "241502815698",
     "ogrnip": "326246800106544",
     "address": "Красноярск, ул. Весны, 10",
     "contact_phone": "+7 (913) 560-26-00",
-    # Файл с расписанием, который ведёт Алина. Видно только в кабинете:
-    # пока занятия модуля не заведены в журнале, родителю и ученику надо
-    # куда-то смотреть. После import_schedule ссылка остаётся справочной.
-    "schedule_url": (
-        "https://docs.yandex.ru/view/d/"
-        "GqC0hOHNfTT2B6PJgMZsWyPegnqahzm72s0qoIz-cKg6b3FiSndzVjk4Zw"
-    ),
     "bank_name": 'ООО "Банк Точка"',
     "bank_bik": "044525104",
     "bank_account": "40802810820001048577",
     "bank_corr_account": "30101810745374525104",
     "timezone": "Asia/Krasnoyarsk",
+}
+
+# Стартовые значения. Заполняются, только если поле пустое: тексты и цены
+# правятся в админке, и деплой не должен молча возвращать их назад.
+# Перезаписать намеренно: setup_client_data --force.
+DEFAULTS = {
     # Полный формат = образовательная программа + наставнический блок.
     "price_full_month": 70000,
     "price_program_month": 40000,
     "price_mentor_month": 30000,
     "price_entry_year": 15000,
-    # Тексты первого экрана. Дальше правятся в админке без деплоя.
+    # Тексты первого экрана.
     "hero_kicker": "Семейный класс «Твёрдый знак» · Красноярск · 8–11 класс",
     "hero_title": "Вся учёба — в одном месте",
     "hero_lead": (
         "Подросток учится модулями по 5 недель, видит свою дорожную карту "
         "и получает баллы за конкретную работу. Вы видите то же, что и он."
+    ),
+    # Файл с расписанием, который ведёт Алина. Виден только в кабинете:
+    # пока занятия модуля не заведены в журнале, родителю и ученику надо
+    # куда-то смотреть. После import_schedule ссылка остаётся справочной.
+    "schedule_url": (
+        "https://docs.yandex.ru/view/d/"
+        "GqC0hOHNfTT2B6PJgMZsWyPegnqahzm72s0qoIz-cKg6b3FiSndzVjk4Zw"
     ),
 }
 
@@ -128,6 +136,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--slug", default=settings.DEFAULT_ORGANIZATION_SLUG or "tverdyy-znak")
+        parser.add_argument(
+            "--force", action="store_true",
+            help="перезаписать и тексты с ценами, затерев правки из админки",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -138,10 +150,23 @@ class Command(BaseCommand):
                 f"Сначала: python manage.py bootstrap_organization"
             )
 
-        for field, value in ORGANIZATION.items():
+        for field, value in REQUISITES.items():
             setattr(organization, field, value)
+
+        kept = []
+        for field, value in DEFAULTS.items():
+            if options["force"] or not getattr(organization, field):
+                setattr(organization, field, value)
+            else:
+                kept.append(field)
         organization.save()
+
         self.stdout.write(self.style.SUCCESS(f"Реквизиты обновлены: {organization.legal_name}"))
+        if kept:
+            self.stdout.write(
+                f"Не тронуто (уже заполнено, правится в админке): {', '.join(kept)}. "
+                "Вернуть значения из кода: --force"
+            )
 
         for index, host in enumerate(DOMAINS):
             OrganizationDomain.objects.get_or_create(

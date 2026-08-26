@@ -86,6 +86,11 @@ docker compose build web worker beat
 docker compose up -d $buildFlag
 docker compose exec -T web python manage.py migrate --noinput
 docker compose exec -T web python manage.py collectstatic --noinput
+# Справочники — часть кода: список предметов и данные организации объявлены
+# источником истины, поэтому приводятся к нему на каждом выкате.
+# Обе команды идемпотентны и ничего не удаляют.
+docker compose exec -T web python manage.py bootstrap_organization
+docker compose exec -T web python manage.py setup_client_data
 docker compose ps
 "@
 
