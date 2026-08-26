@@ -386,8 +386,14 @@ table.programme tfoot th { border-top: 2px solid var(--line); font-size: 15px; c
   display: grid; gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
 }
+/* Пункт списка растягивается по высоте строки сетки сам, а вот ссылка
+   внутри — нет: без height: 100% карточки выходят разной высоты,
+   и ряд смотрится рваным. Имя над предметом прижато к верху, поэтому
+   строки подписей совпадают независимо от длины фамилии. */
+.teacher-strip > li { display: grid; }
 .teacher-chip {
-  display: grid; gap: 2px; color: inherit; text-align: left;
+  display: grid; gap: 2px; align-content: start; height: 100%;
+  color: inherit; text-align: left;
   background: var(--surface); border: 1px solid var(--line); padding: 10px;
   transition: border-color .15s ease;
 }
