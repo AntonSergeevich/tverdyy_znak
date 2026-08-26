@@ -62,7 +62,12 @@ if (-not $SkipPush) {
 }
 
 Write-Step "Выкатываю на $Server"
-ssh $Server "bash $Path/deploy/scripts/remote-deploy.sh '$Branch'"
+# Рабочую копию на сервере обновляем до вызова скрипта, а не внутри него:
+# сам скрипт приезжает вместе с кодом, и запустить ещё не доставленную
+# версию нельзя. Внутри fetch повторяется — второй раз он ничего не меняет.
+$remote = "cd '$Path' && git fetch origin '$Branch' && git reset --hard 'origin/$Branch'" +
+          " && bash deploy/scripts/remote-deploy.sh '$Branch'"
+ssh $Server $remote
 if ($LASTEXITCODE -ne 0) {
     throw "Выкат не прошёл. Логи: ssh $Server 'cd $Path && docker compose logs --tail=50 web'"
 }
