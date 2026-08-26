@@ -232,21 +232,34 @@ class Command(BaseCommand):
         return extra
 
     def _get_group(self, module: Module, name: str | None) -> Group:
-        groups = Group.objects.filter(academic_year=module.academic_year)
+        groups = list(Group.objects.filter(academic_year=module.academic_year))
+        if not groups:
+            # Отдельное сообщение, а не «групп больше одной»: пустой список
+            # после «Есть:» — ровно тот случай, когда непонятно, что делать.
+            raise CommandError(
+                f"В году {module.academic_year} нет ни одной группы, "
+                "и занятия не к чему привязать.\n"
+                "Заведите её в админке (Журнал → Группы) или командой:\n"
+                '  manage.py bootstrap_organization  — создаёт «Семейный класс», '
+                "если групп ещё нет."
+            )
+
+        names = ", ".join(g.name for g in groups)
         if name:
-            group = groups.filter(name__iexact=name).first() or groups.filter(
-                name__istartswith=name
-            ).first()
+            wanted = name.strip().casefold()
+            group = next((g for g in groups if g.name.casefold() == wanted), None)
+            group = group or next(
+                (g for g in groups if g.name.casefold().startswith(wanted)), None
+            )
             if group is None:
-                raise CommandError(
-                    f"Группы «{name}» нет. Есть: " + ", ".join(g.name for g in groups)
-                )
+                raise CommandError(f"Группы «{name}» нет. Есть: {names}")
             return group
-        if groups.count() == 1:
-            return groups.first()
+
+        if len(groups) == 1:
+            return groups[0]
         raise CommandError(
-            "Групп в году больше одной — укажите, чьё это расписание: --group «Семейный класс 9». "
-            "Есть: " + ", ".join(g.name for g in groups)
+            "Групп в году больше одной — укажите, чьё это расписание: "
+            f"--group «{groups[0].name}». Есть: {names}"
         )
 
     def _write(self, organization, module, group, entries, *, dry_run: bool, sheet: str) -> None:

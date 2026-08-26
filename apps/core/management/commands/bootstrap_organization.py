@@ -17,6 +17,8 @@ from apps.core.tenancy import organization_context
 from apps.journal.models import (
     AcademicYear,
     GradingScale,
+    Group,
+    GroupKind,
     Module,
     ModuleKind,
     Subject,
@@ -62,6 +64,8 @@ SUBJECTS = [
 
 # Блоки дня из расписания: место в сетке занимают, баллов не приносят.
 # Без них расписание в кабинете выглядело бы дырявым — половина дня пропала бы.
+DEFAULT_GROUP_NAME = "Семейный класс"
+
 DAY_BLOCKS = [
     "Утренний круг",
     "Обед",
@@ -170,6 +174,18 @@ class Command(BaseCommand):
                         "position": 500 + position * 10,
                         "kind": SubjectKind.ACTIVITY,
                     },
+                )
+
+            # Одна группа нужна, чтобы к ней можно было привязать занятия.
+            # get_or_create, а не update_or_create: если группу переименовали
+            # или завели свои, повторный запуск не должен их трогать.
+            if not Group.objects.filter(academic_year=year).exists():
+                Group.objects.create(
+                    organization=organization, academic_year=year,
+                    name=DEFAULT_GROUP_NAME, kind=GroupKind.FAMILY_CLASS,
+                    # Класс не задаём: в семейном классе учатся с 8 по 11,
+                    # и приписывать группе один — значит соврать.
+                    grade_level=None,
                 )
 
             GradingScale.objects.get_or_create(

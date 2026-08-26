@@ -228,20 +228,33 @@ def test_og_cover_file_exists_and_is_png():
     assert cover.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-def test_deploy_script_strips_cr_before_sending_commands_over_ssh():
+def test_shell_scripts_have_no_carriage_returns():
     """
-    Скрипт хранится в CRLF, а команды на сервере выполняет bash.
+    Скрипты для сервера хранятся в LF.
 
     Для bash \\r — часть слова: он падает на
     «cd: /srv/tverdyy-znak\\r: No such file or directory», и понять это
-    по выводу почти нельзя. Так уже ломался деплой дважды, поэтому
-    снятие \\r проверяется тестом, а не памятью.
+    по выводу почти нельзя. Так уже ломался деплой дважды.
+    """
+    from pathlib import Path
+
+    for script in sorted(Path("deploy/scripts").glob("*.sh")):
+        assert b"\r" not in script.read_bytes(), f"{script}: перевод строки CRLF"
+
+
+def test_deploy_script_checks_that_push_succeeded():
+    """
+    Отклонённый git push не должен приводить к выкату старого коммита.
+
+    Ровно это и произошло: скрипт напечатал «Запушено», выкатил
+    предыдущую версию, и полчаса ушло на поиски того, почему изменение
+    «не доехало».
     """
     from pathlib import Path
 
     script = Path("deploy/deploy.ps1").read_text(encoding="utf-8-sig")
-    definition = script.index("$remote = @\"")
-    call = script.index("ssh $Server $remote")
+    push = script.index("git push origin $Branch")
+    deploy = script.index("ssh $Server")
 
-    assert definition < call
-    assert "$remote = $remote -replace" in script[definition:call]
+    assert push < deploy
+    assert "$LASTEXITCODE" in script[push:deploy]

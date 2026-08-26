@@ -1,0 +1,72 @@
+name: Тесты и выкат
+
+# Выкат происходит при пуше в ветку разработки: код уходит на сервер
+# сам, локальная машина в этом не участвует.
+on:
+  push:
+    branches:
+      - claude/tverdyy-znak-django-sdrptm
+      - main
+  workflow_dispatch:
+
+concurrency:
+  # Два выката одновременно на один сервер — это гонка за docker compose.
+  # Новый пуш отменяет предыдущий незавершённый выкат.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Тесты
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tz
+          POSTGRES_PASSWORD: tz
+          POSTGRES_DB: tverdyy_znak
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tz"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DATABASE_URL: postgres://tz:tz@127.0.0.1:5432/tverdyy_znak
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Зависимости
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: pytest
+        run: pytest -q
+
+  deploy:
+    name: Выкат
+    needs: tests
+    runs-on: ubuntu-latest
+    # На сервер уходит только то, что прошло тесты.
+    steps:
+      - name: Ключ SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Выкатываю
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          ssh "$USER@$HOST" \
+            "bash /srv/tverdyy-znak/deploy/scripts/remote-deploy.sh '$BRANCH'"

@@ -368,3 +368,34 @@ def test_day_blocks_are_not_graded(tenant_a):
     assert lunch.is_graded is False
     with pytest.raises(ValidationError):
         create_default_structure(tenant_a.module, lunch, tenant_a.group)
+
+
+def test_bootstrap_creates_a_group_to_hang_lessons_on(tenant_a):
+    """
+    Без группы расписание некуда грузить.
+
+    На боевом сервере групп не было вовсе, и команда загрузки жаловалась
+    на «групп больше одной» с пустым списком после «Есть:».
+    """
+    from django.core.management import call_command
+
+    from apps.journal.models import Group
+
+    tenant_a.organization.slug = "tverdyy-znak"
+    tenant_a.organization.save(update_fields=["slug"])
+    Group.all_objects.filter(organization=tenant_a.organization).delete()
+
+    call_command("bootstrap_organization", "--slug", "tverdyy-znak")
+
+    assert Group.all_objects.filter(organization=tenant_a.organization).exists()
+
+
+def test_import_says_plainly_when_there_are_no_groups(tmp_path, tenant_a):
+    from apps.journal.models import Group
+
+    path, _ = _make_table(tmp_path, tenant_a)
+    Group.all_objects.filter(organization=tenant_a.organization).delete()
+
+    with pytest.raises(CommandError, match="нет ни одной группы"):
+        call_command("import_schedule", str(path), "--organization",
+                     tenant_a.organization.slug, "--module", tenant_a.module.number)
