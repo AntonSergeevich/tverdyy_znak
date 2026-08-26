@@ -30,8 +30,8 @@ class AcademicYearAdmin(TenantAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(TenantAdmin):
-    list_display = ("name", "academic_year", "weekly_hours", "position")
-    list_filter = ("organization", "academic_year")
+    list_display = ("name", "academic_year", "kind", "weekly_hours", "position")
+    list_filter = ("organization", "academic_year", "kind")
     search_fields = ("name",)
 
 

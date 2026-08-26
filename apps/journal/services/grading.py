@@ -121,6 +121,11 @@ def create_default_structure(module, subject, group, *, actor=None) -> list[Grad
     """
     from apps.journal.models import DEFAULT_STRUCTURE
 
+    if not subject.is_graded:
+        raise ValidationError(
+            f"«{subject.name}» — блок дня, а не учебный предмет: баллы по нему не выставляются."
+        )
+
     if GradeItem.all_objects.filter(
         organization=module.organization, module=module, subject=subject, group=group
     ).exists():

@@ -14,7 +14,14 @@ from django.db import transaction
 
 from apps.core.models import Organization, OrganizationDomain
 from apps.core.tenancy import organization_context
-from apps.journal.models import AcademicYear, GradingScale, Module, ModuleKind, Subject
+from apps.journal.models import (
+    AcademicYear,
+    GradingScale,
+    Module,
+    ModuleKind,
+    Subject,
+    SubjectKind,
+)
 from apps.site_public.models import FaqItem, LegalDocument
 
 # Расписание модулей 2026/27 (ТЗ 3.5).
@@ -32,23 +39,38 @@ MODULES = [
     (ModuleKind.MODULE, 6, date(2027, 4, 12), date(2027, 5, 21)),
 ]
 
-# Программа ФГОС: 13 дисциплин, 28 часов в неделю.
-# Заменила укрупнённый список из ТЗ: математика разделена на алгебру,
-# геометрию и вероятность со статистикой, как в действующем стандарте.
+# Учебная нагрузка на 2026/27 из файла заказчика (docs/2.0.xlsx, лист «Лист2»).
+# Математика там одной строкой на 6 часов — здесь она разложена на алгебру,
+# геометрию и вероятность со статистикой, как в действующем стандарте
+# и как она стоит в самом расписании.
 SUBJECTS = [
     ("Русский язык", 3),
-    ("Литература", 3),
+    ("Литература", 2),
+    ("Английский язык", 3),
     ("Алгебра", 3),
     ("Геометрия", 2),
     ("Вероятность и статистика", 1),
+    ("Информатика", 1),
     ("История", 2),
     ("Обществознание", 1),
-    ("Информатика", 1),
     ("География", 2),
     ("Физика", 3),
     ("Химия", 2),
     ("Биология", 2),
-    ("Английский язык", 3),
+    ("Подготовка к ОГЭ", 6),
+]
+
+# Блоки дня из расписания: место в сетке занимают, баллов не приносят.
+# Без них расписание в кабинете выглядело бы дырявым — половина дня пропала бы.
+DAY_BLOCKS = [
+    "Утренний круг",
+    "Обед",
+    "Профориентация",
+    "Проектная деятельность",
+    "Индивидуальная работа",
+    "Самоподготовка",
+    "Развивающая неудача",
+    "Рефлексия",
 ]
 
 FAQ = [
@@ -134,7 +156,20 @@ class Command(BaseCommand):
                 # должен приводить справочник к нему, а не оставлять как было.
                 Subject.objects.update_or_create(
                     organization=organization, academic_year=year, name=name,
-                    defaults={"weekly_hours": hours, "position": position * 10},
+                    defaults={
+                        "weekly_hours": hours,
+                        "position": position * 10,
+                        "kind": SubjectKind.ACADEMIC,
+                    },
+                )
+            for position, name in enumerate(DAY_BLOCKS, start=1):
+                Subject.objects.update_or_create(
+                    organization=organization, academic_year=year, name=name,
+                    defaults={
+                        "weekly_hours": 0,
+                        "position": 500 + position * 10,
+                        "kind": SubjectKind.ACTIVITY,
+                    },
                 )
 
             GradingScale.objects.get_or_create(
@@ -169,5 +204,6 @@ class Command(BaseCommand):
 
         total_hours = sum(hours for _, hours in SUBJECTS)
         self.stdout.write(self.style.SUCCESS(
-            f"Готово: модулей {len(MODULES)}, предметов {len(SUBJECTS)}, часов в неделю {total_hours}"
+            f"Готово: модулей {len(MODULES)}, предметов {len(SUBJECTS)}, "
+            f"часов в неделю {total_hours}, блоков дня {len(DAY_BLOCKS)}"
         ))

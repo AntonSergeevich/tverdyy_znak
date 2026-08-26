@@ -173,3 +173,198 @@ def test_example_grid_matches_expected_columns():
 
     header = Path("docs/schedule.example.csv").read_text(encoding="utf-8").splitlines()[0]
     assert header.split(",") == REQUIRED_COLUMNS + OPTIONAL_COLUMNS
+
+
+# ── разбор таблицы, в которой расписание ведёт заказчик ─────────────────────
+
+def test_time_range_with_leading_hour_is_not_mistaken_for_lesson_number():
+    """
+    «9.30-10.10» начинается так же, как «9. …» — номер урока.
+
+    Если снимать номер вслепую, от времени остаётся «30-10.10»,
+    и весь лист молча читается как пустой.
+    """
+    from apps.journal.services.schedule_import import parse_time_range
+
+    assert parse_time_range("9.30-10.10") == (dt.time(9, 30), 40)
+    assert parse_time_range("1. 9.30-10.10") == (dt.time(9, 30), 40)
+    assert parse_time_range("13:30-14:00") == (dt.time(13, 30), 30)
+    assert parse_time_range("Время") is None
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("ПН 30.08", (0, 30, 8)),
+        ("ВТ 01.09", (1, 1, 9)),
+        ("02.09 Ср", (2, 2, 9)),
+        ("Время", None),
+        (None, None),
+    ],
+)
+def test_day_header_parsing(value, expected):
+    from apps.journal.services.schedule_import import parse_day_header
+
+    assert parse_day_header(value) == expected
+
+
+def test_alias_is_only_a_fallback():
+    """
+    Синоним не должен подменять предмет, который в журнале уже есть.
+
+    «ВиСТ» разворачивается, но искать надо сначала по тому, что написано:
+    у другой организации может быть предмет ровно с таким названием.
+    """
+    from apps.journal.services.schedule_import import title_candidates
+
+    assert title_candidates("ВиСТ") == ["ВиСТ", "Вероятность и статистика"]
+    assert title_candidates("  Химия  ") == ["Химия"]
+
+
+def test_grid_parsing_reports_wrong_weekday_and_copied_header():
+    """
+    Две ошибки, которые реально были в файле заказчика.
+
+    Дата с чужим днём недели и скопированная шапка второй недели: обе
+    молча теряют занятия, поэтому обе должны быть названы вслух.
+    """
+    from apps.journal.services.schedule_import import parse_grid
+
+    rows = [
+        ["Время", "ПН 30.08", "ВТ 01.09"],
+        ["9.30-10.10", "Русский язык", "Алгебра"],
+        [None, None, None],
+        ["Время", "ПН 07.09", "ВТ 01.09"],
+        ["9.30-10.10", "Литература", "Геометрия"],
+    ]
+    result = parse_grid(rows, within=(dt.date(2026, 9, 1), dt.date(2027, 5, 21)))
+
+    assert any("воскресенье" in w for w in result.warnings)
+    assert any("скопировали" in w for w in result.warnings)
+    assert {lesson.title for lesson in result.lessons} == {
+        "Русский язык", "Алгебра", "Литература", "Геометрия"
+    }
+
+
+def test_workbook_from_yandex_docs_opens_despite_invalid_style(tmp_path):
+    """
+    Яндекс.Документы пишут в границах style="solid" — такого значения нет.
+
+    openpyxl из-за этого отказывается открывать файл целиком, поэтому копия
+    чинится на лету. Иначе заказчику пришлось бы пересохранять файл вручную.
+    """
+    import io
+    import zipfile
+
+    import openpyxl
+
+    from apps.journal.services.schedule_import import load_workbook_rows
+
+    book = openpyxl.Workbook()
+    book.active.title = "Расписание"
+    book.active["A1"] = "Время"
+    buffer = io.BytesIO()
+    book.save(buffer)
+
+    broken = tmp_path / "yandex.xlsx"
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as zin:
+        with zipfile.ZipFile(broken, "w") as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename == "xl/styles.xml":
+                    data = data.replace(
+                        b"<borders", b'<borders><border><left style="solid"/></border>', 1
+                    ).replace(b'count="1"', b'count="2"', 1)
+                zout.writestr(item, data)
+
+    with pytest.raises(ValueError):
+        openpyxl.load_workbook(broken)
+    assert load_workbook_rows(broken)["Расписание"][0][0] == "Время"
+
+
+def _make_table(tmp_path, tenant, *, extra_rows=None):
+    import openpyxl
+
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Расписание СЕНТЯБРЬ"
+    monday = tenant.module.starts_on
+    monday -= dt.timedelta(days=monday.weekday())
+    if monday < tenant.module.starts_on:
+        monday += dt.timedelta(days=7)
+    sheet.append(["Время", f"ПН {monday:%d.%m}", f"ВТ {monday + dt.timedelta(days=1):%d.%m}"])
+    sheet.append(["9.30-10.10", tenant.subject.name, tenant.subject.name])
+    for row in extra_rows or []:
+        sheet.append(row)
+    path = tmp_path / "raspisanie.xlsx"
+    book.save(path)
+    return path, monday
+
+
+def test_import_from_table_creates_lessons_on_listed_days(tmp_path, tenant_a):
+    path, monday = _make_table(tmp_path, tenant_a)
+    call_command("import_schedule", str(path), "--organization", tenant_a.organization.slug,
+                 "--module", tenant_a.module.number, "--group", tenant_a.group.name)
+
+    days = {
+        lesson.starts_at.astimezone(tenant_a.organization.tzinfo).date()
+        for lesson in Lesson.all_objects.filter(
+            organization=tenant_a.organization, subject=tenant_a.subject
+        )
+    }
+    assert monday in days
+    assert monday + dt.timedelta(days=1) in days
+
+
+def test_import_from_table_repeats_last_week_only_when_asked(tmp_path, tenant_a):
+    """
+    Продлевать расписание до конца модуля — осознанное решение.
+
+    По умолчанию загружается ровно то, что в файле: додуманные занятия
+    в кабинете ребёнка хуже, чем их отсутствие.
+    """
+    path, _ = _make_table(tmp_path, tenant_a)
+    kwargs = {
+        "organization": tenant_a.organization.slug,
+        "module": tenant_a.module.number,
+        "group": tenant_a.group.name,
+    }
+    call_command("import_schedule", str(path), **kwargs)
+    without = Lesson.all_objects.filter(organization=tenant_a.organization).count()
+
+    call_command("import_schedule", str(path), repeat_last_week=True, **kwargs)
+    with_repeat = Lesson.all_objects.filter(organization=tenant_a.organization).count()
+
+    assert with_repeat > without
+
+
+def test_import_from_table_names_what_it_could_not_match(tmp_path, tenant_a, capsys):
+    path, _ = _make_table(
+        tmp_path, tenant_a, extra_rows=[["10.20-11.00", "Астрология", "Астрология"]]
+    )
+    call_command("import_schedule", str(path), "--organization", tenant_a.organization.slug,
+                 "--module", tenant_a.module.number, "--group", tenant_a.group.name)
+
+    err = capsys.readouterr().err
+    assert "Астрология" in err
+
+
+def test_day_blocks_are_not_graded(tenant_a):
+    """
+    Обед и утренний круг стоят в расписании, но 100 баллов по ним не раскладываются.
+
+    Иначе педагог однажды заведёт структуру оценивания для обеда,
+    и лимит модуля начнёт съедаться неучебным блоком.
+    """
+    from django.core.exceptions import ValidationError
+
+    from apps.journal.models import Subject, SubjectKind
+    from apps.journal.services.grading import create_default_structure
+
+    lunch = Subject.all_objects.create(
+        organization=tenant_a.organization, academic_year=tenant_a.year,
+        name="Обед", kind=SubjectKind.ACTIVITY, weekly_hours=0,
+    )
+    assert lunch.is_graded is False
+    with pytest.raises(ValidationError):
+        create_default_structure(tenant_a.module, lunch, tenant_a.group)

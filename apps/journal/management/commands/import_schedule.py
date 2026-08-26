@@ -1,20 +1,24 @@
 """
-Загрузка недельной сетки расписания в занятия журнала.
+Загрузка расписания в занятия журнала.
 
-Расписание Алина ведёт в отдельном файле (Яндекс.Документы). Разбирать
-чужой формат таблицы вслепую — способ тихо потерять половину строк,
-поэтому вход здесь один и явный: CSV с шестью колонками. Файл выгружается
-из документа «Сохранить как → CSV», образец лежит в docs/schedule.example.csv.
+Читаются два вида файлов, и это не прихоть — они отвечают на разные вопросы.
 
-Команда разворачивает одну неделю на весь модуль: каждая строка сетки
-превращается в занятия на все соответствующие дни между началом и концом
-модуля. Повторный запуск ничего не дублирует — занятие опознаётся по
-организации, группе, предмету и времени начала.
+**Таблица (.xlsx)** — то, как расписание ведёт заказчик: слева время,
+сверху дни с датами, в клетках названия занятий. Загружается ровно то, что
+в файле: конкретные дни, включая неполные недели и разовые перестановки.
+
+**CSV с недельной сеткой** — «так каждую неделю до конца модуля». Шесть
+колонок, образец в docs/schedule.example.csv. Одна строка превращается
+в занятия на все соответствующие дни модуля.
+
+Повторный запуск в обоих случаях ничего не дублирует: занятие опознаётся
+по организации, группе, предмету и времени начала.
 """
 from __future__ import annotations
 
 import csv
 import datetime as dt
+from dataclasses import replace
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -32,6 +36,7 @@ from apps.journal.models import (
     Subject,
     Teacher,
 )
+from apps.journal.services import schedule_import
 
 REQUIRED_COLUMNS = ["day", "time", "subject", "group"]
 OPTIONAL_COLUMNS = ["teacher", "room", "duration"]
@@ -66,10 +71,10 @@ def parse_time(raw: str) -> dt.time:
 
 
 class Command(BaseCommand):
-    help = "Загрузить недельную сетку расписания из CSV в занятия модуля"
+    help = "Загрузить расписание из таблицы (.xlsx) или недельной сетки (.csv)"
 
     def add_arguments(self, parser):
-        parser.add_argument("csv_path", help="путь к файлу с сеткой")
+        parser.add_argument("path", help="файл с расписанием: .xlsx или .csv")
         parser.add_argument(
             "--organization", default=None,
             help="код организации; по умолчанию — DEFAULT_ORGANIZATION_SLUG",
@@ -79,20 +84,35 @@ class Command(BaseCommand):
             help="номер учебного модуля; по умолчанию — тот, что идёт сейчас",
         )
         parser.add_argument(
+            "--group", default=None,
+            help="группа; обязательна для .xlsx, если групп в году больше одной",
+        )
+        parser.add_argument(
+            "--sheet", default=None,
+            help="лист книги; по умолчанию тот, в названии которого есть «расписание»",
+        )
+        parser.add_argument(
+            "--repeat-last-week", action="store_true",
+            help="повторить последнюю полную неделю таблицы до конца модуля",
+        )
+        parser.add_argument(
             "--dry-run", action="store_true",
             help="только показать, что получится, ничего не записывая",
         )
 
     def handle(self, *args, **options):
-        path = Path(options["csv_path"])
+        path = Path(options["path"])
         if not path.exists():
             raise CommandError(f"Файл {path} не найден.")
 
         organization = self._get_organization(options["organization"])
         with organization_context(organization):
             module = self._get_module(organization, options["module"])
-            rows = self._read_rows(path)
-            self._import(organization, module, rows, dry_run=options["dry_run"])
+            if path.suffix.lower() in (".xlsx", ".xlsm"):
+                self._import_table(organization, module, path, options)
+            else:
+                rows = self._read_rows(path)
+                self._import(organization, module, rows, dry_run=options["dry_run"])
 
     # ── подготовка ──────────────────────────────────────────────────────────
 
@@ -145,6 +165,148 @@ class Command(BaseCommand):
                     "Образец: docs/schedule.example.csv"
                 )
             return [row for row in reader if any((v or "").strip() for v in row.values())]
+
+    # ── таблица заказчика ───────────────────────────────────────────────────
+
+    def _import_table(self, organization, module: Module, path: Path, options) -> None:
+        try:
+            sheets = schedule_import.load_workbook_rows(path)
+        except ImportError:  # pragma: no cover - зависимость есть в requirements
+            raise CommandError("Для чтения .xlsx нужен openpyxl: pip install openpyxl")
+
+        try:
+            sheet = schedule_import.pick_sheet(sheets, options.get("sheet"))
+        except KeyError:
+            raise CommandError(
+                f"Листа «{options['sheet']}» в книге нет. Есть: " + ", ".join(sheets)
+            )
+
+        group = self._get_group(module, options.get("group"))
+        result = schedule_import.parse_grid(
+            sheets[sheet], within=(module.academic_year.starts_on, module.academic_year.ends_on)
+        )
+        if not result.lessons:
+            raise CommandError(
+                f"На листе «{sheet}» не нашлось ни одной пары «время + день с датой». "
+                "Проверьте, что в шапке стоят даты вида «ПН 30.08», "
+                "а слева — время вида «9.30-10.10»."
+            )
+
+        self.stdout.write(f"Лист «{sheet}», группа «{group.name}».")
+        for warning in result.warnings:
+            self.stderr.write(self.style.WARNING(warning))
+
+        entries = list(result.lessons)
+        if options.get("repeat_last_week"):
+            entries += self._repeat_last_week(entries, module)
+
+        self._write(organization, module, group, entries, dry_run=options["dry_run"], sheet=sheet)
+
+    def _repeat_last_week(self, entries: list, module: Module) -> list:
+        """
+        Продлить последнюю полную неделю до конца модуля.
+
+        Нужно, когда в таблице расписана пара недель, а дальше «так же».
+        По умолчанию выключено: додумывать за расписание — плохая идея,
+        это должно быть осознанным решением того, кто загружает.
+        """
+        if not entries:
+            return []
+        last_day = max(entry.date for entry in entries)
+        last_monday = last_day - dt.timedelta(days=last_day.weekday())
+        pattern = [e for e in entries if e.date >= last_monday]
+        if not pattern:
+            return []
+
+        extra = []
+        shift = 1
+        while True:
+            offset = dt.timedelta(weeks=shift)
+            if last_monday + offset > module.ends_on:
+                break
+            for entry in pattern:
+                moved = entry.date + offset
+                if module.starts_on <= moved <= module.ends_on:
+                    extra.append(replace(entry, date=moved))
+            shift += 1
+        return extra
+
+    def _get_group(self, module: Module, name: str | None) -> Group:
+        groups = Group.objects.filter(academic_year=module.academic_year)
+        if name:
+            group = groups.filter(name__iexact=name).first() or groups.filter(
+                name__istartswith=name
+            ).first()
+            if group is None:
+                raise CommandError(
+                    f"Группы «{name}» нет. Есть: " + ", ".join(g.name for g in groups)
+                )
+            return group
+        if groups.count() == 1:
+            return groups.first()
+        raise CommandError(
+            "Групп в году больше одной — укажите, чьё это расписание: --group «Семейный класс 9». "
+            "Есть: " + ", ".join(g.name for g in groups)
+        )
+
+    def _write(self, organization, module, group, entries, *, dry_run: bool, sheet: str) -> None:
+        tz = organization.tzinfo
+        created = skipped = outside = 0
+        unknown: dict[str, int] = {}
+
+        with transaction.atomic():
+            for entry in entries:
+                if not (module.starts_on <= entry.date <= module.ends_on):
+                    outside += 1
+                    continue
+                subject = None
+                for candidate in schedule_import.title_candidates(entry.title):
+                    subject = self._lookup(Subject, candidate, module)
+                    if subject is not None:
+                        break
+                if subject is None:
+                    unknown[entry.title] = unknown.get(entry.title, 0) + 1
+                    continue
+
+                starts_at = timezone.make_aware(
+                    dt.datetime.combine(entry.date, entry.start), tz
+                )
+                if Lesson.objects.filter(
+                    module=module, subject=subject, group=group, starts_at=starts_at
+                ).exists():
+                    skipped += 1
+                    continue
+                if not dry_run:
+                    Lesson.objects.create(
+                        organization=organization, module=module, subject=subject,
+                        group=group, starts_at=starts_at,
+                        duration_minutes=entry.duration_minutes,
+                        is_graded=False,
+                    )
+                created += 1
+
+            if dry_run:
+                transaction.set_rollback(True)
+
+        verb = "появится" if dry_run else "создано"
+        self.stdout.write(
+            self.style.SUCCESS(f"{module}: занятий {verb} — {created}, уже было — {skipped}.")
+        )
+        if outside:
+            self.stdout.write(
+                f"Вне дат модуля ({module.starts_on:%d.%m}—{module.ends_on:%d.%m}) "
+                f"осталось строк: {outside}. Для них нужен свой модуль: --module N."
+            )
+        if unknown:
+            self.stderr.write(self.style.WARNING("Не нашёл в журнале такие названия:"))
+            for title, count in sorted(unknown.items(), key=lambda kv: -kv[1]):
+                self.stderr.write(f"  «{title}» — {count} раз")
+            self.stdout.write(
+                "Либо поправьте название в таблице, либо заведите предмет "
+                "в журнале (блоки дня — с типом «блок дня без баллов»)."
+            )
+        if dry_run:
+            self.stdout.write("Это была проверка: в базу ничего не записано.")
 
     # ── разворачивание сетки ────────────────────────────────────────────────
 

@@ -40,12 +40,28 @@ class AcademicYear(TenantModel):
         return self.title
 
 
+class SubjectKind(models.TextChoices):
+    """
+    В расписании стоят не только предметы.
+
+    Утренний круг, обед, рефлексия и проектная деятельность занимают место
+    в дне и должны быть видны в кабинете, но 100 баллов по ним не
+    раскладываются: оценивается учебный предмет, а не режим дня.
+    """
+
+    ACADEMIC = "academic", "учебный предмет"
+    ACTIVITY = "activity", "блок дня без баллов"
+
+
 class Subject(TenantModel):
     academic_year = models.ForeignKey(
         AcademicYear, on_delete=models.CASCADE, related_name="subjects", verbose_name="учебный год"
     )
     name = models.CharField("предмет", max_length=120)
     short_name = models.CharField("сокращение", max_length=20, blank=True)
+    kind = models.CharField(
+        "тип", max_length=10, choices=SubjectKind.choices, default=SubjectKind.ACADEMIC
+    )
     weekly_hours = models.PositiveSmallIntegerField("часов в неделю", default=1)
     position = models.PositiveSmallIntegerField("порядок", default=100)
 
@@ -62,6 +78,10 @@ class Subject(TenantModel):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def is_graded(self) -> bool:
+        return self.kind == SubjectKind.ACADEMIC
 
 
 class ModuleKind(models.TextChoices):

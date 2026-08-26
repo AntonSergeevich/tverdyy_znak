@@ -531,6 +531,7 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
 .week__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .week__lesson { display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
 .week__time { flex: 0 0 auto; font-weight: 600; }
+.week__lesson--quiet, .week__lesson--quiet .week__subject { color: var(--ink-3); font-weight: 400; }
 .week__what { display: grid; gap: 2px; min-width: 0; }
 .week__subject { font-weight: 600; }
 .week__empty { margin: 0; font-size: 14px; }
