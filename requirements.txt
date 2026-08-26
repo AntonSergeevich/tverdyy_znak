@@ -8,6 +8,8 @@ django-axes==8.3.1
 argon2-cffi==25.1.0
 cryptography==50.0.0
 openpyxl==3.1.5
+# QR второго фактора. Чистый Python, Pillow не требуется: рисуем SVG.
+qrcode==8.2
 requests==2.34.2
 Pillow==12.3.0
 gunicorn==26.2.0

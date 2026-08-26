@@ -32,7 +32,7 @@
     <span class="logo__mark" aria-hidden="true">Ъ</span>
     <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
   </a>
-  <nav class="site-nav" aria-label="Разделы страницы">
+  <nav class="site-nav" id="site-nav" aria-label="Разделы страницы">
     <a href="{% url 'public:landing' %}#kak">Как устроено</a>
     <a href="{% url 'public:landing' %}#programma">Программа</a>
     <a href="{% url 'public:landing' %}#pedagogi">Педагоги</a>
@@ -42,6 +42,10 @@
   <div class="header-actions">
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Тёмная тема" title="Тёмная тема">☾</button>
     <a class="btn" href="{% url 'public:landing' %}#zayavka">Диагностика</a>
+    <button class="nav-toggle" type="button" data-nav-toggle
+            aria-expanded="false" aria-controls="site-nav" aria-label="Меню">
+      <span class="nav-toggle__bars" aria-hidden="true"></span>
+    </button>
   </div>
 </header>
 

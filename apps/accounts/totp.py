@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import re
 import secrets
 import struct
 import time
@@ -66,3 +67,39 @@ def provisioning_uri(secret: str, account: str, issuer: str) -> str:
         f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}"
         f"&algorithm=SHA1&digits={DIGITS}&period={STEP_SECONDS}"
     )
+
+
+def qr_svg(data: str) -> str:
+    """
+    QR-код как встроенный SVG.
+
+    Именно встроенный, а не картинкой: файл пришлось бы отдавать отдельным
+    урлом, а на нём — секрет второго фактора. В разметке он живёт ровно
+    столько, сколько открыта страница подключения.
+
+    Модули рисуются тёмными на белом независимо от темы: сканеры ожидают
+    именно такой контраст, и инверсию многие не читают.
+    """
+    import io
+
+    import qrcode
+    from qrcode.image.svg import SvgPathImage
+
+    code = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=2,
+    )
+    code.add_data(data)
+    code.make(fit=True)
+
+    buffer = io.BytesIO()
+    code.make_image(image_factory=SvgPathImage).save(buffer)
+    svg = buffer.getvalue().decode("utf-8")
+
+    # Убираем XML-декларацию: внутри HTML она не нужна и ломает разметку.
+    svg = svg.split("?>", 1)[-1].strip()
+    # Размер задаём стилями, а не миллиметрами.
+    svg = re.sub(r'width="[^"]*"\s+height="[^"]*"', 'width="100%" height="100%"', svg, count=1)
+    return svg

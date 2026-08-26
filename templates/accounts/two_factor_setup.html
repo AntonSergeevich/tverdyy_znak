@@ -18,17 +18,42 @@
     {% else %}
       <h1 class="h-display" style="font-size:28px;margin-bottom:8px">Подключите второй фактор</h1>
       <p class="lead">Ваша роль даёт доступ к персональным данным учеников, поэтому одного пароля мало.</p>
+
       <div class="card" style="margin-top:20px">
-        <p class="card__title">1. Добавьте ключ в приложение</p>
-        <p class="small muted">Google Authenticator, Aegis, 1Password — любое приложение TOTP.</p>
-        <p style="font-family:monospace;word-break:break-all;margin-top:12px">{{ device.secret }}</p>
-        <p class="small muted" style="margin-top:8px">Или отсканируйте ссылку: <span style="word-break:break-all">{{ uri }}</span></p>
+        <p class="card__title">1. Установите приложение</p>
+        <p class="small muted">Подойдёт любое приложение для одноразовых кодов.</p>
+        <div class="btn-row" style="margin-top:12px">
+          <a class="btn btn--quiet" href="https://apps.apple.com/app/id388497605"
+             target="_blank" rel="noopener noreferrer">Google Authenticator для iPhone</a>
+          <a class="btn btn--quiet" href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2"
+             target="_blank" rel="noopener noreferrer">Google Authenticator для Android</a>
+        </div>
       </div>
-      <form class="form" method="post" style="margin-top:20px">
+
+      <div class="card" style="margin-top:16px">
+        <p class="card__title">2. Отсканируйте код</p>
+        <p class="small muted">
+          Откройте приложение, нажмите «Добавить аккаунт» → «Сканировать QR-код»
+          и наведите камеру на картинку.
+        </p>
+        <div class="qr">{{ qr_svg|safe }}</div>
+
+        <details class="qr-fallback">
+          <summary>Камера не работает — ввести ключ вручную</summary>
+          <p class="small muted" style="margin-top:10px">
+            В приложении выберите «Ввести ключ настройки» и наберите эти символы.
+            Регистр не важен, пробелы вводить не нужно.
+          </p>
+          <p class="qr-secret">{% for group in secret_groups %}<span>{{ group }}</span>{% endfor %}</p>
+        </details>
+      </div>
+
+      <form class="form" method="post" style="margin-top:16px">
         {% csrf_token %}
         <div class="field {% if form.code.errors %}field--invalid{% endif %}">
-          <label for="{{ form.code.id_for_label }}">2. Введите код из приложения</label>
+          <label for="{{ form.code.id_for_label }}">3. Введите код из приложения</label>
           {{ form.code }}
+          <p class="small muted">Шесть цифр. Код меняется каждые 30 секунд — вводите текущий.</p>
           {% if form.code.errors %}<p class="field-error">{{ form.code.errors.0 }}</p>{% endif %}
         </div>
         <button class="btn btn--lg" type="submit">Подключить</button>

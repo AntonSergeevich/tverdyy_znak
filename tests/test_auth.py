@@ -130,3 +130,39 @@ def test_no_personal_data_in_urls(client, tenant_a):
     url = reverse("cabinet:parent_child", args=[tenant_a.student.pk])
     assert tenant_a.student.last_name not in url
     assert len(str(tenant_a.student.pk)) == 36
+
+
+def test_qr_svg_is_inline_and_scannable_shape():
+    """QR отдаётся встроенным SVG: отдельного урла с секретом не появляется."""
+    uri = totp.provisioning_uri("PQAXRJKI2YKDJGKROUAJ6FVZ7UEEXYEI", "a@example.org", "example.ru")
+    svg = totp.qr_svg(uri)
+
+    assert svg.startswith("<svg")
+    assert "<path" in svg
+    assert "<?xml" not in svg          # внутри HTML декларация лишняя
+    assert 'width="100%"' in svg       # размер задают стили, а не миллиметры
+
+
+def test_two_factor_setup_page_shows_qr_and_manual_key(client, tenant_a):
+    """
+    Страница подключения даёт и QR, и ключ для ручного ввода.
+
+    Ручной ввод — не украшение: без камеры подключиться иначе нельзя.
+    """
+    from django.urls import reverse
+
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    client.post(
+        reverse("accounts:login"),
+        {"username": tenant_a.owner_user.email, "password": PASSWORD},
+    )
+    response = client.get(reverse("accounts:two_factor_setup"))
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert "<svg" in body and "qr" in body
+    assert "Сканировать QR-код" in body
+    assert "ввести ключ вручную" in body.lower()
+    # Ссылки на приложения — иначе непонятно, чем сканировать.
+    assert "apps.apple.com" in body
+    assert "play.google.com" in body

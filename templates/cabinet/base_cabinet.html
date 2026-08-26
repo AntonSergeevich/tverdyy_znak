@@ -10,7 +10,7 @@
     <span class="logo__mark" aria-hidden="true">Ъ</span>
     <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
   </a>
-  <nav class="cabinet-nav" aria-label="Разделы кабинета">
+  <nav class="cabinet-nav" id="site-nav" aria-label="Разделы кабинета">
     {% block cabinet_nav %}{% endblock %}
   </nav>
   <div class="header-actions">
@@ -18,6 +18,10 @@
     <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}
       <button class="btn btn--quiet" type="submit">Выйти</button>
     </form>
+    <button class="nav-toggle" type="button" data-nav-toggle
+            aria-expanded="false" aria-controls="site-nav" aria-label="Меню">
+      <span class="nav-toggle__bars" aria-hidden="true"></span>
+    </button>
   </div>
 </header>
 

@@ -25,6 +25,35 @@
     applyTheme(root.getAttribute('data-theme') || 'light');
   }
 
+  // ─── Бургер-меню ─────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-nav-toggle]').forEach(function (button) {
+    var header = button.closest('.site-header');
+    if (!header) return;
+    var nav = header.querySelector('.site-nav, .cabinet-nav');
+
+    function setOpen(open) {
+      header.classList.toggle('is-open', open);
+      button.setAttribute('aria-expanded', String(open));
+      button.setAttribute('aria-label', open ? 'Закрыть меню' : 'Меню');
+    }
+
+    button.addEventListener('click', function () {
+      setOpen(!header.classList.contains('is-open'));
+    });
+
+    // Переход по пункту закрывает меню: якорная ссылка не перезагружает
+    // страницу, и раскрытое меню осталось бы висеть поверх содержимого.
+    if (nav) {
+      nav.addEventListener('click', function (event) {
+        if (event.target.closest('a')) setOpen(false);
+      });
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setOpen(false);
+    });
+  });
+
   // ─── 100-балльная шкала ──────────────────────────────────────────────────
   document.querySelectorAll('[data-scale]').forEach(function (panel) {
     var input = panel.querySelector('input[type=range]');

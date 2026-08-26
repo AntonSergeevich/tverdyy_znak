@@ -146,15 +146,28 @@ def two_factor_setup_view(request):
         form.add_error("code", "Код не подошёл. Проверьте, что добавили ключ целиком.")
 
     organization = getattr(request, "organization", None)
+    # Издателя пишем латиницей: кириллица в otpauth-ссылке разбухает
+    # в процентном кодировании — QR становится плотнее и хуже сканируется,
+    # а часть приложений показывает её как мусор.
+    issuer = (organization.primary_domain or organization.slug) if organization else "tverdyy-znak.ru"
     uri = totp.provisioning_uri(
         device.secret,
         account=user.email or user.phone or str(user.pk),
-        issuer=organization.name if organization else "Твёрдый знак",
+        issuer=issuer,
     )
     return render(
         request,
         "accounts/two_factor_setup.html",
-        {"form": form, "device": device, "uri": uri, "confirmed": device.is_confirmed},
+        {
+            "form": form,
+            "device": device,
+            "uri": uri,
+            "qr_svg": totp.qr_svg(uri),
+            # Секрет группами по четыре: так его реально перепечатать руками,
+            # если камера не работает.
+            "secret_groups": [device.secret[i:i + 4] for i in range(0, len(device.secret), 4)],
+            "confirmed": device.is_confirmed,
+        },
     )
 
 

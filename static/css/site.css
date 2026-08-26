@@ -47,8 +47,9 @@
   --accent-2: #C75B21;
   --mark: rgba(232, 120, 60, .045);
   --paper-blend: multiply;
-  /* Текстура: крупные заломы + мелкое зерно. Меняется одной строкой. */
-  --paper-texture: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27420%27%20height%3D%27420%27%3E%3Cfilter%20id%3D%27c%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.008%27%20numOctaves%3D%272%27%20seed%3D%277%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Cfilter%20id%3D%27g%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.9%27%20numOctaves%3D%272%27%20seed%3D%273%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23c%29%27%20opacity%3D%270.10%27%2F%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.045%27%2F%3E%3C%2Fsvg%3E");
+  /* Текстура: крупные заломы + мелкое зерно. Меняется одной строкой.
+     В светлой теме плотнее: multiply по светлой бумаге почти не читается. */
+  --paper-texture: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27420%27%20height%3D%27420%27%3E%3Cfilter%20id%3D%27c%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.008%27%20numOctaves%3D%272%27%20seed%3D%277%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Cfilter%20id%3D%27g%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.9%27%20numOctaves%3D%272%27%20seed%3D%273%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23c%29%27%20opacity%3D%270.3%27%2F%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.1%27%2F%3E%3C%2Fsvg%3E");
   --track: #EFEAE1;
   --thumb-ring: #F5F1EA;
   --peach: #F8D9C2;
@@ -72,6 +73,7 @@
   --accent-2: #F0B98F;
   --mark: rgba(232, 120, 60, .05);
   --paper-blend: screen;
+  --paper-texture: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27420%27%20height%3D%27420%27%3E%3Cfilter%20id%3D%27c%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.008%27%20numOctaves%3D%272%27%20seed%3D%277%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Cfilter%20id%3D%27g%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.9%27%20numOctaves%3D%272%27%20seed%3D%273%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23c%29%27%20opacity%3D%270.1%27%2F%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.045%27%2F%3E%3C%2Fsvg%3E");
   --track: #332E29;
   --thumb-ring: #1B1917;
   --peach: #3A2A20;
@@ -162,6 +164,25 @@ h2.h-display { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.05; text-wrap
 .site-nav::-webkit-scrollbar { display: none; }
 .site-nav a { font-size: 15px; color: var(--ink-2); min-height: 44px; display: flex; align-items: center; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
+.nav-toggle {
+  display: none;
+  width: 44px; height: 44px; flex: 0 0 auto;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  cursor: pointer; align-items: center; justify-content: center;
+}
+.nav-toggle__bars, .nav-toggle__bars::before, .nav-toggle__bars::after {
+  display: block; width: 20px; height: 2px; background: currentColor;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.nav-toggle__bars { position: relative; }
+.nav-toggle__bars::before, .nav-toggle__bars::after { content: ''; position: absolute; left: 0; }
+.nav-toggle__bars::before { top: -6px; }
+.nav-toggle__bars::after { top: 6px; }
+/* Открытое меню — крестик: понятно, что кнопка закроет, а не откроет ещё раз. */
+.site-header.is-open .nav-toggle__bars { background: transparent; }
+.site-header.is-open .nav-toggle__bars::before { transform: translateY(6px) rotate(45deg); }
+.site-header.is-open .nav-toggle__bars::after { transform: translateY(-6px) rotate(-45deg); }
+
 .theme-toggle {
   width: 44px; height: 44px; border: 1px solid var(--line); background: var(--surface);
   color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -462,6 +483,25 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
 .mood-scale button { min-height: 48px; min-width: 48px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; padding: 0 14px; }
 .mood-scale button[aria-pressed="true"] { border-color: var(--accent); background: var(--peach-soft); }
 
+/* QR второго фактора: тёмные модули на белом независимо от темы —
+   инверсию читают не все сканеры. */
+.qr {
+  width: 220px; height: 220px; padding: 12px; margin: 14px 0 4px;
+  background: #FFF; border: 1px solid var(--line);
+}
+.qr svg { display: block; }
+.qr svg path { fill: #23201D; }
+.qr-fallback summary {
+  cursor: pointer; min-height: 44px; display: flex; align-items: center;
+  font-size: 15px; color: var(--accent-2);
+}
+.qr-secret { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.qr-secret span {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 17px; letter-spacing: .08em;
+  border: 1px solid var(--line); background: var(--paper); padding: 6px 10px;
+}
+
 .goal { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .goal__badge { font-size: 13px; border: 1px solid var(--line); padding: 3px 8px; color: var(--ink-3); }
 .goal__badge--hidden { border-color: var(--accent); color: var(--accent-2); }
@@ -479,10 +519,27 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
    На узком экране навигация уезжает на свою строку во всю ширину:
    зажатая между логотипом и CTA, она нечитаема и в неё не попасть пальцем. */
 @media (max-width: 760px) {
-  :root { --header-h: 116px; }
+  :root { --header-h: 73px; }
   .site-header { flex-wrap: wrap; row-gap: 8px; }
-  .site-nav, .cabinet-nav { order: 3; flex: 1 0 100%; justify-content: flex-start; gap: 8px; }
-  .site-nav { gap: 18px; }
+  .nav-toggle { display: inline-flex; }
+
+  /* Навигация свёрнута под кнопку и раскрывается вертикально:
+     горизонтальный скролл в шапке пальцем не листается. */
+  .site-nav, .cabinet-nav { display: none; }
+  .site-header.is-open .site-nav,
+  .site-header.is-open .cabinet-nav {
+    display: flex; order: 3; flex: 1 0 100%;
+    flex-direction: column; align-items: stretch; gap: 0;
+    overflow: visible; white-space: normal;
+    border-top: 1px solid var(--line); padding-top: 4px;
+  }
+  .site-header.is-open .site-nav a,
+  .site-header.is-open .cabinet-nav a {
+    min-height: 52px; font-size: 17px; border: 0;
+    border-bottom: 1px solid var(--line); padding: 0 2px;
+  }
+  .site-header.is-open .site-nav a:last-child,
+  .site-header.is-open .cabinet-nav a:last-child { border-bottom: 0; }
 }
 
 @media (max-width: 640px) {

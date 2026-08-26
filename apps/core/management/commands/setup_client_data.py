@@ -26,6 +26,7 @@ ORGANIZATION = {
     "name": "Твёрдый знак",
     "legal_name": "Индивидуальный предприниматель Бабаджанова Алина Алимовна",
     "inn": "241502815698",
+    "ogrnip": "326246800106544",
     "address": "Красноярск, ул. Весны, 10",
     "contact_phone": "+7 (913) 560-26-00",
     "bank_name": 'ООО "Банк Точка"',
@@ -166,7 +167,6 @@ class Command(BaseCommand):
         missing = [
             label
             for label, value in [
-                ("ОГРНИП", organization.ogrnip),
                 ("email", organization.contact_email),
                 ("Telegram chat_id для заявок", organization.telegram_chat_id),
 
