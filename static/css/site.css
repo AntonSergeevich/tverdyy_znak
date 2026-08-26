@@ -45,7 +45,10 @@
   --ink-3: #8A837A;
   --accent: #E8783C;
   --accent-2: #C75B21;
-  --mark: rgba(232, 120, 60, .10);
+  --mark: rgba(232, 120, 60, .045);
+  --paper-blend: multiply;
+  /* Текстура: крупные заломы + мелкое зерно. Меняется одной строкой. */
+  --paper-texture: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27420%27%20height%3D%27420%27%3E%3Cfilter%20id%3D%27c%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.008%27%20numOctaves%3D%272%27%20seed%3D%277%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Cfilter%20id%3D%27g%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%25%27%20height%3D%27100%25%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.9%27%20numOctaves%3D%272%27%20seed%3D%273%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23c%29%27%20opacity%3D%270.10%27%2F%3E%3Crect%20width%3D%27420%27%20height%3D%27420%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.045%27%2F%3E%3C%2Fsvg%3E");
   --track: #EFEAE1;
   --thumb-ring: #F5F1EA;
   --peach: #F8D9C2;
@@ -67,7 +70,8 @@
   --ink-3: #A39B90;
   --accent: #E8783C;
   --accent-2: #F0B98F;
-  --mark: rgba(232, 120, 60, .16);
+  --mark: rgba(232, 120, 60, .05);
+  --paper-blend: screen;
   --track: #332E29;
   --thumb-ring: #1B1917;
   --peach: #3A2A20;
@@ -85,8 +89,17 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: clip
 body {
   margin: 0;
   overflow-x: clip;
-  background: var(--paper);
   color: var(--ink);
+
+  /* Фактура слегка мятой бумаги из брендбука. Рисуется браузером из SVG
+     в data-URI: ни одного запроса, около килобайта, масштабируется без
+     потерь. Крупная турбулентность даёт мягкие заломы, мелкая — зерно.
+     Светлая тема затемняет фактуру (multiply), тёмная подсвечивает (screen),
+     поэтому картинка одна на обе темы. */
+  background-color: var(--paper);
+  background-image: var(--paper-texture);
+  background-size: 420px 420px;
+  background-blend-mode: var(--paper-blend);
   font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 16px;
   line-height: 1.5;
@@ -180,9 +193,12 @@ h2.h-display { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.05; text-wrap
   max-width: 1440px; margin: 0 auto; align-items: flex-start;
 }
 .hero__left { flex: 1 1 340px; min-width: 300px; display: flex; flex-direction: column; gap: 20px; position: relative; }
-.hero__left > * { position: relative; }
+.hero__left > * { position: relative; z-index: 1; }
+/* Водяной знак уходит ПОД текст, а не в просвет справа: в просвете он
+   перетягивал внимание на себя. Прозрачность задаётся токеном --mark. */
 .hero__mark {
-  position: absolute; right: -40px; top: -60px;
+  position: absolute; left: -46px; top: 30px; right: auto;
+  z-index: 0;
   font-family: 'Constantine', Georgia, serif; font-weight: 700;
   font-size: clamp(240px, 26vw, 420px); line-height: .7;
   color: var(--mark); pointer-events: none; user-select: none;
@@ -478,7 +494,7 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
   .journal-row__points,
   .journal-row__comment,
   .journal-row__state { flex: 0 0 auto; }
-  .hero__mark { right: -24px; top: -32px; }
+  .hero__mark { left: -28px; top: 20px; }
 
   /* Главный экран родителя должен отвечать на три вопроса без прокрутки:
      на телефоне плитки идут по две в ряд, а не колонкой. */

@@ -165,3 +165,28 @@ def test_bank_details_never_appear_on_public_pages(client_a, tenant_a):
         assert organization.bank_account not in body
         assert organization.bank_corr_account not in body
         assert organization.bank_bik not in body
+
+
+def test_no_multiline_hash_comments_in_templates():
+    """
+    Комментарий {# … #} в Django однострочный.
+
+    Записанный в несколько строк, он не вырезается, а выводится на страницу
+    как обычный текст — так служебная пометка уже попадала на прод.
+    Для многострочных комментариев есть {% comment %}.
+    """
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "templates"
+    offenders = []
+    for path in sorted(root.rglob("*.html")):
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"\{#.*?#\}", text, re.S):
+            if "\n" in match.group(0):
+                line = text[: match.start()].count("\n") + 1
+                offenders.append(f"{path.relative_to(root)}:{line}")
+    assert not offenders, (
+        "Многострочные {# #} попадут на страницу как текст. "
+        f"Заменить на {{% comment %}}: {offenders}"
+    )

@@ -47,6 +47,10 @@ class OrganizationAdmin(admin.ModelAdmin):
             "description": "Пороги уровней настраиваются в шкале оценивания.",
         }),
         ("Хранение данных", {"fields": ("data_retention_days", "lead_retention_days")}),
+        ("Первый экран сайта", {
+            "fields": ("hero_kicker", "hero_title", "hero_lead"),
+            "description": "Тексты на главной. Меняются здесь, деплой не нужен.",
+        }),
         ("Публичные цены", {
             "fields": ("price_full_month", "price_program_month", "price_mentor_month",
                        "price_entry_year", "price_career", "tutors_reference_price",

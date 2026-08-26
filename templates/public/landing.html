@@ -8,12 +8,9 @@
 <section class="hero">
   <div class="hero__left">
     <span class="hero__mark" aria-hidden="true">Ъ</span>
-    <span class="kicker">Центр семейного обучения и профориентации · 8–11 класс</span>
-    <h1 class="h-display">Один наставник вместо пяти репетиторов</h1>
-    <p class="lead" style="max-width:620px">
-      Подросток учится модулями по 5 недель, видит свою дорожную карту и получает баллы
-      за конкретную работу. Вы видите то же, что и он.
-    </p>
+    <span class="kicker">{{ organization.hero_kicker }}</span>
+    <h1 class="h-display">{{ organization.hero_title }}</h1>
+    <p class="lead" style="max-width:620px">{{ organization.hero_lead }}</p>
 
     <div class="hero__price">
       <span class="numeral">{{ organization.price_full_month|money }} ₽</span>
@@ -392,8 +389,12 @@
 
     <div class="card" style="margin-top:clamp(16px,2vw,24px)">
       <p class="card__title">Полный формат — {{ organization.price_full_month|money }} ₽ в месяц</p>
-      {# TODO(вопрос): можно ли брать только образовательную программу
-         без наставнического блока. Пока утверждаем только то, что известно. #}
+      {% comment %}
+        TODO(вопрос): можно ли брать только образовательную программу
+        без наставнического блока. Пока утверждаем только то, что известно.
+        Многострочный комментарий — только {% templatetag openblock %} comment {% templatetag closeblock %}:
+        синтаксис {% templatetag openbrace %}# … #{% templatetag closebrace %} однострочный, в несколько строк он выводится на страницу как текст.
+      {% endcomment %}
       <p style="color:var(--ink-2)">
         Это образовательная программа и наставнический блок вместе.
         Что входит в каждый из них, разбираем на бесплатной диагностике.
