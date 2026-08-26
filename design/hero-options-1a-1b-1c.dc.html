@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'Bebas Cyr';src:url('fonts/BebasNeueCyrillic.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Constantine';src:url('fonts/Constantine.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'Constantine';src:url('fonts/Constantine_Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+@font-face{font-family:'Klukva';src:url('fonts/Klukva.otf') format('opentype');font-display:swap}
+body{margin:0;background:#E7E3DC;font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#C75B21;text-decoration:none}
+a:hover{color:#23201D}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;border-radius:50%;background:#E8783C;border:5px solid #F5F1EA;box-shadow:0 6px 18px rgba(35,32,29,.28);cursor:grab}
+input[type=range]::-webkit-slider-runnable-track{height:44px;background:transparent}
+input[type=range]::-moz-range-thumb{width:38px;height:38px;border:5px solid #F5F1EA;border-radius:50%;background:#E8783C;box-shadow:0 6px 18px rgba(35,32,29,.28);cursor:grab}
+input[type=range]::-moz-range-track{height:44px;background:transparent}
+</style>
+</helmet>
+
+<section style="padding:48px 40px 80px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+    <span style="font-family:'Bebas Cyr',sans-serif;font-size:34px;letter-spacing:.06em;color:#23201D">Первый экран · 3 варианта</span>
+    <span style="font-size:15px;color:#6E6860;max-width:520px">Все три — мобильная ширина 390 px, тап-таргеты 44+, цена на виду. Игрушка — живая 100-балльная шкала (<a href="#1a">1a</a>, <a href="#1c">1c</a>).</span>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+
+    <div id="1a" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Bebas Cyr',sans-serif;background:#23201D;color:#F5F1EA;padding:2px 12px 0;font-size:22px;letter-spacing:.08em">1a</span>
+        <span style="font-size:14px;color:#6E6860">Бумага и знак · шкала в первом экране</span>
+      </div>
+      <div style="width:390px;background:#F5F1EA;border:1px solid #D9D3C9;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #E4DED3">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-family:'Constantine',serif;font-weight:700;font-size:34px;line-height:.8;color:#E8783C">Ъ</span>
+            <span style="font-family:'Bebas Cyr',sans-serif;font-size:15px;letter-spacing:.16em;color:#23201D;line-height:1.1">ТВЁРДЫЙ ЗНАК</span>
+          </div>
+          <div style="width:44px;height:44px;display:flex;flex-direction:column;justify-content:center;gap:5px;align-items:flex-end">
+            <span style="display:block;width:22px;height:2px;background:#23201D"></span>
+            <span style="display:block;width:16px;height:2px;background:#23201D"></span>
+          </div>
+        </div>
+
+        <div style="padding:26px 20px 30px;position:relative">
+          <span style="position:absolute;right:-30px;top:-10px;font-family:'Constantine',serif;font-weight:700;font-size:250px;line-height:.7;color:#E8783C;opacity:.09;pointer-events:none">Ъ</span>
+          <div style="position:relative;display:flex;flex-direction:column;gap:18px">
+            <span style="font-family:'Bebas Cyr',sans-serif;font-size:15px;letter-spacing:.14em;color:#C75B21">ЦЕНТР СЕМЕЙНОГО ОБУЧЕНИЯ И ПРОФОРИЕНТАЦИИ · 8–11 КЛАСС</span>
+            <h1 style="margin:0;font-family:'Constantine',serif;font-weight:700;font-size:40px;line-height:1.02;color:#23201D;text-wrap:pretty">Один наставник<br>вместо пяти<br>репетиторов</h1>
+            <p style="margin:0;font-size:17px;line-height:1.5;color:#4A443D;text-wrap:pretty">Подросток учится модулями по 5 недель, видит свою дорожную карту и получает баллы за конкретную работу. Вы видите то же, что и он.</p>
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+              <span style="font-family:'Bebas Cyr',sans-serif;font-size:44px;letter-spacing:.02em;color:#23201D;line-height:.9">70 000 ₽</span>
+              <span style="font-size:15px;color:#6E6860">в месяц · полный формат</span>
+            </div>
+            <a href="#" style="display:flex;align-items:center;justify-content:center;min-height:56px;background:#E8783C;color:#FFF;font-size:17px;font-weight:600;letter-spacing:.01em" style-hover="background:#C75B21">Записаться на бесплатную диагностику</a>
+            <span style="font-size:14px;color:#8A837A">60 минут, без обязательств — вы решаете после</span>
+          </div>
+        </div>
+
+        <div style="margin:0 20px 24px;background:#FFF;border:1px solid #E4DED3;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+            <span style="font-family:'Bebas Cyr',sans-serif;font-size:19px;letter-spacing:.08em;color:#23201D">100-БАЛЛЬНАЯ ШКАЛА</span>
+            <span style="font-size:13px;color:#A39B90">потяните →</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-top:12px">
+            <span style="font-family:'Bebas Cyr',sans-serif;font-size:56px;line-height:.85;color:#E8783C">{{ scoreA }}</span>
+            <span style="font-size:16px;font-weight:600;color:#23201D">{{ levelA }}</span>
+          </div>
+          <div style="position:relative;height:44px;margin-top:8px">
+            <div style="position:absolute;left:0;right:0;top:18px;height:8px;background:#EFEAE1;overflow:hidden">
+              <div style="position:absolute;left:0;top:0;bottom:0;background:#E8783C;width:{{ pctA }}"></div>
+            </div>
+            <input type="range" min="0" max="100" value="{{ scoreA }}" onChange="{{ setA }}" style="position:absolute;left:0;top:0;width:100%;height:44px;margin:0" />
+          </div>
+          <p style="margin:12px 0 0;font-size:15px;line-height:1.45;color:#4A443D">{{ hintA }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="1b" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Bebas Cyr',sans-serif;background:#23201D;color:#F5F1EA;padding:2px 12px 0;font-size:22px;letter-spacing:.08em">1b</span>
+        <span style="font-size:14px;color:#6E6860">Плакат · счёт вместо репетиторов</span>
+      </div>
+      <div style="width:390px;background:#F5F1EA;border:1px solid #D9D3C9">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px">
+          <span style="font-family:'Bebas Cyr',sans-serif;font-size:15px;letter-spacing:.16em;color:#23201D">ТВЁРДЫЙ ЗНАК</span>
+          <a href="#" style="font-size:15px;font-weight:600;color:#C75B21;min-height:44px;display:flex;align-items:center">Заявка</a>
+        </div>
+        <div style="background:#23201D;color:#F5F1EA;padding:30px 20px 34px;display:flex;flex-direction:column;gap:20px">
+          <span style="font-family:'Bebas Cyr',sans-serif;font-size:15px;letter-spacing:.14em;color:#F0B98F">СЕМЕЙНЫЙ КЛАСС · 8–11 КЛАСС · ОГЭ И ЕГЭ</span>
+          <h1 style="margin:0;font-family:'Bebas Cyr',sans-serif;font-size:62px;line-height:.92;letter-spacing:.01em;text-wrap:pretty">УЧЁБА<br>СОБРАНА<br><span style="color:#E8783C">В ОДНОМ МЕСТЕ</span></h1>
+          <p style="margin:0;font-size:17px;line-height:1.5;color:#D6CFC4;text-wrap:pretty">Модули по 5 недель, наставник, аттестация в аккредитованной школе. Логистика и репетиторы по каждому предмету больше не ваша забота.</p>
+          <div style="display:flex;gap:0;border:1px solid #4A443D">
+            <div style="flex:1;padding:14px 16px;border-right:1px solid #4A443D">
+              <div style="font-size:13px;color:#A39B90">4 репетитора, средний счёт</div>
+              <div style="font-family:'Bebas Cyr',sans-serif;font-size:30px;color:#D6CFC4;line-height:1.1">≈ 88 000 ₽</div>
+            </div>
+            <div style="flex:1;padding:14px 16px;background:#E8783C">
+              <div style="font-size:13px;color:#FFF;opacity:.85">полный формат</div>
+              <div style="font-family:'Bebas Cyr',sans-serif;font-size:30px;color:#FFF;line-height:1.1">70 000 ₽</div>
+            </div>
+          </div>
+          <a href="#" style="display:flex;align-items:center;justify-content:center;min-height:56px;background:#F5F1EA;color:#23201D;font-size:17px;font-weight:700" style-hover="background:#E8783C;color:#FFF">Бесплатная диагностика</a>
+          <span style="font-size:14px;color:#A39B90">Разбор ситуации вашего ребёнка · 60 минут</span>
+        </div>
+        <div style="padding:16px 20px;display:flex;gap:8px;flex-wrap:wrap">
+          <span style="font-size:14px;color:#4A443D;border:1px solid #D9D3C9;padding:8px 12px">Дорожная карта</span>
+          <span style="font-size:14px;color:#4A443D;border:1px solid #D9D3C9;padding:8px 12px">100 баллов</span>
+          <span style="font-size:14px;color:#4A443D;border:1px solid #D9D3C9;padding:8px 12px">Профориентация</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="1c" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Bebas Cyr',sans-serif;background:#23201D;color:#F5F1EA;padding:2px 12px 0;font-size:22px;letter-spacing:.08em">1c</span>
+        <span style="font-size:14px;color:#6E6860">Три сегмента · выбор родителя</span>
+      </div>
+      <div style="width:390px;background:#F8EFE6;border:1px solid #E3D3C4">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#F5F1EA">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:34px;height:34px;border-radius:50%;background:#F8D9C2;display:flex;align-items:center;justify-content:center;font-family:'Constantine',serif;font-weight:700;font-size:20px;color:#8A837A">Ъ</span>
+            <span style="font-family:'Bebas Cyr',sans-serif;font-size:15px;letter-spacing:.16em;color:#23201D">ТВЁРДЫЙ ЗНАК</span>
+          </div>
+          <a href="#" style="font-size:15px;font-weight:600;min-height:44px;display:flex;align-items:center">Позвонить</a>
+        </div>
+        <div style="padding:28px 20px 26px;display:flex;flex-direction:column;gap:18px">
+          <h1 style="margin:0;font-family:'Constantine',serif;font-weight:700;font-size:36px;line-height:1.05;color:#23201D;text-wrap:pretty">Учёба 8–11 класса под одной крышей</h1>
+          <p style="margin:0;font-size:17px;line-height:1.5;color:#4A443D">Полный формат — 70 000 ₽ в месяц. Профориентация берётся отдельно. Начинается всё с бесплатной диагностики.</p>
+          <div style="display:flex;flex-direction:column;gap:2px;background:#E3D3C4">
+            <sc-for list="{{ segments }}" as="seg" hint-placeholder-count="3">
+              <button onClick="{{ seg.pick }}" style="text-align:left;background:{{ seg.bg }};border:0;padding:16px 18px;min-height:44px;display:flex;flex-direction:column;gap:4px;cursor:pointer;font-family:inherit">
+                <span style="font-size:16px;font-weight:700;color:#23201D">{{ seg.title }}</span>
+                <span style="font-size:15px;line-height:1.4;color:#4A443D">{{ seg.text }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <a href="#" style="display:flex;align-items:center;justify-content:center;min-height:56px;background:#23201D;color:#F5F1EA;font-size:17px;font-weight:600" style-hover="background:#E8783C">{{ ctaC }}</a>
+          <div style="border-top:1px solid #E3D3C4;padding-top:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-family:'Bebas Cyr',sans-serif;font-size:18px;letter-spacing:.08em;color:#23201D">ШКАЛА ПРОГРЕССА</span>
+              <span style="font-size:15px;font-weight:600;color:#C75B21">{{ scoreC }} / 100 · {{ levelC }}</span>
+            </div>
+            <div style="position:relative;height:44px">
+              <div style="position:absolute;left:0;right:0;top:9px;display:flex;gap:3px">
+                <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="10">
+                  <span style="flex:1;height:26px;background:{{ t.bg }}"></span>
+                </sc-for>
+              </div>
+              <input type="range" min="0" max="100" value="{{ scoreC }}" onChange="{{ setC }}" style="position:absolute;left:0;top:0;width:100%;height:44px;margin:0" />
+            </div>
+            <p style="margin:0;font-size:15px;line-height:1.45;color:#4A443D">{{ hintC }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1360,&quot;height&quot;:1100}}">
+const LEVELS = [
+  {max:40, name:'база', hint:'0–40 — предмет держится на пересказе. Модуль закрывается повторной попыткой, а не оценкой в журнале.'},
+  {max:70, name:'уверенно', hint:'41–70 — типовые задачи ОГЭ и ЕГЭ решаются самостоятельно. Наставник смещает время на слабые темы.'},
+  {max:85, name:'сильно', hint:'71–85 — вторая часть экзамена в работе. Появляется запас на профильные задания.'},
+  {max:100, name:'глубоко', hint:'86–100 — уровень олимпиад и профиля. Часть часов уходит в профориентацию и проект.'}
+];
+
+class Component extends DCLogic {
+  state = { scoreA: 64, scoreC: 78, seg: 0 };
+
+  level(v){ return LEVELS.find(l => v <= l.max) || LEVELS[3]; }
+
+  renderVals() {
+    const { scoreA, scoreC, seg } = this.state;
+    const lA = this.level(scoreA), lC = this.level(scoreC);
+    const segData = [
+      {title:'Ушёл на самообразование', text:'Есть свобода, но нет структуры и дат. Собираем режим и аттестацию.', cta:'Обсудить самообразование'},
+      {title:'Готовится к ОГЭ или ЕГЭ', text:'Модули по 5 недель вместо разрозненных занятий у четырёх репетиторов.', cta:'Разобрать подготовку к экзамену'},
+      {title:'Не выбрал направление', text:'Профориентация как отдельная работа: интересы, проба, план на 11 класс.', cta:'Записаться на профориентацию'}
+    ];
+    return {
+      scoreA, levelA: lA.name, hintA: lA.hint, pctA: scoreA + '%',
+      setA: e => this.setState({ scoreA: +e.target.value }),
+      scoreC, levelC: lC.name, hintC: lC.hint,
+      setC: e => this.setState({ scoreC: +e.target.value }),
+      ticks: Array.from({length:20}, (_,i) => ({ bg: (i+1)*5 <= scoreC ? '#E8783C' : '#EFE1D4' })),
+      segments: segData.map((s,i) => ({
+        ...s,
+        bg: i === seg ? '#FFFFFF' : '#F8EFE6',
+        pick: () => this.setState({ seg: i })
+      })),
+      ctaC: 'Бесплатная диагностика'
+    };
+  }
+}
+</script>
+</body>
+</html>

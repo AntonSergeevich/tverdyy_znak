@@ -1,12 +1,31 @@
 {% extends "base.html" %}{% load static %}
 
 {% block head_extra %}
+  {% comment %}
+    Превью ссылки в мессенджерах. Картинка обязательно PNG и обязательно
+    по абсолютному адресу: SVG почти нигде не показывается, относительный
+    путь Telegram и ВКонтакте не разворачивают. Размеры указаны явно —
+    без них часть клиентов показывает мелкую иконку вместо карточки.
+  {% endcomment %}
+  {% with og_image=request.scheme|add:'://'|add:request.get_host %}
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
   <meta property="og:site_name" content="{{ organization.name|default:'Твёрдый знак' }}">
-  <meta property="og:title" content="{% block og_title %}Один наставник вместо пяти репетиторов{% endblock %}">
-  <meta property="og:description" content="Центр семейного обучения и профориентации, 8–11 класс. Модули по 5 недель, дорожная карта, 100-балльная система.">
-  <meta property="og:image" content="{% static 'img/og-cover.svg' %}">
+  <meta property="og:url" content="{{ og_image }}{{ request.path }}">
+  <meta property="og:title" content="{% block og_title %}Семейный класс «{{ organization.name|default:'Твёрдый знак' }}»{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Гибкий график · группа до 10 человек · подготовка к ОГЭ и ЕГЭ · профориентация. 8–11 класс, Красноярск.{% endblock %}">
+  <meta property="og:image" content="{{ og_image }}{% static 'img/og-cover.png' %}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Семейный класс «Твёрдый знак», 8–11 класс, Красноярск">
+
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Семейный класс «{{ organization.name|default:'Твёрдый знак' }}»">
+  <meta name="twitter:description" content="Гибкий график, группа до 10 человек, подготовка к ОГЭ и ЕГЭ, профориентация.">
+  <meta name="twitter:image" content="{{ og_image }}{% static 'img/og-cover.png' %}">
+  {% endwith %}
+
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",

@@ -28,11 +28,12 @@ def clear_cache():
     cache.clear()
 
 
-def test_landing_renders(client_a):
+def test_landing_renders(client_a, tenant_a):
     response = client_a.get(reverse("public:landing"))
     assert response.status_code == 200
     body = response.content.decode()
-    assert "Один наставник вместо пяти репетиторов" in body
+    # Заголовок правится в админке, поэтому проверяем значение из модели.
+    assert tenant_a.organization.hero_title in body
     assert "100-балльная шкала" in body.replace("100-БАЛЛЬНАЯ ШКАЛА", "100-балльная шкала")
 
 

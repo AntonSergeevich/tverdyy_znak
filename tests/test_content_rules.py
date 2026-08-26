@@ -190,3 +190,39 @@ def test_no_multiline_hash_comments_in_templates():
         "Многострочные {# #} попадут на страницу как текст. "
         f"Заменить на {{% comment %}}: {offenders}"
     )
+
+
+def test_link_preview_meta_is_usable(client_a):
+    """
+    Превью ссылки в мессенджерах.
+
+    Две ошибки, из-за которых картинки не было вовсе: SVG вместо PNG
+    (его не показывает ни Telegram, ни ВКонтакте) и относительный путь,
+    который они не разворачивают.
+    """
+    import re
+
+    body = _text(client_a, "public:landing")
+    tags = dict(
+        re.findall(r'<meta (?:property|name)="((?:og|twitter):[^"]+)" content="([^"]*)"', body)
+    )
+
+    image = tags.get("og:image", "")
+    assert image.startswith("http"), "og:image должен быть абсолютным адресом"
+    assert ".png" in image, "og:image должен быть растровым: SVG в превью не показывают"
+    assert tags.get("og:image:width") == "1200"
+    assert tags.get("og:image:height") == "630"
+    assert tags.get("twitter:image", "").startswith("http")
+
+    assert "Семейный класс" in tags.get("og:title", "")
+    assert tags.get("og:url", "").startswith("http")
+    assert tags.get("twitter:card") == "summary_large_image"
+
+
+def test_og_cover_file_exists_and_is_png():
+    """Файл обложки должен лежать в статике: собирается scripts/build_og_image.py."""
+    import pathlib
+
+    cover = pathlib.Path(__file__).resolve().parent.parent / "static" / "img" / "og-cover.png"
+    assert cover.exists(), "Нет static/img/og-cover.png — соберите: python scripts/build_og_image.py"
+    assert cover.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
