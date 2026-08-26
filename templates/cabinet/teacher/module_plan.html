@@ -1,11 +1,6 @@
 {% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
 {% block cabinet_title %}Планирование модуля{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:teacher_today' %}">Сегодня</a>
-  <a href="#" aria-current="page">План модуля</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-title">
   <div>

@@ -1,13 +1,6 @@
 {% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
 {% block cabinet_title %}{{ student.full_name }}{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
-  <a href="{% url 'cabinet:students' %}" aria-current="page">Ученики</a>
-  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
-  <a href="{% url 'cabinet:schedule_builder' %}">Расписание</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ student.full_name }}</h1>
@@ -66,7 +59,7 @@
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Доступ в кабинет</h2>
 <div class="card">
   {% if student.user %}
-    <p>Логин: <code>{{ student.user.email|default:student.user.phone }}</code></p>
+    <p>Логин: <code>{{ student.user.login }}</code></p>
     <p class="muted">
       Последний вход: {{ student.user.last_activity_at|date:"d.m.Y H:i"|default:"ещё не заходил" }}
     </p>
@@ -79,13 +72,16 @@
   {% endif %}
 </div>
 
-<h2 class="label" style="font-size:18px;margin:32px 0 8px">Родители</h2>
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">
+  Родители
+  <a class="btn btn--quiet" style="float:right" href="{% url 'cabinet:parent_invite' student.pk %}">Добавить родителя</a>
+</h2>
 {% for link in student.parent_links.all %}
   <div class="card" style="margin-bottom:10px">
     <p class="card__title">{{ link.parent.full_name }}{% if link.is_primary_contact %} <span class="muted">· основной контакт</span>{% endif %}</p>
     {% if link.parent.phone %}<p>{{ link.parent.phone }}</p>{% endif %}
     {% if link.parent.user %}
-      <p class="muted">Логин: <code>{{ link.parent.user.email }}</code></p>
+      <p class="muted">Логин: <code>{{ link.parent.user.login }}</code></p>
       <form method="post" action="{% url 'cabinet:password_reset' link.parent.user.pk %}" style="margin-top:8px">
         {% csrf_token %}
         <button class="btn btn--quiet" type="submit">Выдать новый пароль</button>

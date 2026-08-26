@@ -1,17 +1,35 @@
 {% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
 {% block cabinet_title %}Кабинет родителя{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:parent_home' %}" aria-current="page">Мой ребёнок</a>
-  <a href="{% url 'cabinet:schedule' %}">Расписание</a>
-{% endblock %}
-
 {% block content %}
 {% if children|length > 1 %}
   <div class="chips" style="margin-bottom:16px">
     {% for child in children %}
       <a class="chip" href="?child={{ child.pk }}" {% if child.pk == student.pk %}aria-current="true"{% endif %}>{{ child.short_name }}</a>
     {% endfor %}
+  </div>
+{% endif %}
+
+{% comment %}
+  Общий прогресс — первое, на что смотрит родитель. Он отвечает на вопрос
+  «как дела» одной цифрой; разбор по предметам ниже, когда захочется
+  подробностей.
+{% endcomment %}
+{% if subjects_count %}
+  <div class="card" style="margin-bottom:20px">
+    <div class="subject-row__head" style="margin-bottom:8px">
+      <span class="card__title" style="margin:0">Всего за модуль</span>
+      <span>
+        <span class="subject-row__points">{{ total_earned|points }}</span>
+        <span class="muted">из {{ total_possible|points }}</span>
+      </span>
+    </div>
+    <div class="progress">
+      <div class="progress__fill" style="width:{{ total_percent }}%"></div>
+    </div>
+    <p class="small muted" style="margin-top:8px">
+      Зачётов закрыто: {{ passed_count }} из {{ subjects_count }}
+    </p>
   </div>
 {% endif %}
 

@@ -6,6 +6,7 @@ from apps.journal.views import (
     manage,
     parent,
     people,
+    reviews,
     scheduler,
     student,
     teacher,
@@ -21,6 +22,7 @@ urlpatterns = [
     path("pedagog/", teacher.today, name="teacher_today"),
     path("pedagog/zanyatie/<uuid:lesson_id>/", teacher.lesson_journal, name="lesson_journal"),
     path("pedagog/zanyatie/<uuid:lesson_id>/ball/", teacher.grade_save, name="grade_save"),
+    path("pedagog/zanyatie/<uuid:lesson_id>/vsem/", teacher.grade_bulk, name="grade_bulk"),
     path("pedagog/zanyatie/<uuid:lesson_id>/ocenivanie/", teacher.lesson_toggle_graded, name="lesson_toggle_graded"),
     path("pedagog/zanyatie/<uuid:lesson_id>/tema/", teacher.lesson_topic_save, name="lesson_topic_save"),
     path(
@@ -35,6 +37,10 @@ urlpatterns = [
     # Родитель
     path("roditel/", parent.parent_home, name="parent_home"),
     path("roditel/rebenok/<uuid:student_id>/", parent.parent_child, name="parent_child"),
+    path("roditel/pedagogi/", parent.parent_teachers, name="parent_teachers"),
+    path("roditel/otzyv/<uuid:teacher_id>/", reviews.review_create, name="review_create"),
+    path("otzyvy/", reviews.review_queue, name="review_queue"),
+    path("otzyvy/<uuid:review_id>/reshenie/", reviews.review_decide, name="review_decide"),
 
     # Ученик
     path("uchenik/", student.student_home, name="student_home"),
@@ -72,6 +78,7 @@ urlpatterns = [
 
     path("dostup/<uuid:user_id>/novyy-parol/", people.password_reset, name="password_reset"),
     path("ucheniki/<uuid:student_id>/nachislit/", people.payment_create, name="payment_create"),
+    path("ucheniki/<uuid:student_id>/roditel/", people.parent_invite, name="parent_invite"),
     path("fot/", manage.payroll, name="payroll"),
     path("oplaty/<uuid:payment_id>/otmetit/", manage.payment_mark_paid, name="payment_mark_paid"),
 

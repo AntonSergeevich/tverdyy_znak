@@ -19,7 +19,7 @@
         <div class="form-error" role="alert">{{ form.non_field_errors.0 }}</div>
       {% endif %}
       <div class="field {% if form.username.errors %}field--invalid{% endif %}">
-        <label for="{{ form.username.id_for_label }}">Email или телефон</label>
+        <label for="{{ form.username.id_for_label }}">Логин, email или телефон</label>
         {{ form.username }}
       </div>
       <div class="field {% if form.password.errors %}field--invalid{% endif %}">

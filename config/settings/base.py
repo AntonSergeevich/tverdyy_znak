@@ -80,6 +80,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.organization",
                 "apps.core.context_processors.site_settings",
+                "apps.journal.context_processors.cabinet_menu",
             ],
         },
     },

@@ -1,11 +1,6 @@
 {% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
 {% block cabinet_title %}Занятия на сегодня{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:teacher_today' %}" aria-current="page">Сегодня</a>
-  <a href="{% url 'cabinet:schedule' %}">Расписание</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(26px,3vw,40px)">Сегодня, {{ day|date:"d.m.Y" }}</h1>

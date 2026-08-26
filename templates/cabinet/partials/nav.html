@@ -1,0 +1,19 @@
+{% comment %}
+  Навигация кабинета — одна на все страницы.
+
+  Раньше каждый шаблон повторял свой список, и они успели разъехаться:
+  на одной странице был «Журнал», на другой нет. Подсветка активного
+  пункта тоже жила в шаблонах и при переходе без перезагрузки не
+  переставлялась — шапка ведь не менялась.
+
+  Теперь пункт подсвечивается по имени текущего маршрута, а сам блок
+  htmx подменяет вместе с содержимым (hx-select-oob в base_cabinet).
+{% endcomment %}
+{% with current=request.resolver_match.url_name %}
+<nav class="cabinet-nav" id="site-nav" aria-label="Разделы кабинета">
+  {% for item in cabinet_menu %}
+    <a href="{{ item.url }}"
+       {% if item.name == current or current in item.also %}aria-current="page"{% endif %}>{{ item.label }}</a>
+  {% endfor %}
+</nav>
+{% endwith %}

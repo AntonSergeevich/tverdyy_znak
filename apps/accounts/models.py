@@ -33,10 +33,13 @@ class UserManager(BaseUserManager):
     use_in_migrations = True
 
     def _create(self, email, phone, password, **extra):
-        if not email and not phone:
-            raise ValueError("Нужен email или телефон")
+        username = (extra.pop("username", "") or "").lower().strip()
+        if not (email or phone or username):
+            raise ValueError("Нужен логин, email или телефон")
         email = self.normalize_email(email) if email else ""
-        user = self.model(email=email.lower(), phone=normalize_phone(phone), **extra)
+        user = self.model(
+            username=username, email=email.lower(), phone=normalize_phone(phone), **extra
+        )
         user.set_password(password)
         user.full_clean(exclude=["password"])
         user.save(using=self._db)
@@ -60,6 +63,10 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     """Вход по email или телефону. Пароли — только штатным хэшером (Argon2)."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Короткий логин, который выдаёт администратор: «sokolova», а не
+    # «sokolova.v@tverdyy-znak.ru». Его диктуют по телефону и вводят
+    # с листа, поэтому длина здесь — не мелочь.
+    username = models.CharField("логин", max_length=60, blank=True, default="")
     email = models.EmailField("email", blank=True, default="")
     phone = models.CharField("телефон", max_length=16, blank=True, default="")
     last_name = models.CharField("фамилия", max_length=80, blank=True)
@@ -81,6 +88,10 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         ordering = ["last_name", "first_name"]
         constraints = [
             models.UniqueConstraint(
+                fields=["username"], condition=~models.Q(username=""),
+                name="user_username_unique_not_blank",
+            ),
+            models.UniqueConstraint(
                 fields=["email"], condition=~models.Q(email=""), name="user_email_unique_not_blank"
             ),
             models.UniqueConstraint(
@@ -89,12 +100,18 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         ]
 
     def __str__(self) -> str:
-        return self.full_name or self.email or self.phone or str(self.pk)
+        return self.full_name or self.login or str(self.pk)
+
+    @property
+    def login(self) -> str:
+        """Чем человек входит. Короткий логин, если он есть."""
+        return self.username or self.email or self.phone
 
     def clean(self):
         super().clean()
-        if not self.email and not self.phone:
-            raise ValidationError("Укажите email или телефон — они служат логином.")
+        if not (self.username or self.email or self.phone):
+            raise ValidationError("Укажите логин, email или телефон — ими входят.")
+        self.username = (self.username or "").lower().strip()
         self.email = (self.email or "").lower().strip()
         self.phone = normalize_phone(self.phone)
 

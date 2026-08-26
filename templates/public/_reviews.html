@@ -1,0 +1,26 @@
+{% comment %}
+  Отзывы родителей в карточке педагога.
+
+  На сайт попадают только проверенные администратором. Подпись — имя
+  и первая буква фамилии: полное имя сделало бы семью узнаваемой,
+  а отзыву это ничего не добавляет.
+{% endcomment %}
+{% if card.reviews %}
+  <div class="reviews">
+    <p class="label" style="font-size:13px">Отзывы родителей</p>
+    {% for review in card.reviews|slice:":3" %}
+      <div class="review">
+        <div class="review__head">
+          <span class="review__stars" aria-label="Оценка {{ review.rating }} из 5">{{ review.stars }}</span>
+          <span class="review__who">{{ review.author_label }}</span>
+        </div>
+        <p class="review__text">{{ review.text }}</p>
+      </div>
+    {% endfor %}
+    {% if card.reviews|length > 3 %}
+      <a class="small" href="{% url 'public:teachers' %}#card-{{ card.pk }}">
+        Все отзывы ({{ card.reviews|length }})
+      </a>
+    {% endif %}
+  </div>
+{% endif %}

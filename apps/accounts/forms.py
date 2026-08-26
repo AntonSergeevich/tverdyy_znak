@@ -5,7 +5,7 @@ from django import forms
 
 class LoginForm(forms.Form):
     username = forms.CharField(
-        label="Email или телефон",
+        label="Логин, email или телефон",
         widget=forms.TextInput(attrs={"autocomplete": "username", "autofocus": "autofocus"}),
     )
     password = forms.CharField(

@@ -1,13 +1,6 @@
 {% extends "cabinet/base_cabinet.html" %}
 {% block cabinet_title %}Сотрудники{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
-  <a href="{% url 'cabinet:students' %}">Ученики</a>
-  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
-  <a href="{% url 'cabinet:staff' %}" aria-current="page">Сотрудники</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Сотрудники</h1>
@@ -25,9 +18,9 @@
     <tbody>
       {% for membership in memberships %}
         <tr>
-          <td>{{ membership.user.full_name|default:membership.user.email }}</td>
+          <td>{{ membership.user.full_name|default:membership.user.login }}</td>
           <td>{{ membership.get_role_display }}</td>
-          <td class="muted"><code>{{ membership.user.email|default:membership.user.phone }}</code></td>
+          <td class="muted"><code>{{ membership.user.login }}</code></td>
           <td class="muted">{{ membership.user.last_activity_at|date:"d.m.Y H:i"|default:"—" }}</td>
           <td>
             <form method="post" action="{% url 'cabinet:password_reset' membership.user.pk %}">

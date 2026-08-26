@@ -69,34 +69,34 @@ def generate_password(syllables: int = 3) -> str:
     return f"{body}-{tail}"
 
 
-def build_login(last_name: str, first_name: str, domain: str) -> str:
+def build_login(last_name: str, first_name: str = "") -> str:
     """
-    Фамилия и первая буква имени: petrova.m@tverdyy-znak.ru.
+    Короткий логин из фамилии: «sokolova».
 
-    Это настоящий email-адрес по форме, поэтому вход работает без
-    отдельного поля «логин»: пользователь входит по email или телефону.
+    Не email: адрес диктуют по телефону дольше, чем фамилию, и в нём
+    легко ошибиться. Имя добавляется только при совпадении фамилий —
+    «sokolova.v», потом «sokolova.v2».
     """
     User = get_user_model()
-    base = transliterate(last_name) or "user"
+    stem = transliterate(last_name) or "user"
+
+    def taken(value: str) -> bool:
+        return User.objects.filter(username__iexact=value).exists()
+
+    if not taken(stem):
+        return stem
+
     initial = transliterate(first_name)[:1]
-    stem = f"{base}.{initial}" if initial else base
+    if initial:
+        with_initial = f"{stem}.{initial}"
+        if not taken(with_initial):
+            return with_initial
+        stem = with_initial
 
-    candidate = f"{stem}@{domain}"
     suffix = 2
-    while User.objects.filter(email__iexact=candidate).exists():
-        candidate = f"{stem}{suffix}@{domain}"
+    while taken(f"{stem}{suffix}"):
         suffix += 1
-    return candidate
-
-
-def login_domain(organization) -> str:
-    """
-    Домен для логинов.
-
-    Берём основной домен организации: логин на чужом домене выглядит
-    подозрительно и хуже запоминается.
-    """
-    return organization.primary_domain or f"{organization.slug}.local"
+    return f"{stem}{suffix}"
 
 
 @transaction.atomic
@@ -117,13 +117,14 @@ def issue_account(
     в открытом виде — если его потеряли, выдаётся новый.
     """
     User = get_user_model()
-    login = (email or "").strip().lower() or build_login(
-        last_name, first_name, login_domain(organization)
-    )
+    login = build_login(last_name, first_name)
     password = generate_password()
 
     user = User.objects.create_user(
-        email=login,
+        username=login,
+        # Email хранится, если его дали, но логином не служит: людям проще
+        # запомнить короткое слово, а почта у родителей часто общая на семью.
+        email=(email or "").strip().lower(),
         phone=normalize_phone(phone),
         password=password,
         last_name=last_name.strip(),
@@ -154,7 +155,7 @@ def reset_password(user) -> Credentials:
 
     membership = user.memberships.filter(is_active=True).first()
     return Credentials(
-        login=user.email or user.phone,
+        login=user.login,
         password=password,
         full_name=user.full_name,
         role_label=Role(membership.role).label if membership else "",

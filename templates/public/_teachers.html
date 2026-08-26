@@ -22,6 +22,7 @@
         <p class="small muted">{{ featured_teacher.experience }}</p>
       {% endif %}
       {% if featured_teacher.bio %}{{ featured_teacher.bio|linebreaks }}{% endif %}
+      {% include "public/_reviews.html" with card=featured_teacher %}
     </div>
   </article>
 {% endif %}
@@ -53,6 +54,7 @@
               <p style="color:var(--accent-2);font-weight:600">{{ card.subject_line }}</p>
               {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
               {% if card.bio %}{{ card.bio|linebreaks }}{% endif %}
+              {% include "public/_reviews.html" with card=card %}
             </div>
           </div>
         </template>

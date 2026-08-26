@@ -1,0 +1,45 @@
+{% comment %}
+  Тело журнала: строка «поставить всем» и список учеников.
+
+  Отдельным файлом, потому что групповое выставление обновляет весь
+  список сразу — по одной строке тут не отделаешься.
+{% endcomment %}
+<div id="journal-body">
+  {% if bulk_error %}
+    <div class="message message--error">{{ bulk_error }}</div>
+  {% elif bulk_changed %}
+    <div class="message">Поставлено баллов: {{ bulk_changed }}.</div>
+  {% endif %}
+
+  <div class="bulk-grade" id="bulk-controls">
+    <span class="bulk-grade__label">Поставить всем</span>
+    <input class="input" type="number" step="0.5" min="0"
+           max="{{ grade_item.max_points|floatformat:'-2' }}"
+           name="points" aria-label="Балл всем ученикам"
+           placeholder="из {{ grade_item.max_points|floatformat:'-2' }}">
+    <label class="checkbox" style="font-size:14px">
+      <input type="checkbox" name="overwrite" value="1">
+      Перезаписать уже выставленные
+    </label>
+    <button class="btn btn--quiet" type="button"
+            hx-post="{% url 'cabinet:grade_bulk' lesson.pk %}"
+            hx-include="#bulk-controls input"
+            hx-target="#journal-body" hx-swap="outerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+      Поставить
+    </button>
+  </div>
+
+  <form class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
+        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    {% csrf_token %}
+    {% for row in rows %}
+      {% include "cabinet/teacher/partials/grade_row.html" %}
+    {% empty %}
+      <div class="empty-state">
+        <p class="empty-state__title">В группе пока нет учеников</p>
+        <p>Добавьте состав группы — и здесь появится список.</p>
+      </div>
+    {% endfor %}
+  </form>
+</div>

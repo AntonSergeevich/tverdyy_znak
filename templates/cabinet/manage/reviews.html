@@ -1,0 +1,53 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Отзывы{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Отзывы о педагогах</h1>
+</div>
+
+<p class="muted" style="max-width:60ch">
+  Отзыв оставляет родитель из своего кабинета и только о том, кто учит
+  его ребёнка. На сайт он попадает после вашей проверки.
+</p>
+
+<h2 class="label" style="font-size:18px;margin:28px 0 10px">Ждут проверки</h2>
+{% for review in pending %}
+  <div class="card" style="margin-bottom:12px">
+    <p class="card__title">
+      {{ review.teacher.user.full_name }}
+      <span class="numeral" style="color:var(--accent)">{{ review.stars }}</span>
+    </p>
+    <p class="muted small">{{ review.author_label }} · {{ review.created_at|date:"d.m.Y H:i" }}</p>
+    <p style="margin-top:8px">{{ review.text|linebreaks }}</p>
+    <form method="post" action="{% url 'cabinet:review_decide' review.pk %}" class="btn-row">
+      {% csrf_token %}
+      <button class="btn" type="submit" name="decision" value="published">Опубликовать</button>
+      <button class="btn btn--quiet" type="submit" name="decision" value="rejected">Отклонить</button>
+    </form>
+  </div>
+{% empty %}
+  <p class="muted">Новых отзывов нет.</p>
+{% endfor %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 10px">Уже разобранные</h2>
+{% for review in decided %}
+  <div class="card card--flat" style="margin-bottom:10px">
+    <p>
+      <strong>{{ review.teacher.user.full_name }}</strong>
+      <span class="numeral" style="color:var(--accent)">{{ review.stars }}</span>
+      <span class="muted">· {{ review.get_status_display }}</span>
+    </p>
+    <p class="muted small">{{ review.author_label }}</p>
+    <p class="small">{{ review.text|truncatechars:180 }}</p>
+    {% if review.status == "rejected" %}
+      <form method="post" action="{% url 'cabinet:review_decide' review.pk %}">
+        {% csrf_token %}
+        <button class="btn btn--quiet" type="submit" name="decision" value="published">Всё-таки опубликовать</button>
+      </form>
+    {% endif %}
+  </div>
+{% empty %}
+  <p class="muted">Пока ничего.</p>
+{% endfor %}
+{% endblock %}

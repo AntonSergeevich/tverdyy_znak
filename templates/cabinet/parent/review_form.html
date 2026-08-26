@@ -1,0 +1,37 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Отзыв о педагоге{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">{{ teacher.user.full_name }}</h1>
+  <a class="btn btn--quiet" href="{% url 'cabinet:parent_teachers' %}">Назад</a>
+</div>
+
+{% if existing %}
+  <p class="muted">
+    Вы уже оставляли отзыв — здесь он открыт для правки.
+    После изменения он снова уйдёт на проверку.
+  </p>
+{% endif %}
+
+<form method="post" class="form">{% csrf_token %}
+  <fieldset class="fieldset">
+    <legend>Оценка</legend>
+    <div class="rating">{{ form.rating }}</div>
+    {% if form.rating.errors %}<span class="field__error">{{ form.rating.errors.0 }}</span>{% endif %}
+  </fieldset>
+
+  <label class="field{% if form.text.errors %} field--error{% endif %}">
+    <span class="field__label">Отзыв</span>
+    {{ form.text }}
+    {% if form.text.errors %}<span class="field__error">{{ form.text.errors.0 }}</span>{% endif %}
+  </label>
+
+  <p class="small muted">
+    Отзыв появится на странице педагога после проверки администратором.
+    Подпись — имя и первая буква фамилии: фамилию целиком мы не публикуем.
+  </p>
+
+  <div class="btn-row"><button class="btn" type="submit">Отправить</button></div>
+</form>
+{% endblock %}

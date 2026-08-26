@@ -152,7 +152,7 @@ def two_factor_setup_view(request):
     issuer = (organization.primary_domain or organization.slug) if organization else "tverdyy-znak.ru"
     uri = totp.provisioning_uri(
         device.secret,
-        account=user.email or user.phone or str(user.pk),
+        account=user.login or str(user.pk),
         issuer=issuer,
     )
     return render(

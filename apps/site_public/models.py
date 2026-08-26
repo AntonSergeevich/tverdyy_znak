@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -142,6 +143,73 @@ class TeacherCard(TenantModel):
 
     def __str__(self) -> str:
         return self.full_name
+
+
+class TeacherReview(TenantModel):
+    """
+    Отзыв родителя о педагоге.
+
+    Оставить его можно только из кабинета и только про того, кто учит
+    твоего ребёнка: анонимный отзыв на сайте центра — это не обратная
+    связь, а канал для случайного человека.
+
+    На сайт отзыв попадает после проверки администратором. Дело не
+    в цензуре: публичная страница — зона ответственности организации,
+    и то, что там появляется, должно быть кем-то прочитано.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "на проверке"
+        PUBLISHED = "published", "опубликован"
+        REJECTED = "rejected", "отклонён"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    teacher = models.ForeignKey(
+        "journal.Teacher", on_delete=models.CASCADE, related_name="reviews",
+        verbose_name="педагог",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="teacher_reviews", verbose_name="автор",
+    )
+    # Подпись хранится снимком: родитель может уйти, а отзыв на сайте
+    # останется — и должен остаться подписанным так же, как был.
+    author_label = models.CharField("подпись", max_length=120, blank=True)
+    rating = models.PositiveSmallIntegerField(
+        "оценка", validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    text = models.TextField("отзыв", max_length=2000)
+    status = models.CharField(
+        "статус", max_length=12, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
+    moderated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="moderated_reviews", verbose_name="кто проверил",
+    )
+    moderated_at = models.DateTimeField("проверен", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "отзыв о педагоге"
+        verbose_name_plural = "отзывы о педагогах"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "teacher", "status"]),
+        ]
+        constraints = [
+            # Один родитель — один отзыв на педагога. Иначе страница
+            # педагога превращается в переписку.
+            models.UniqueConstraint(
+                fields=["teacher", "author"], condition=models.Q(author__isnull=False),
+                name="teacher_review_one_per_author",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.author_label} о {self.teacher}"
+
+    @property
+    def stars(self) -> str:
+        return "★" * self.rating + "☆" * (5 - self.rating)
 
 
 class LegalDocument(TenantModel):

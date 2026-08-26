@@ -15,8 +15,12 @@ class EmailOrPhoneBackend(ModelBackend):
         if not identifier or password is None:
             return None
 
+        # Логин, email или телефон — человек не должен помнить, что именно
+        # ему выдали. Пустые поля из поиска исключены: иначе пустой
+        # username совпал бы у всех сразу.
         phone = normalize_phone(identifier)
-        query = Q(email__iexact=identifier)
+        query = Q(username__iexact=identifier) & ~Q(username="")
+        query |= Q(email__iexact=identifier) & ~Q(email="")
         if phone:
             query |= Q(phone=phone)
 

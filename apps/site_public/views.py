@@ -145,6 +145,35 @@ SEGMENTS = [
 TEACHERS_ON_LANDING = 7
 
 
+def _attach_reviews(cards: list) -> None:
+    """
+    Подтянуть опубликованные отзывы к карточкам.
+
+    Карточка на сайте и педагог в журнале — разные записи (на сайт
+    попадает только то, что человек разрешил публиковать), поэтому
+    связываем по имени, как и фотографию. Один запрос на всех, а не
+    по запросу на карточку.
+    """
+    from apps.journal.models import Teacher
+    from apps.site_public.models import TeacherReview
+
+    reviews = (
+        TeacherReview.objects.filter(status=TeacherReview.Status.PUBLISHED)
+        .select_related("teacher__user")
+        .order_by("-created_at")
+    )
+    by_name: dict[str, list] = {}
+    for review in reviews:
+        user = review.teacher.user
+        key = f"{user.last_name} {user.first_name}".strip().casefold()
+        by_name.setdefault(key, []).append(review)
+
+    for card in cards:
+        parts = card.full_name.split()
+        key = " ".join(parts[:2]).casefold()
+        card.reviews = by_name.get(key, [])
+
+
 def _teachers_context() -> dict:
     """
     Педагоги на главной: один крупно, остальные — компактной лентой.
@@ -154,6 +183,7 @@ def _teachers_context() -> dict:
     не помещаются уже при семи, а их будет больше.
     """
     cards = list(TeacherCard.objects.filter(is_published=True))
+    _attach_reviews(cards)
     featured = next((card for card in cards if card.is_featured), None)
     rest = [card for card in cards if card is not featured]
     return {
@@ -215,6 +245,7 @@ def career(request):
 def teachers(request):
     """Полный состав отдельной страницей: на главной он не помещается."""
     cards = list(TeacherCard.objects.filter(is_published=True))
+    _attach_reviews(cards)
     return render(
         request,
         "public/teachers.html",

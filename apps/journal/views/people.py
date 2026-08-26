@@ -26,6 +26,7 @@ from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
 from apps.journal.forms import (
     DeleteConfirmForm,
+    ParentInviteForm,
     PaymentForm,
     StaffForm,
     StudentEditForm,
@@ -467,3 +468,58 @@ def payment_create(request, student_id):
         for field, errors in form.errors.items():
             messages.error(request, f"{field}: {errors[0]}")
     return redirect("cabinet:student_card", student_id=student.pk)
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["GET", "POST"])
+def parent_invite(request, student_id):
+    """
+    Добавить родителя к уже заведённому ребёнку.
+
+    Доступ выдаётся так же, как всем: логин и пароль генерируются, а
+    администратор передаёт их лично. Самостоятельная регистрация по
+    ссылке означала бы, что данные ребёнка получит тот, кому ссылку
+    переслали, — а пересылают их легко.
+    """
+    student = get_object_or_404(Student.objects.all(), pk=student_id)
+    form = ParentInviteForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        with transaction.atomic():
+            user, credentials = onboarding.issue_account(
+                organization=request.organization,
+                role=Role.PARENT,
+                last_name=data["last_name"],
+                first_name=data["first_name"],
+                middle_name=data["middle_name"],
+                phone=data["phone"],
+                email=data["email"],
+            )
+            parent = Parent.objects.create(
+                organization=request.organization, user=user,
+                last_name=data["last_name"], first_name=data["first_name"],
+                middle_name=data["middle_name"],
+                phone=data["phone"], email=data["email"],
+            )
+            StudentParent.objects.create(
+                organization=request.organization, student=student, parent=parent,
+                relation=data.get("relation", ""),
+                is_primary_contact=data.get("is_primary_contact", False),
+            )
+
+        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=parent,
+                  change="parent_invited", student=str(student.pk))
+        messages.success(request, f"{parent.full_name} добавлен к карточке ребёнка.")
+        return _credentials_response(
+            request, credentials,
+            back_url=reverse("cabinet:student_card", args=[student.pk]),
+            student=student,
+        )
+
+    return render(
+        request,
+        "cabinet/manage/parent_form.html",
+        {"form": form, "student": student},
+    )

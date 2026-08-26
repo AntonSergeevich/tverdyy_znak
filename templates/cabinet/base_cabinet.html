@@ -11,7 +11,7 @@
   на элементы шапки, переживают переход. Без JS всё работает как обычные
   ссылки — boost только ускоряет то, что и так работало.
 {% endcomment %}
-{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top"{% endblock %}
+{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#site-nav"{% endblock %}
 
 {% block body %}
 {# В кабинетах нет никакой сторонней аналитики: здесь персональные данные детей (ТЗ 7). #}
@@ -20,12 +20,15 @@
     <span class="logo__mark" aria-hidden="true">Ъ</span>
     <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
   </a>
-  <nav class="cabinet-nav" id="site-nav" aria-label="Разделы кабинета">
-    {% block cabinet_nav %}{% endblock %}
-  </nav>
+  {% include "cabinet/partials/nav.html" %}
   <div class="header-actions">
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Тёмная тема" title="Тёмная тема">☾</button>
-    <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}
+    {% comment %}
+      Выход — вне переходов без перезагрузки: он уводит из кабинета,
+      а boost подменил бы только содержимое и оставил шапку кабинета
+      на публичной странице. Выглядело бы как «кнопка не работает».
+    {% endcomment %}
+    <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}
       <button class="btn btn--quiet" type="submit">Выйти</button>
     </form>
     <button class="nav-toggle" type="button" data-nav-toggle

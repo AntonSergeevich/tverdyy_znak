@@ -25,6 +25,7 @@ from apps.journal.models import (
     ModuleResult,
     Payment,
     Student,
+    Teacher,
 )
 from apps.journal.services.grading import get_scale
 
@@ -94,9 +95,22 @@ def student_overview(request, student: Student) -> dict:
         for label, values in buckets.items()
     ]
 
+    # Общий прогресс по модулю: сумма набранных баллов ко всем возможным.
+    # Родителю нужен один ответ на вопрос «как дела» — до разбора по
+    # предметам он ещё дойдёт, но начинает с этого.
+    current = list(results)
+    scale = get_scale(organization)
+    earned = sum((row.total_points for row in current), Decimal("0.00"))
+    possible = scale.module_max_points * len(current)
+
     return {
         "student": student,
         "module": module,
+        "total_earned": earned,
+        "total_possible": possible,
+        "total_percent": int(earned / possible * 100) if possible else 0,
+        "passed_count": sum(1 for row in current if row.is_passed),
+        "subjects_count": len(current),
         "results": list(results),
         "history": list(history),
         "dynamics": dynamics,
@@ -136,3 +150,28 @@ def parent_child(request, student_id):
     context = student_overview(request, student)
     context["children"] = list(accessible_students(request.user, organization))
     return render(request, "cabinet/parent/home.html", context)
+
+
+@login_required
+@role_required("parent", "student", "admin", "owner", "platform_admin")
+def parent_teachers(request):
+    """
+    Кто учит ребёнка.
+
+    Показываем только тех, кто реально ведёт занятия у его группы:
+    список всех педагогов центра родителю ничего не говорит.
+    """
+    organization = request.organization
+    children = list(accessible_students(request.user, organization))
+    teachers = (
+        Teacher.objects.filter(lessons__group__memberships__student__in=children)
+        .select_related("user")
+        .prefetch_related("subjects")
+        .distinct()
+        .order_by("user__last_name")
+    )
+    return render(
+        request,
+        "cabinet/parent/teachers.html",
+        {"teachers": list(teachers), "children": children},
+    )

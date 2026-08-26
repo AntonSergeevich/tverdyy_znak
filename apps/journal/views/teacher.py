@@ -352,3 +352,64 @@ def lesson_topic_save(request, lesson_id):
     return render(
         request, "cabinet/teacher/partials/topic_cell.html", {"lesson": lesson, "saved": True}
     )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def grade_bulk(request, lesson_id):
+    """
+    Поставить один балл всем сразу.
+
+    После занятия у большинства класса балл одинаковый, и вводить его
+    по одному — двадцать кликов ради одного числа. Ставим всем, а
+    исключения педагог правит по одному, как и раньше.
+
+    Кому балл уже стоит, по умолчанию не трогаем: перезаписать чужую
+    работу молча — худшее, что может сделать «удобная» кнопка.
+    """
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    grade_item = getattr(lesson, "grade_item", None)
+    if grade_item is None:
+        raise PermissionDenied("Занятие без оценивания: сначала отметьте его как оцениваемое.")
+
+    raw = (request.POST.get("points") or "").strip().replace(",", ".")
+    overwrite = request.POST.get("overwrite") == "1"
+    try:
+        points = Decimal(raw)
+    except InvalidOperation:
+        points = None
+
+    error = ""
+    changed = 0
+    if points is None:
+        error = "Балл должен быть числом."
+    else:
+        for row in _lesson_rows(lesson):
+            if row["grade"] is not None and not overwrite:
+                continue
+            try:
+                set_grade(
+                    student=row["student"], grade_item=grade_item, points=points,
+                    actor=request.user, comment="", request=request,
+                )
+                changed += 1
+            except (ValidationError, PermissionDenied) as exc:
+                error = getattr(exc, "message", None) or str(exc)
+                break
+
+    return render(
+        request,
+        "cabinet/teacher/partials/journal_body.html",
+        {
+            "lesson": lesson,
+            "grade_item": grade_item,
+            "rows": _lesson_rows(lesson),
+            "budget": points_budget(lesson.module, lesson.subject, lesson.group),
+            "bulk_error": error,
+            "bulk_changed": changed,
+        },
+    )

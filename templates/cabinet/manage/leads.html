@@ -1,13 +1,6 @@
 {% extends "cabinet/base_cabinet.html" %}
 {% block cabinet_title %}Заявки{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
-  <a href="{% url 'cabinet:leads' %}" aria-current="page">Заявки</a>
-  <a href="{% url 'cabinet:students' %}">Ученики</a>
-  <a href="{% url 'cabinet:schedule_builder' %}">Расписание</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Заявки</h1>

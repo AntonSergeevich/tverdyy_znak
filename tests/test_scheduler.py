@@ -284,3 +284,106 @@ def test_scheduler_script_is_loaded_for_the_whole_cabinet(admin_client, tenant_a
     """
     body = admin_client.get(reverse("cabinet:dashboard")).content.decode()
     assert "js/scheduler.js" in body
+
+
+def test_bulk_grading_fills_everyone_at_once(admin_client, tenant_a):
+    """
+    После занятия у большинства класса балл одинаковый.
+
+    Вводить его по одному — двадцать кликов ради одного числа.
+    """
+    from decimal import Decimal
+
+    from apps.journal.models import Grade, GradeItem, GradeItemKind
+
+    item = GradeItem.all_objects.create(
+        organization=tenant_a.organization, module=tenant_a.module,
+        subject=tenant_a.subject, group=tenant_a.group, lesson=tenant_a.lesson,
+        kind=GradeItemKind.LESSON, title="Занятие", max_points=Decimal("5.00"),
+    )
+    tenant_a.lesson.is_graded = True
+    tenant_a.lesson.save(update_fields=["is_graded"])
+
+    admin_client.post(
+        reverse("cabinet:grade_bulk", args=[tenant_a.lesson.pk]), {"points": "4"}
+    )
+
+    grades = Grade.all_objects.filter(grade_item=item)
+    assert grades.count() == 1
+    assert grades.first().points == Decimal("4.00")
+
+
+def test_bulk_grading_does_not_overwrite_existing_marks_by_default(admin_client, tenant_a):
+    """
+    Перезаписать уже выставленное молча — худшее, что может сделать
+    «удобная» кнопка. Для этого есть отдельная галочка.
+    """
+    from decimal import Decimal
+
+    from apps.journal.models import Grade, GradeItem, GradeItemKind
+
+    item = GradeItem.all_objects.create(
+        organization=tenant_a.organization, module=tenant_a.module,
+        subject=tenant_a.subject, group=tenant_a.group, lesson=tenant_a.lesson,
+        kind=GradeItemKind.LESSON, title="Занятие", max_points=Decimal("5.00"),
+    )
+    tenant_a.lesson.is_graded = True
+    tenant_a.lesson.save(update_fields=["is_graded"])
+
+    url = reverse("cabinet:grade_bulk", args=[tenant_a.lesson.pk])
+    admin_client.post(url, {"points": "2"})
+    admin_client.post(url, {"points": "5"})
+    assert Grade.all_objects.get(grade_item=item).points == Decimal("2.00")
+
+    admin_client.post(url, {"points": "5", "overwrite": "1"})
+    assert Grade.all_objects.get(grade_item=item).points == Decimal("5.00")
+
+
+def test_menu_marks_the_current_section(admin_client, tenant_a):
+    """
+    Подсветка пункта жила в шаблонах и при переходе без перезагрузки
+    не переставлялась: шапка ведь не менялась.
+    """
+    students = admin_client.get(reverse("cabinet:students")).content.decode()
+    marked = students[students.index('id="site-nav"'):students.index("</nav>")]
+    assert 'aria-current="page"' in marked
+    assert "Ученики</a>" in marked.split('aria-current="page"')[1][:40]
+
+
+def test_menu_keeps_the_section_on_nested_pages(admin_client, tenant_a):
+    """Карточка ученика — это всё ещё раздел «Ученики»."""
+    body = admin_client.get(
+        reverse("cabinet:student_card", args=[tenant_a.student.pk])
+    ).content.decode()
+    nav = body[body.index('id="site-nav"'):body.index("</nav>")]
+
+    assert 'aria-current="page"' in nav
+    assert "Ученики</a>" in nav.split('aria-current="page"')[1][:40]
+
+
+def test_menu_depends_on_role(client, tenant_a):
+    """Пункта, которого у роли нет, не должно быть даже ссылкой."""
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    client.post(
+        reverse("accounts:login"),
+        {"username": tenant_a.parent_user.email, "password": PASSWORD},
+    )
+    body = client.get(reverse("cabinet:parent_home")).content.decode()
+    nav = body[body.index('id="site-nav"'):body.index("</nav>")]
+
+    assert "Мой ребёнок" in nav
+    assert "Сотрудники" not in nav
+    assert "ФОТ" not in nav
+
+
+def test_logout_is_not_boosted(admin_client, tenant_a):
+    """
+    Выход уводит из кабинета, а boost подменил бы только содержимое
+    и оставил шапку кабинета на публичной странице.
+    """
+    body = admin_client.get(reverse("cabinet:dashboard")).content.decode()
+    logout = body[: body.index("/vyhod/")]
+
+    # Атрибут стоит именно на форме выхода, а не где-то ещё на странице.
+    assert logout.rstrip().endswith('<form method="post" action="')
+    assert 'hx-boost="false"' in body[body.index("/vyhod/"):body.index("/vyhod/") + 200]

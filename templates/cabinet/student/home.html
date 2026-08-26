@@ -1,11 +1,6 @@
 {% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
 {% block cabinet_title %}Мой кабинет{% endblock %}
 
-{% block cabinet_nav %}
-  <a href="{% url 'cabinet:student_home' %}" aria-current="page">Мой кабинет</a>
-  <a href="{% url 'cabinet:schedule' %}">Расписание</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Привет, {{ student.first_name }}</h1>

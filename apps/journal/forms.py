@@ -192,5 +192,20 @@ class PaymentForm(forms.ModelForm):
         return data
 
 
-class ParentForm(PersonForm):
-    """Родитель отдельно: у ребёнка их может быть несколько."""
+class ParentInviteForm(PersonForm):
+    """
+    Родитель к уже заведённому ребёнку.
+
+    Ребёнка чаще всего заводят по договору с одним взрослым, а второй
+    появляется позже. Логин и пароль генерируются так же — родитель
+    ничего не заполняет сам: регистрация по ссылке означала бы, что
+    доступ к данным ребёнка получает тот, кому ссылку переслали.
+    """
+
+    relation = forms.CharField(
+        label="Кем приходится", max_length=40, required=False,
+        help_text="Мама, папа, бабушка — как удобно.",
+    )
+    is_primary_contact = forms.BooleanField(
+        label="Основной контакт", required=False, initial=False
+    )

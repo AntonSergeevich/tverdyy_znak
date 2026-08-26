@@ -42,14 +42,20 @@ def test_transliteration(text, expected):
     assert onboarding.transliterate(text) == expected
 
 
-def test_login_is_built_from_name_and_stays_unique(db, tenant_a):
-    first = onboarding.build_login("Петрова", "Мария", "example.org")
-    assert first == "petrova.m@example.org"
+def test_login_is_short_and_stays_unique(db, tenant_a):
+    """
+    Логин диктуют по телефону, поэтому это фамилия, а не адрес почты.
 
-    get_user_model().objects.create_user(email=first, password="x")
-    second = onboarding.build_login("Петрова", "Мария", "example.org")
+    Имя добавляется только при совпадении фамилий: «sokolova»,
+    потом «sokolova.m», потом «sokolova.m2».
+    """
+    assert onboarding.build_login("Петрова", "Мария") == "petrova"
 
-    assert second == "petrova.m2@example.org"
+    get_user_model().objects.create_user(username="petrova", password="x")
+    assert onboarding.build_login("Петрова", "Мария") == "petrova.m"
+
+    get_user_model().objects.create_user(username="petrova.m", password="x")
+    assert onboarding.build_login("Петрова", "Мария") == "petrova.m2"
 
 
 def test_password_is_readable_over_the_phone():
@@ -112,7 +118,8 @@ def test_admin_creates_student_and_sees_credentials_once(admin_client, tenant_a)
     ).first()
     assert student is not None
     assert student.user is not None
-    assert "sokolova.v@" in body
+    assert student.user.username == "sokolova"
+    assert "sokolova" in body
     assert "Пароль" in body
     assert "Скопировать для отправки" in body
 
@@ -246,7 +253,7 @@ def test_admin_creates_teacher_with_rate(admin_client, tenant_a):
     assert teacher.hourly_rate == 1200
     with organization_context(tenant_a.organization):
         assert tenant_a.subject in teacher.subjects.all()
-    assert "krylov.o@" in response.content.decode()
+    assert "krylov" in response.content.decode()
 
 
 def test_only_owner_can_create_staff(client, tenant_a):
@@ -312,3 +319,124 @@ def test_payment_can_be_charged_from_the_card(admin_client, tenant_a):
     payment = Payment.all_objects.get(student=tenant_a.student, title="Сентябрь")
     assert payment.amount == 40000
     assert payment.organization == tenant_a.organization
+
+
+# ─── Кабинет родителя и отзывы ──────────────────────────────────────────────
+
+def test_parent_sees_overall_progress(client, tenant_a):
+    """
+    Родителю нужен один ответ на «как дела», а не только разбор по предметам.
+    """
+    from decimal import Decimal
+
+    from apps.journal.models import ModuleResult
+
+    ModuleResult.all_objects.create(
+        organization=tenant_a.organization, student=tenant_a.student,
+        subject=tenant_a.subject, module=tenant_a.module,
+        total_points=Decimal("72.00"), is_passed=True,
+    )
+    _login(client, tenant_a, tenant_a.parent_user)
+    body = client.get(reverse("cabinet:parent_home")).content.decode()
+
+    assert "Всего за модуль" in body
+    assert "Зачётов закрыто: 1 из 1" in body
+
+
+def test_parent_sees_only_teachers_of_their_child(client, tenant_a, tenant_b):
+    _login(client, tenant_a, tenant_a.parent_user)
+    body = client.get(reverse("cabinet:parent_teachers")).content.decode()
+
+    assert tenant_a.teacher.user.full_name in body
+    assert tenant_b.teacher.user.full_name not in body
+
+
+def test_review_can_be_left_only_about_own_teacher(client, tenant_a, tenant_b):
+    _login(client, tenant_a, tenant_a.parent_user)
+
+    mine = client.get(reverse("cabinet:review_create", args=[tenant_a.teacher.pk]))
+    assert mine.status_code == 200
+
+    foreign = client.get(reverse("cabinet:review_create", args=[tenant_b.teacher.pk]))
+    assert foreign.status_code in (403, 404)
+
+
+def test_review_waits_for_moderation_before_appearing_on_the_site(client, tenant_a):
+    """
+    Публичная страница — зона ответственности центра.
+
+    Отзыв появляется на сайте только после того, как его кто-то прочитал.
+    """
+    from apps.site_public.models import TeacherCard, TeacherReview
+
+    TeacherCard.all_objects.create(
+        organization=tenant_a.organization,
+        full_name=tenant_a.teacher.user.full_name,
+        subject_line="Математика",
+    )
+    _login(client, tenant_a, tenant_a.parent_user)
+    client.post(
+        reverse("cabinet:review_create", args=[tenant_a.teacher.pk]),
+        {"rating": "5", "text": "Ребёнок перестал бояться математики."},
+    )
+
+    review = TeacherReview.all_objects.get(teacher=tenant_a.teacher)
+    assert review.status == TeacherReview.Status.PENDING
+
+    public = client.get(reverse("public:landing")).content.decode()
+    assert "перестал бояться" not in public
+
+    review.status = TeacherReview.Status.PUBLISHED
+    review.save(update_fields=["status"])
+    published = client.get(reverse("public:landing")).content.decode()
+    assert "перестал бояться" in published
+
+
+def test_review_signature_hides_the_family_name(client, tenant_a):
+    from apps.site_public.models import TeacherReview
+
+    _login(client, tenant_a, tenant_a.parent_user)
+    client.post(
+        reverse("cabinet:review_create", args=[tenant_a.teacher.pk]),
+        {"rating": "4", "text": "Хороший педагог."},
+    )
+    review = TeacherReview.all_objects.get(teacher=tenant_a.teacher)
+
+    assert tenant_a.parent_user.last_name not in review.author_label
+    assert tenant_a.parent_user.first_name in review.author_label
+
+
+def test_editing_a_review_sends_it_back_to_moderation(client, tenant_a):
+    from apps.site_public.models import TeacherReview
+
+    _login(client, tenant_a, tenant_a.parent_user)
+    url = reverse("cabinet:review_create", args=[tenant_a.teacher.pk])
+    client.post(url, {"rating": "5", "text": "Первый вариант."})
+
+    review = TeacherReview.all_objects.get(teacher=tenant_a.teacher)
+    review.status = TeacherReview.Status.PUBLISHED
+    review.save(update_fields=["status"])
+
+    client.post(url, {"rating": "3", "text": "Передумал."})
+    review.refresh_from_db()
+
+    assert review.status == TeacherReview.Status.PENDING
+    assert TeacherReview.all_objects.filter(teacher=tenant_a.teacher).count() == 1
+
+
+def test_parent_can_be_added_to_an_existing_child(admin_client, tenant_a):
+    from apps.journal.models import StudentParent
+
+    response = admin_client.post(
+        reverse("cabinet:parent_invite", args=[tenant_a.student.pk]),
+        {
+            "last_name": "Второв", "first_name": "Пётр", "middle_name": "",
+            "phone": "", "email": "", "relation": "папа", "is_primary_contact": "",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "vtorov" in response.content.decode()
+    assert StudentParent.all_objects.filter(
+        student=tenant_a.student, parent__last_name="Второв"
+    ).exists()
