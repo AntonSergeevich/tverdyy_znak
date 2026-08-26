@@ -182,7 +182,13 @@ docker compose exec -T web python manage.py collectstatic --noinput
 # источником истины, поэтому приводятся к нему на каждом выкате.
 # Обе команды идемпотентны и ничего не удаляют.
 docker compose exec -T web python manage.py bootstrap_organization
+# Фотографии педагогов живут в томе, а не в образе: WebP пересобирается
+# из оригиналов на месте. Идемпотентно, новые снимки подхватываются сами.
+docker compose exec -T web python scripts/prepare_teacher_photos.py
 docker compose exec -T web python manage.py setup_client_data
+# nginx запоминает адрес контейнера web при старте, а мы его только что
+# пересоздали — без перечитывания конфигурации он отдаёт 502 на новый адрес.
+docker compose exec -T nginx nginx -s reload
 docker compose ps
 "@
 

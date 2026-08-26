@@ -80,7 +80,11 @@ python manage.py runserver
 
 Положить оригиналы в `assets\teachers\` под именами из
 `assets\teachers\README.md` (`babadzhanova.jpg`, `manasyan.jpg`,
-`polskaya.jpg`, `margarita.jpg`, `anna.jpg`) и выполнить:
+`polskaya.jpg`, `margarita.jpg`, `anna.jpg`, `katnikov.jpg`) и выполнить:
+
+Класть готовый файл прямо в `media\teachers\` бесполезно: на сервере это
+docker-том, которого нет в образе. Обрабатывается всегда оригинал
+из `assets\teachers\`.
 
 ```powershell
 python scripts\prepare_teacher_photos.py
