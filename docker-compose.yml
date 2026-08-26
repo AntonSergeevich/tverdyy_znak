@@ -64,11 +64,21 @@ services:
       - media:/app/media
       - private-media:/app/private-media
       - logs:/app/logs
+    # Своя проверка вместо унаследованной из образа: у воркера нет http.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 40s
 
   beat:
     <<: *app-env
     build: .
     command: celery -A config beat --loglevel=info
+    # beat не отвечает на ping — он только шлёт задачи по расписанию.
+    # Проверять нечего, а унаследованная из образа проверка врёт.
+    healthcheck: {disable: true}
     volumes:
       - logs:/app/logs
 
@@ -108,6 +118,10 @@ services:
       - ./deploy/scripts:/scripts:ro
       - backups:/backups
     entrypoint: ["sh", "/scripts/backup-loop.sh"]
+    # HEALTHCHECK из образа дёргает http://127.0.0.1:8000/healthz — здесь
+    # веб-сервера нет, и контейнер вечно числился нездоровым. Осмысленной
+    # проверки у цикла бэкапов нет: он спит между запусками.
+    healthcheck: {disable: true}
 
 volumes:
   pgdata:

@@ -439,3 +439,30 @@ def test_deploy_does_not_run_migrations_twice():
     assert "manage.py migrate" in compose
     assert "manage.py migrate" not in script
     assert "up -d --wait" in script
+
+
+def test_non_web_containers_do_not_inherit_the_http_healthcheck():
+    """
+    HEALTHCHECK из образа дёргает http://127.0.0.1:8000/healthz.
+
+    У воркера, планировщика и бэкапов веб-сервера нет, и они вечно
+    числились нездоровыми. Само по себе безвредно — до того дня, когда
+    выкат стал ждать готовности всего стека и оборвался на полпути,
+    не дойдя до перезагрузки nginx. Сайт остался с 502.
+    """
+    import yaml
+
+    services = yaml.safe_load(open("docker-compose.yml", encoding="utf-8"))["services"]
+
+    for name in ("worker", "beat", "backup"):
+        check = services[name].get("healthcheck")
+        assert check is not None, f"{name}: наследует проверку из образа"
+        assert check.get("disable") or check.get("test"), name
+
+
+def test_deploy_waits_for_web_only():
+    """`--wait` без имени сервиса ждёт весь стек — один сосед валит выкат."""
+    from pathlib import Path
+
+    script = Path("deploy/scripts/remote-deploy.sh").read_text(encoding="utf-8")
+    assert "up -d --wait web" in script

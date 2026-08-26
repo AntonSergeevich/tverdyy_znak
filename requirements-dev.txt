@@ -2,6 +2,8 @@
 pytest==9.1.1
 pytest-django==4.14.0
 django-debug-toolbar==7.1.1
+# Тесты читают docker-compose.yml: проверки контейнеров — часть кода.
+PyYAML==6.0.3
 # Нужен только для пересборки шрифтов в woff2 (scripts/build_fonts.py).
 fonttools==4.63.0
 brotli==1.2.0
