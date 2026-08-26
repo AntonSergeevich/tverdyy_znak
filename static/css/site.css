@@ -518,6 +518,23 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
 /* Мобильный — основной сценарий, а не адаптив постфактум (ТЗ 5).
    На узком экране навигация уезжает на свою строку во всю ширину:
    зажатая между логотипом и CTA, она нечитаема и в неё не попасть пальцем. */
+/* Расписание на неделю: колонки на большом экране, дни подряд на телефоне.
+   Сетка auto-fit, чтобы семь дней не ломались на промежуточных ширинах. */
+.week { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.week__day { background: var(--surface); border: 1px solid var(--line); padding: 12px 14px; }
+.week__day--today { border-color: var(--accent); }
+.week__date {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  font-size: 14px; text-transform: uppercase; letter-spacing: .06em;
+  margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.week__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.week__lesson { display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
+.week__time { flex: 0 0 auto; font-weight: 600; }
+.week__what { display: grid; gap: 2px; min-width: 0; }
+.week__subject { font-weight: 600; }
+.week__empty { margin: 0; font-size: 14px; }
+
 @media (max-width: 760px) {
   :root { --header-h: 73px; }
   .site-header { flex-wrap: wrap; row-gap: 8px; }
@@ -552,6 +569,10 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
   .journal-row__comment,
   .journal-row__state { flex: 0 0 auto; }
   .hero__mark { left: -28px; top: 20px; }
+
+  /* На телефоне неделя читается сверху вниз: колонки по 200px там
+     превращаются в нечитаемые обрезки. */
+  .week { grid-template-columns: 1fr; }
 
   /* Главный экран родителя должен отвечать на три вопроса без прокрутки:
      на телефоне плитки идут по две в ряд, а не колонкой. */

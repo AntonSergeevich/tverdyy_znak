@@ -29,6 +29,13 @@ ORGANIZATION = {
     "ogrnip": "326246800106544",
     "address": "Красноярск, ул. Весны, 10",
     "contact_phone": "+7 (913) 560-26-00",
+    # Файл с расписанием, который ведёт Алина. Видно только в кабинете:
+    # пока занятия модуля не заведены в журнале, родителю и ученику надо
+    # куда-то смотреть. После import_schedule ссылка остаётся справочной.
+    "schedule_url": (
+        "https://docs.yandex.ru/view/d/"
+        "GqC0hOHNfTT2B6PJgMZsWyPegnqahzm72s0qoIz-cKg6b3FiSndzVjk4Zw"
+    ),
     "bank_name": 'ООО "Банк Точка"',
     "bank_bik": "044525104",
     "bank_account": "40802810820001048577",

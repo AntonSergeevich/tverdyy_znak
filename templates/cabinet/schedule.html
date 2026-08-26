@@ -1,0 +1,69 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Расписание{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:home' %}">Кабинет</a>
+  <a href="{% url 'cabinet:schedule' %}" aria-current="page">Расписание</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Расписание</h1>
+  <span class="muted numeral">{{ monday|date:"d.m" }} — {{ sunday|date:"d.m.Y" }}</span>
+</div>
+
+<div class="btn-row" style="margin-bottom:16px">
+  <a class="btn btn--quiet" href="?n={{ offset|add:'-1' }}">← Предыдущая неделя</a>
+  {% if offset %}<a class="btn btn--quiet" href="{% url 'cabinet:schedule' %}">Текущая неделя</a>{% endif %}
+  <a class="btn btn--quiet" href="?n={{ offset|add:'1' }}">Следующая неделя →</a>
+</div>
+
+{% if has_lessons %}
+  <div class="week">
+    {% for day in days %}
+      <section class="week__day{% if day.is_today %} week__day--today{% endif %}">
+        <h2 class="week__date">
+          {{ day.date|date:"l" }}<span class="muted numeral">{{ day.date|date:"d.m" }}</span>
+        </h2>
+        {% if day.lessons %}
+          <ul class="week__list">
+            {% for lesson in day.lessons %}
+              <li class="week__lesson">
+                <span class="numeral week__time">{{ lesson.starts_at|time:"H:i" }}</span>
+                <span class="week__what">
+                  <span class="week__subject">{{ lesson.subject.name }}</span>
+                  <span class="muted">
+                    {{ lesson.group.name }}{% if lesson.room %} · {{ lesson.room }}{% endif %}{% if lesson.teacher %} · {{ lesson.teacher.short_name }}{% endif %}
+                  </span>
+                  {% if lesson.topic %}<span class="muted">{{ lesson.topic }}</span>{% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted week__empty">Занятий нет</p>
+        {% endif %}
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card">
+    <p class="card__title">На эту неделю занятий пока нет</p>
+    <p class="muted">
+      Расписание появится здесь, как только занятия модуля будут заведены в журнале.
+      {% if external_url %}Пока можно смотреть исходный файл.{% endif %}
+    </p>
+    {% if external_url %}
+      <p style="margin-top:12px">
+        <a class="btn" href="{{ external_url }}" target="_blank" rel="noopener noreferrer">Открыть файл с расписанием</a>
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if has_lessons and external_url %}
+  <p class="muted" style="margin-top:24px">
+    Исходный файл: <a href="{{ external_url }}" target="_blank" rel="noopener noreferrer">открыть</a>
+  </p>
+{% endif %}
+{% endblock %}

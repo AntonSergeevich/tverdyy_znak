@@ -49,6 +49,13 @@ class Organization(TimeStampedModel):
     address = models.CharField("адрес", max_length=300, blank=True)
     telegram_chat_id = models.CharField("Telegram chat_id для заявок", max_length=64, blank=True)
 
+    # Ссылка на общий файл с расписанием (Яндекс.Документы, Google Sheets).
+    # Показывается только в кабинете и нужна как временная опора, пока
+    # занятия не заведены в журнале: сетку из файла загружает
+    # `manage.py import_schedule`, и после загрузки ссылка остаётся
+    # справочной — для тех, кто привык смотреть исходник.
+    schedule_url = models.URLField("ссылка на файл с расписанием", max_length=500, blank=True)
+
     # ── Банковские реквизиты для оплаты ─────────────────────────────────────
     # Показываются только в кабинете родителя. В подвале сайта — лишь
     # наименование, ИНН, ОГРНИП и адрес: номер счёта там ни к чему.
@@ -224,6 +231,7 @@ class AuditAction(models.TextChoices):
     CONSENT_GRANTED = "consent_granted", "согласие получено"
     CONSENT_REVOKED = "consent_revoked", "согласие отозвано"
     DATA_PURGED = "data_purged", "удаление по истечении срока хранения"
+    TWO_FACTOR_RESET = "two_factor_reset", "сброс второго фактора"
 
 
 class AuditLog(models.Model):

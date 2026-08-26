@@ -166,3 +166,71 @@ def test_two_factor_setup_page_shows_qr_and_manual_key(client, tenant_a):
     # Ссылки на приложения — иначе непонятно, чем сканировать.
     assert "apps.apple.com" in body
     assert "play.google.com" in body
+
+
+def test_two_factor_switch_off_lets_owner_in(client, tenant_a, settings):
+    """
+    Выключатель на время приёмки: владелец входит одним паролем.
+
+    Нужен ровно для одного сценария — пока в базе нет данных учеников
+    и сайт проверяют вживую. Дальше возвращается обратно.
+    """
+    settings.TWO_FACTOR_ENABLED = False
+    assert tenant_a.owner_user.requires_two_factor is False
+
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    response = client.post(
+        reverse("accounts:login"), {"username": tenant_a.owner_user.email, "password": PASSWORD}
+    )
+    assert response.status_code == 302
+    assert response["Location"] != reverse("accounts:two_factor")
+    assert response.wsgi_request.user == tenant_a.owner_user
+
+
+def test_two_factor_is_on_by_default(settings):
+    """Значение по умолчанию — включено: забыть вернуть нельзя."""
+    from decouple import config
+
+    assert config("TWO_FACTOR_ENABLED", default=True, cast=bool) is True
+
+
+def test_disabled_two_factor_is_reported_by_deploy_check(settings):
+    """`manage.py check --deploy` напоминает, что фактор выключен."""
+    from apps.accounts.checks import two_factor_enabled
+
+    settings.TWO_FACTOR_ENABLED = True
+    assert two_factor_enabled(None) == []
+
+    settings.TWO_FACTOR_ENABLED = False
+    warnings = two_factor_enabled(None)
+    assert [w.id for w in warnings] == ["accounts.W001"]
+
+
+def test_reset_two_factor_command_unbinds_device(tenant_a):
+    """
+    Потерянный телефон не запирает аккаунт навсегда.
+
+    Устройство привязано к человеку, а не к организации: сброс одному
+    не трогает остальных.
+    """
+    from django.core.management import call_command
+
+    TwoFactorDevice.objects.create(
+        user=tenant_a.owner_user, secret=totp.generate_secret(), is_confirmed=True
+    )
+    other = TwoFactorDevice.objects.create(
+        user=tenant_a.teacher_user, secret=totp.generate_secret(), is_confirmed=True
+    )
+
+    call_command("reset_two_factor", tenant_a.owner_user.email)
+
+    assert not TwoFactorDevice.objects.filter(user=tenant_a.owner_user).exists()
+    assert TwoFactorDevice.objects.filter(pk=other.pk).exists()
+
+
+def test_reset_two_factor_command_rejects_unknown_login(db):
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
+    with pytest.raises(CommandError):
+        call_command("reset_two_factor", "no-such@example.org")

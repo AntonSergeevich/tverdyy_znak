@@ -154,6 +154,12 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_SAVE_EVERY_REQUEST = True
 
+# Второй фактор обязателен для владельца и администратора (ТЗ 8.2).
+# Выключается только на время приёмки, когда в базе ещё нет данных учеников:
+# TWO_FACTOR_ENABLED=False в .env. По умолчанию включён, и прод-проверка
+# отдельно напоминает, если его забыли вернуть.
+TWO_FACTOR_ENABLED = config("TWO_FACTOR_ENABLED", default=True, cast=bool)
+
 # django-axes (ТЗ 8.2)
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # час

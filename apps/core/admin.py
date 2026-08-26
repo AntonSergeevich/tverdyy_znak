@@ -38,6 +38,10 @@ class OrganizationAdmin(admin.ModelAdmin):
         (None, {"fields": ("name", "slug", "is_active", "timezone")}),
         ("Реквизиты", {"fields": ("legal_name", "inn", "ogrnip", "address")}),
         ("Контакты", {"fields": ("contact_phone", "contact_email", "telegram_chat_id")}),
+        ("Расписание", {
+            "fields": ("schedule_url",),
+            "description": "Ссылка на общий файл с расписанием. Видна только в кабинете.",
+        }),
         ("Банковские реквизиты", {
             "fields": ("bank_name", "bank_bik", "bank_account", "bank_corr_account"),
             "description": "Видны только в кабинете родителя, на публичных страницах их нет.",

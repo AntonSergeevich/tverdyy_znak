@@ -6,6 +6,7 @@ app_name = "cabinet"
 
 urlpatterns = [
     path("", common.home, name="home"),
+    path("raspisanie/", common.schedule, name="schedule"),
 
     # Педагог
     path("pedagog/", teacher.today, name="teacher_today"),

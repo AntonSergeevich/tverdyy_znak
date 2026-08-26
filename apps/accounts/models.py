@@ -128,7 +128,17 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     @property
     def requires_two_factor(self) -> bool:
-        """Второй фактор обязателен для владельца, администратора и админа платформы (ТЗ 8.2)."""
+        """
+        Второй фактор обязателен для владельца, администратора и админа
+        платформы (ТЗ 8.2).
+
+        Глобальный выключатель TWO_FACTOR_ENABLED нужен только на время
+        приёмки, пока в базе нет данных учеников.
+        """
+        from django.conf import settings
+
+        if not settings.TWO_FACTOR_ENABLED:
+            return False
         return self.memberships.filter(
             is_active=True, role__in=PRIVILEGED_ROLES
         ).exists() or self.is_superuser
