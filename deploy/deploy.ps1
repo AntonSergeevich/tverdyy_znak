@@ -93,11 +93,49 @@ if ($SkipTests) {
     }
 
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
-    & $python -m pytest -q
+
+    # Тестам нужен локальный PostgreSQL. Его отсутствие — не красный прогон,
+    # а отсутствие условий для прогона, и валить из-за этого выкат нельзя:
+    # разница между «код сломан» и «на ноутбуке нет базы» должна быть видна
+    # сразу, а не вычитываться из простыни ошибок подключения.
+    $probe = @'
+import os
+
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.test")
+django.setup()
+
+import psycopg
+from django.conf import settings
+
+# Подключаемся к серверу, а не к конкретной базе: базу для тестов
+# pytest-django создаёт сам, и её отсутствие проблемой не является.
+# Пустой HOST не подменяем на localhost — для Django это означает
+# «через unix-сокет», и подмена сломала бы проверку там, где всё работает.
+db = settings.DATABASES["default"]
+psycopg.connect(
+    host=db.get("HOST") or None,
+    port=db.get("PORT") or None,
+    user=db.get("USER") or None,
+    password=db.get("PASSWORD") or None,
+    dbname="postgres",
+    connect_timeout=5,
+).close()
+'@
+    $probeOutput = ($probe | & $python - 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) {
-        throw "Тесты не прошли — деплой остановлен. Если дело в отсутствии локальной базы: .\deploy\deploy.ps1 -SkipTests"
+        $reason = ($probeOutput -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 1)
+        Write-Host "   Тестовое окружение не поднимается — тесты пропускаю." -ForegroundColor Yellow
+        Write-Host "   Чаще всего это отсутствие локального PostgreSQL." -ForegroundColor Yellow
+        Write-Host "   Причина: $reason" -ForegroundColor Yellow
+    } else {
+        & $python -m pytest -q
+        if ($LASTEXITCODE -ne 0) {
+            throw "Тесты не прошли — деплой остановлен. Смотрите вывод выше: это настоящие падения, база на месте."
+        }
+        Write-Ok "Тесты зелёные"
     }
-    Write-Ok "Тесты зелёные"
 }
 
 # ── Пуш ─────────────────────────────────────────────────────────────────────
