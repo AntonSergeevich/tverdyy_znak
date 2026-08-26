@@ -52,14 +52,23 @@ docker compose exec -T nginx nginx -s reload
 step "Проверяю, что приложение отвечает"
 # Изнутри сети, а не снаружи: так проверка не зависит от DNS и TLS
 # и говорит именно о приложении.
+#
+# Проверяем и главную страницу, а не только /healthz. Healthz отвечает
+# «жив» и при пустой базе, и при сломанном шаблоне, и при отсутствующей
+# таблице — то есть ровно тогда, когда посетитель видит 500. Выкат должен
+# падать здесь, а не у человека в браузере.
+check() {
+    docker compose exec -T web curl -fsS -o /dev/null "http://127.0.0.1:8000$1"
+}
+
 for attempt in $(seq 1 10); do
-    if docker compose exec -T web curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then
-        echo "  healthz отвечает (попытка $attempt)"
+    if check /healthz && check /; then
+        echo "  healthz и главная отвечают (попытка $attempt)"
         break
     fi
     if [ "$attempt" = "10" ]; then
-        echo "  healthz молчит. Логи:" >&2
-        docker compose logs --tail=50 web >&2
+        echo "  Приложение отвечает ошибкой. Логи:" >&2
+        docker compose logs --tail=60 web >&2
         exit 1
     fi
     sleep 3

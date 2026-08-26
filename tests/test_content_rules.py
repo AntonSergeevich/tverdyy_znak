@@ -466,3 +466,19 @@ def test_deploy_waits_for_web_only():
 
     script = Path("deploy/scripts/remote-deploy.sh").read_text(encoding="utf-8")
     assert "up -d --wait web" in script
+
+
+def test_deploy_checks_a_real_page_not_only_healthz():
+    """
+    Healthz отвечает «жив» и при сломанной странице.
+
+    Он не трогает ни базу, ни шаблоны, поэтому после выката с
+    отсутствующей таблицей он был зелёным, а посетитель видел 500.
+    Выкат должен падать сам, а не у человека в браузере.
+    """
+    from pathlib import Path
+
+    script = Path("deploy/scripts/remote-deploy.sh").read_text(encoding="utf-8")
+
+    assert "check /healthz" in script
+    assert "check /" in script
