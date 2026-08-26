@@ -1,0 +1,148 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}{{ student.full_name }}{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:students' %}" aria-current="page">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
+  <a href="{% url 'cabinet:schedule' %}">Расписание</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ student.full_name }}</h1>
+  <span class="btn-row">
+    <a class="btn btn--quiet" href="{% url 'cabinet:student_edit' student.pk %}">Изменить</a>
+    <a class="btn btn--quiet" href="{% url 'cabinet:student_delete' student.pk %}">Удалить</a>
+  </span>
+</div>
+
+<div class="stat-row">
+  <div class="stat">
+    <div class="stat__label">Класс</div>
+    <div class="stat__value numeral">{{ student.grade_level }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Статус</div>
+    <div class="stat__value" style="font-size:20px">{{ student.get_status_display }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Группа</div>
+    <div class="stat__value" style="font-size:20px">
+      {% for link in student.group_memberships.all %}{{ link.group.name }}{% empty %}—{% endfor %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Зачислен</div>
+    <div class="stat__value" style="font-size:20px">{{ student.enrolled_on|date:"d.m.Y"|default:"—" }}</div>
+  </div>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">
+  Успеваемость{% if module %} · {{ module }}{% endif %}
+</h2>
+{% if results %}
+  {% for result in results %}
+    <div class="subject-row">
+      <div class="subject-row__head">
+        <span style="font-weight:600">{{ result.subject.name }}</span>
+        <span>
+          <span class="subject-row__points">{{ result.total_points|points }}</span>
+          <span class="muted">/ 100</span>
+          {# Уровень передаётся цветом И текстом — цвет не единственный носитель смысла. #}
+          <span class="level {{ result.level|level_class }}" style="margin-left:10px">{{ result.get_level_display }}</span>
+        </span>
+      </div>
+      <div class="progress">
+        <div class="progress__fill {% if result.level == 'failed' %}progress__fill--failed{% elif result.level == 'advanced' %}progress__fill--advanced{% endif %}"
+             style="width:{{ result.total_points|percent_of:100 }}%"></div>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p class="muted">Баллов пока нет — они появятся, когда педагог начнёт выставлять их в журнале.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Доступ в кабинет</h2>
+<div class="card">
+  {% if student.user %}
+    <p>Логин: <code>{{ student.user.email|default:student.user.phone }}</code></p>
+    <p class="muted">
+      Последний вход: {{ student.user.last_activity_at|date:"d.m.Y H:i"|default:"ещё не заходил" }}
+    </p>
+    <form method="post" action="{% url 'cabinet:password_reset' student.user.pk %}" style="margin-top:12px">
+      {% csrf_token %}
+      <button class="btn btn--quiet" type="submit">Выдать новый пароль</button>
+    </form>
+  {% else %}
+    <p class="muted">Учётной записи нет. Заведите её через правку карточки.</p>
+  {% endif %}
+</div>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Родители</h2>
+{% for link in student.parent_links.all %}
+  <div class="card" style="margin-bottom:10px">
+    <p class="card__title">{{ link.parent.full_name }}{% if link.is_primary_contact %} <span class="muted">· основной контакт</span>{% endif %}</p>
+    {% if link.parent.phone %}<p>{{ link.parent.phone }}</p>{% endif %}
+    {% if link.parent.user %}
+      <p class="muted">Логин: <code>{{ link.parent.user.email }}</code></p>
+      <form method="post" action="{% url 'cabinet:password_reset' link.parent.user.pk %}" style="margin-top:8px">
+        {% csrf_token %}
+        <button class="btn btn--quiet" type="submit">Выдать новый пароль</button>
+      </form>
+    {% endif %}
+  </div>
+{% empty %}
+  <p class="muted">Родитель не заведён.</p>
+{% endfor %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Оплаты</h2>
+{% if payments %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Период</th><th>Назначение</th><th>Сумма</th><th>Статус</th></tr></thead>
+      <tbody>
+        {% for payment in payments %}
+          <tr>
+            <td class="numeral">{{ payment.period_start|date:"d.m.y" }} — {{ payment.period_end|date:"d.m.y" }}</td>
+            <td>{{ payment.title }}</td>
+            <td class="numeral">{{ payment.amount|floatformat:"-2" }} ₽</td>
+            <td>{{ payment.get_status_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">Начислений пока нет.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:24px 0 8px">Начислить оплату</h2>
+<form method="post" action="{% url 'cabinet:payment_create' student.pk %}" class="form form--wide">
+  {% csrf_token %}
+  <div class="field-grid">
+    {% for field in payment_form %}
+      <label class="field">
+        <span class="field__label">{{ field.label }}</span>
+        {{ field }}
+      </label>
+    {% endfor %}
+  </div>
+  <div class="btn-row"><button class="btn" type="submit">Начислить</button></div>
+</form>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Ближайшие занятия</h2>
+{% if upcoming %}
+  <ul class="plain-list">
+    {% for lesson in upcoming %}
+      <li>
+        <span class="numeral">{{ lesson.starts_at|date:"d.m, H:i" }}</span> ·
+        {{ lesson.subject.name }}
+        {% if lesson.teacher %}<span class="muted">· {{ lesson.teacher.short_name }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">Занятий в расписании нет.</p>
+{% endif %}
+{% endblock %}

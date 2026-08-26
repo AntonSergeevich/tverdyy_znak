@@ -114,4 +114,9 @@ class EncryptedDateField(EncryptedTextField):
     def formfield(self, **kwargs):
         from django import forms
 
-        return super().formfield(**{"form_class": forms.DateField, **kwargs})
+        # TextField.formfield подмешивает max_length и виджет Textarea.
+        # forms.DateField не принимает ни того, ни другого — без этой
+        # чистки любая ModelForm с датой рождения падает на импорте.
+        kwargs.setdefault("widget", forms.DateInput(attrs={"type": "date"}))
+        kwargs.pop("max_length", None)
+        return models.Field.formfield(self, **{"form_class": forms.DateField, **kwargs})

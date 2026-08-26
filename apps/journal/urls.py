@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.journal.views import common, exports, manage, parent, student, teacher
+from apps.journal.views import common, exports, manage, parent, people, student, teacher
 
 app_name = "cabinet"
 
@@ -39,6 +39,23 @@ urlpatterns = [
     path("zayavki/<uuid:lead_id>/status/", manage.lead_status, name="lead_status"),
     path("ucheniki/", manage.students, name="students"),
     path("ucheniki/<uuid:student_id>/vosstanovit/", manage.student_restore, name="student_restore"),
+
+    # Люди: доступы выдаёт администратор, сами не регистрируются
+    path("ucheniki/dobavit/", people.student_create, name="student_create"),
+    path("ucheniki/<uuid:student_id>/", people.student_card, name="student_card"),
+    path("ucheniki/<uuid:student_id>/izmenit/", people.student_edit, name="student_edit"),
+    path("ucheniki/<uuid:student_id>/udalit/", people.student_delete, name="student_delete"),
+
+    path("pedagogi/", people.teachers, name="teachers"),
+    path("pedagogi/dobavit/", people.teacher_create, name="teacher_create"),
+    path("pedagogi/<uuid:teacher_id>/izmenit/", people.teacher_edit, name="teacher_edit"),
+    path("pedagogi/<uuid:teacher_id>/udalit/", people.teacher_delete, name="teacher_delete"),
+
+    path("sotrudniki/", people.staff, name="staff"),
+    path("sotrudniki/dobavit/", people.staff_create, name="staff_create"),
+
+    path("dostup/<uuid:user_id>/novyy-parol/", people.password_reset, name="password_reset"),
+    path("ucheniki/<uuid:student_id>/nachislit/", people.payment_create, name="payment_create"),
     path("fot/", manage.payroll, name="payroll"),
     path("oplaty/<uuid:payment_id>/otmetit/", manage.payment_mark_paid, name="payment_mark_paid"),
 

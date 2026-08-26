@@ -1,0 +1,44 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Педагоги{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:students' %}">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}" aria-current="page">Педагоги</a>
+  <a href="{% url 'cabinet:schedule' %}">Расписание</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Педагоги</h1>
+  <a class="btn" href="{% url 'cabinet:teacher_create' %}">Добавить педагога</a>
+</div>
+
+{% if teachers %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Педагог</th><th>Предметы</th><th>Ставка, ₽/ч</th><th>Логин</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for teacher in teachers %}
+          <tr>
+            <td>{{ teacher.user.full_name }}</td>
+            <td class="muted">
+              {% for subject in teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+            </td>
+            <td class="numeral">{{ teacher.hourly_rate|floatformat:"-2" }}</td>
+            <td class="muted"><code>{{ teacher.user.email|default:teacher.user.phone }}</code></td>
+            <td>
+              <a href="{% url 'cabinet:teacher_edit' teacher.pk %}">Изменить</a> ·
+              <a href="{% url 'cabinet:teacher_delete' teacher.pk %}">Удалить</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">Педагогов пока нет. Первый добавляется кнопкой выше — доступ выдастся сразу.</p>
+{% endif %}
+{% endblock %}

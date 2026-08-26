@@ -1,0 +1,75 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}{% if mode == 'create' %}Новый ученик{% else %}Правка карточки{% endif %}{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:students' %}" aria-current="page">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
+  <a href="{% url 'cabinet:schedule' %}">Расписание</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">
+    {% if mode == 'create' %}Новый ученик{% else %}{{ student.full_name }}{% endif %}
+  </h1>
+  <a class="btn btn--quiet" href="{% if student %}{% url 'cabinet:student_card' student.pk %}{% else %}{% url 'cabinet:students' %}{% endif %}">Отмена</a>
+</div>
+
+{% if mode == 'create' %}
+  <p class="muted" style="max-width:60ch">
+    Учётная запись создаётся сразу: логин соберётся из фамилии и имени,
+    пароль сгенерируется. После сохранения вы увидите их один раз —
+    скопируйте и отправьте.
+  </p>
+{% endif %}
+
+<form method="post" class="form form--wide">{% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="message message--error">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <fieldset class="fieldset">
+    <legend>Ученик</legend>
+    <div class="field-grid">
+      {% for field in form %}
+        {% if not field.name|slice:":7" == "parent_" %}
+          <label class="field{% if field.errors %} field--error{% endif %}">
+            <span class="field__label">{{ field.label }}</span>
+            {{ field }}
+            {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+            {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+          </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  {% if mode == 'create' %}
+    <fieldset class="fieldset">
+      <legend>Родитель</legend>
+      <p class="muted" style="margin-top:0">
+        Необязательно. Если заполнить фамилию и имя, родителю тоже
+        создастся доступ — он увидит успеваемость и оплаты.
+      </p>
+      <div class="field-grid">
+        {% for field in form %}
+          {% if field.name|slice:":7" == "parent_" %}
+            <label class="field{% if field.errors %} field--error{% endif %}">
+              <span class="field__label">{{ field.label }}</span>
+              {{ field }}
+              {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </fieldset>
+  {% endif %}
+
+  <div class="btn-row">
+    <button class="btn" type="submit">
+      {% if mode == 'create' %}Создать и выдать доступ{% else %}Сохранить{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

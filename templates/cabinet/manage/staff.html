@@ -1,0 +1,43 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Сотрудники{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:students' %}">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
+  <a href="{% url 'cabinet:staff' %}" aria-current="page">Сотрудники</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Сотрудники</h1>
+  <a class="btn" href="{% url 'cabinet:staff_create' %}">Добавить</a>
+</div>
+
+<p class="muted" style="max-width:60ch">
+  Администраторов и владельцев заводит только владелец. Администратор,
+  который может завести себе второго администратора, — это не роль, а дыра.
+</p>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Человек</th><th>Роль</th><th>Логин</th><th>Последний вход</th><th></th></tr></thead>
+    <tbody>
+      {% for membership in memberships %}
+        <tr>
+          <td>{{ membership.user.full_name|default:membership.user.email }}</td>
+          <td>{{ membership.get_role_display }}</td>
+          <td class="muted"><code>{{ membership.user.email|default:membership.user.phone }}</code></td>
+          <td class="muted">{{ membership.user.last_activity_at|date:"d.m.Y H:i"|default:"—" }}</td>
+          <td>
+            <form method="post" action="{% url 'cabinet:password_reset' membership.user.pk %}">
+              {% csrf_token %}
+              <button class="btn btn--quiet" type="submit">Новый пароль</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

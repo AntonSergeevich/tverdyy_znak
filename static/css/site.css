@@ -474,6 +474,41 @@ table.programme tfoot th { border-top: 2px solid var(--line); font-size: 15px; c
 .form-error { border: 1px solid var(--accent-2); color: var(--accent-2); padding: 12px 14px; font-size: 15px; }
 .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
+/* Формы кабинета шире публичных: администратор заполняет их за столом,
+   а не с телефона на бегу, и поля удобнее видеть в два столбца. */
+.form--wide { max-width: 100%; }
+.field-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.field__label { font-size: 15px; font-weight: 600; }
+.field__hint { font-size: 13px; color: var(--ink-3); }
+.field__error { font-size: 14px; color: var(--accent-2); }
+.field--error input, .field--error select, .field--error textarea { border-color: var(--accent-2); }
+.fieldset { border: 1px solid var(--line); padding: clamp(14px, 2vw, 20px); margin: 0; }
+.fieldset + .fieldset { margin-top: 20px; }
+.fieldset legend { padding: 0 8px; font-weight: 700; }
+.checkbox-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.checkbox-grid ul { list-style: none; margin: 0; padding: 0; display: contents; }
+.checkbox-grid li label { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+.btn--danger { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+/* Окно с доступами. Пароль виден один раз, поэтому кнопка «скопировать»
+   здесь не украшение: переписывать его руками — гарантированная опечатка. */
+.creds { max-width: 640px; }
+.creds__head { margin-bottom: 20px; }
+.creds__card {
+  background: var(--surface); border: 1px solid var(--line);
+  padding: clamp(14px, 2vw, 20px); margin-bottom: 14px;
+}
+.creds__who { font-weight: 700; margin: 0 0 12px; }
+.creds__list { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 16px; }
+.creds__list dt { color: var(--ink-3); font-size: 14px; }
+.creds__list dd { margin: 0; }
+.creds__list code { font-size: 15px; word-break: break-all; }
+.creds__copied { margin-left: 10px; font-size: 14px; color: var(--ok); }
+
 /* ─── Подвал ─────────────────────────────────────────────────────────────── */
 .site-footer { border-top: 1px solid var(--line); padding: var(--pad-y) var(--pad-x); color: var(--ink-2); font-size: 15px; }
 .site-footer .grid > * { flex: 1 1 260px; }

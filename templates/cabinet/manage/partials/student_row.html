@@ -1,5 +1,11 @@
 <tr id="student-{{ student.pk }}">
-  <td><strong>{{ student.full_name }}</strong></td>
+  <td>
+    {% if student.is_deleted %}
+      <strong>{{ student.full_name }}</strong>
+    {% else %}
+      <a href="{% url 'cabinet:student_card' student.pk %}"><strong>{{ student.full_name }}</strong></a>
+    {% endif %}
+  </td>
   <td>{{ student.grade_level }}</td>
   <td>{{ student.get_status_display }}{% if student.is_deleted %} · удалён {{ student.deleted_at|date:"d.m.Y" }}{% endif %}</td>
   <td class="muted">{{ student.attestation_partner|default:"—" }}</td>
@@ -10,7 +16,8 @@
         <button class="btn btn--quiet" type="submit">Восстановить</button>
       </form>
     {% else %}
-      <a href="{% url 'cabinet:parent_child' student.pk %}">Карточка</a>
+      <a href="{% url 'cabinet:student_edit' student.pk %}">Изменить</a> ·
+      <a href="{% url 'cabinet:student_delete' student.pk %}">Удалить</a>
     {% endif %}
   </td>
 </tr>

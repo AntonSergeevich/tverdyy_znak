@@ -1,0 +1,32 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Удаление{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">Удалить {{ what }}</h1>
+</div>
+
+<div class="card" style="max-width:560px">
+  <p class="card__title">{{ object_label }}</p>
+  <p class="muted">
+    Запись скрывается, а не стирается: оценки, занятия и оплаты остаются,
+    и запись можно вернуть. Но из всех списков она исчезнет.
+  </p>
+
+  {% comment %}
+    Подтверждение вводом фамилии, а не кнопкой «точно?»: такую кнопку
+    нажимают не глядя, а ввод заставляет посмотреть, кого удаляешь.
+  {% endcomment %}
+  <form method="post" class="form" style="margin-top:16px">{% csrf_token %}
+    <label class="field{% if form.confirm.errors %} field--error{% endif %}">
+      <span class="field__label">Введите «{{ expected }}», чтобы подтвердить</span>
+      {{ form.confirm }}
+      {% if form.confirm.errors %}<span class="field__error">{{ form.confirm.errors.0 }}</span>{% endif %}
+    </label>
+    <div class="btn-row">
+      <button class="btn btn--danger" type="submit">Удалить</button>
+      <a class="btn btn--quiet" href="{{ back_url }}">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

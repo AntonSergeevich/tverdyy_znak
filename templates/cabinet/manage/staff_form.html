@@ -1,0 +1,32 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Новый сотрудник{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:staff' %}" aria-current="page">Сотрудники</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Новый сотрудник</h1>
+  <a class="btn btn--quiet" href="{% url 'cabinet:staff' %}">Отмена</a>
+</div>
+
+<p class="muted" style="max-width:60ch">
+  Владельцу и администратору при входе потребуется код из приложения —
+  второй фактор для этих ролей обязателен.
+</p>
+
+<form method="post" class="form form--wide">{% csrf_token %}
+  <div class="field-grid">
+    {% for field in form %}
+      <label class="field{% if field.errors %} field--error{% endif %}">
+        <span class="field__label">{{ field.label }}</span>
+        {{ field }}
+        {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+      </label>
+    {% endfor %}
+  </div>
+  <div class="btn-row"><button class="btn" type="submit">Создать и выдать доступ</button></div>
+</form>
+{% endblock %}

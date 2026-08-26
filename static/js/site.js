@@ -201,6 +201,39 @@
     modal.addEventListener('close', function () { body.innerHTML = ''; });
   }
 
+  // Кнопка «скопировать»: пароль показывается один раз, и переписывать
+  // его руками — гарантированная опечатка. Делегируем на документ,
+  // чтобы работало и для фрагментов, пришедших через HTMX.
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest ? event.target.closest('[data-copy]') : null;
+    if (!button) return;
+
+    var text = button.getAttribute('data-copy-text') || '';
+    var done = button.parentNode.querySelector('[data-copy-done]');
+
+    function reportCopied() {
+      if (!done) return;
+      done.hidden = false;
+      setTimeout(function () { done.hidden = true; }, 2500);
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(reportCopied);
+      return;
+    }
+    // Резервный путь для http: clipboard API там недоступен, а доступы
+    // выдавать надо и на тестовом стенде без сертификата.
+    var area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand('copy'); reportCopied(); } catch (e) { /* покажем как есть */ }
+    document.body.removeChild(area);
+  });
+
   // Аналитика подключается только после согласия «принять все».
   // В кабинетах её нет вообще: там персональные данные детей.
   function loadAnalytics() {

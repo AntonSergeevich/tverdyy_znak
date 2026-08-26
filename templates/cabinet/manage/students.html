@@ -5,6 +5,7 @@
   <a href="{% url 'cabinet:dashboard' %}">Панель</a>
   <a href="{% url 'cabinet:leads' %}">Заявки</a>
   <a href="{% url 'cabinet:students' %}" aria-current="page">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
   <a href="{% url 'cabinet:schedule' %}">Расписание</a>
 {% endblock %}
 
@@ -12,6 +13,7 @@
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Ученики</h1>
   <div class="btn-row">
+    <a class="btn" href="{% url 'cabinet:student_create' %}">Добавить ученика</a>
     <form method="get" class="btn-row">
       <input class="input" type="search" name="q" value="{{ q }}" placeholder="Фамилия" aria-label="Поиск" style="width:auto">
       <button class="btn btn--quiet" type="submit">Найти</button>
@@ -36,6 +38,9 @@
   <div class="empty-state">
     <p class="empty-state__title">{% if show_deleted %}Удалённых учеников нет{% else %}Учеников пока нет{% endif %}</p>
     <p>{% if not show_deleted %}Ученики заводятся администратором после подписания договора.{% endif %}</p>
+    {% if not show_deleted %}
+      <p style="margin-top:12px"><a class="btn" href="{% url 'cabinet:student_create' %}">Добавить первого ученика</a></p>
+    {% endif %}
   </div>
 {% endif %}
 {% endblock %}
