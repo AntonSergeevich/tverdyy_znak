@@ -244,7 +244,13 @@ type $env:USERPROFILE\.ssh\tz_deploy.pub | ssh tz@85.198.66.41 "cat >> ~/.ssh/au
 ```
 
 **2. Положить его в секреты репозитория.** GitHub → репозиторий →
-Settings → Secrets and variables → Actions → New repository secret:
+Settings → Secrets and variables → Actions → раздел **Repository secrets**
+→ New repository secret.
+
+Именно Repository secrets, не Environment secrets: секреты окружения
+видит только та задача, которая объявила `environment:`, а наша этого
+не делает. Если положить их не туда, выкат упадёт на первом же шаге
+с сообщением, что секреты не заданы.
 
 | Имя | Значение |
 |---|---|

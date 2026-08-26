@@ -30,7 +30,8 @@ REQUISITES = {
     "inn": "241502815698",
     "ogrnip": "326246800106544",
     "address": "Красноярск, ул. Весны, 10",
-    "contact_phone": "+7 (913) 560-26-00",
+    "contact_phone": "+7 (902) 964-54-96",
+    "contact_email": "t_znak_so124@mail.ru",
     "bank_name": 'ООО "Банк Точка"',
     "bank_bik": "044525104",
     "bank_account": "40802810820001048577",
@@ -215,7 +216,6 @@ class Command(BaseCommand):
         missing = [
             label
             for label, value in [
-                ("email", organization.contact_email),
                 ("Telegram chat_id для заявок", organization.telegram_chat_id),
 
             ]

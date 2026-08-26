@@ -55,6 +55,27 @@ jobs:
     runs-on: ubuntu-latest
     # На сервер уходит только то, что прошло тесты.
     steps:
+      - name: Проверяю секреты
+        # Без этого отсутствующий секрет превращается в невнятную ошибку
+        # ssh про пустой адрес. Секреты должны быть на уровне репозитория
+        # (Repository secrets), а не окружения: окружение job не объявляет.
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          missing=""
+          [ -n "$HOST" ] || missing="$missing DEPLOY_HOST"
+          [ -n "$USER" ] || missing="$missing DEPLOY_USER"
+          [ -n "$KEY" ]  || missing="$missing DEPLOY_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "Не заданы секреты:$missing" >&2
+            echo "Settings → Secrets and variables → Actions → Repository secrets." >&2
+            echo "Секреты окружения (Environment secrets) сюда не подходят: " >&2
+            echo "job их не видит, пока не объявит environment." >&2
+            exit 1
+          fi
+
       - name: Ключ SSH
         run: |
           mkdir -p ~/.ssh
