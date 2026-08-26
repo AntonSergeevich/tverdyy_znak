@@ -290,13 +290,22 @@ TWO_FACTOR_ENABLED=False
 
 ```powershell
 # 1. кладём файл в проект, коммитим, выкатываем
-git add docs\2.0.xlsx
-git commit -m "Расписание на сентябрь"
+git add docs\raspisanie-2026-09.xlsx
+git commit -m "Raspisanie na sentyabr"
 .\deploy\deploy.ps1
 
 # 2. загружаем — файл уже внутри, копировать ничего не нужно
-ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py import_schedule docs/2.0.xlsx --module 1 --dry-run"
+ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec -T web python manage.py import_schedule docs/raspisanie-2026-09.xlsx --module 1 --dry-run"
 ```
+
+Сообщение коммита лучше писать латиницей или переключить консоль на UTF-8
+(`chcp 65001`): PowerShell 5.1 отдаёт git текст в кодировке консоли,
+и кириллица приезжает кракозябрами.
+
+В `docs/` лежат два файла: `2.0.xlsx` — как прислал заказчик, без правок,
+и `raspisanie-2026-09.xlsx` — та же таблица с исправленными датами в шапке
+(четыре ячейки). Грузить нужно второй: в первом среда, четверг и пятница
+второй недели подписаны датами первой, и эти дни просто не существуют.
 
 Разовый файл, которого в репозитории нет, кладётся в два шага — папка
 проекта внутрь контейнера не смонтирована:

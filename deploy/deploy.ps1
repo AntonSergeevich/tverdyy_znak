@@ -24,6 +24,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# В PowerShell 7.4+ ненулевой код возврата внешней команды сам бросает
+# исключение — и наши разборчивые сообщения до пользователя не доходят,
+# он видит только стектрейс. Коды возврата проверяем сами.
+if (Get-Variable PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
+
 function Write-Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Write-Ok($text)   { Write-Host "   $text" -ForegroundColor Green }
 
@@ -58,8 +65,35 @@ if ($SkipTests) {
     Write-Host "`n== Тесты пропущены (-SkipTests)" -ForegroundColor Yellow
 } else {
     Write-Step "Прогоняю тесты"
+
+    # Python берём из окружения проекта, а не с PATH. Иначе тесты уедут
+    # в системный Python, где нет зависимостей, и разбираться придётся
+    # в простыне ImportError вместо одной понятной строчки.
+    $python = @(".venv\Scripts\python.exe", "venv\Scripts\python.exe",
+                ".venv/bin/python", "venv/bin/python") |
+              Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $python) {
+        throw @"
+Не нашёл виртуальное окружение проекта (.venv). Создать и наполнить:
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt -r requirements-dev.txt
+Либо выкатить без тестов: .\deploy\deploy.ps1 -SkipTests
+"@
+    }
+    Write-Ok "Python: $python"
+
+    & $python -c "import pytest, decouple" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+В окружении $python не хватает зависимостей. Поставить:
+    & '$python' -m pip install -r requirements.txt -r requirements-dev.txt
+Либо выкатить без тестов: .\deploy\deploy.ps1 -SkipTests
+"@
+    }
+
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
-    pytest -q
+    & $python -m pytest -q
     if ($LASTEXITCODE -ne 0) {
         throw "Тесты не прошли — деплой остановлен. Если дело в отсутствии локальной базы: .\deploy\deploy.ps1 -SkipTests"
     }
