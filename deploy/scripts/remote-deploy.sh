@@ -22,11 +22,13 @@ git log -1 --pretty='  %h %s'
 
 step "Собираю образы"
 docker compose build web worker beat
-docker compose up -d
 
-step "Миграции и статика"
-docker compose exec -T web python manage.py migrate --noinput
-docker compose exec -T web python manage.py collectstatic --noinput
+# --wait: ждём, пока web станет healthy. Миграции и статику выполняет сам
+# контейнер при старте (см. command в docker-compose.yml), и запускать их
+# отсюда параллельно нельзя: две миграции одновременно дерутся за одну
+# таблицу, и одна падает с «relation already exists».
+step "Поднимаю контейнеры и жду готовности"
+docker compose up -d --wait
 
 step "Справочники"
 # Модули, предметы и реквизиты объявлены в коде источником истины,

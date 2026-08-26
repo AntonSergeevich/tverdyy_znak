@@ -421,3 +421,21 @@ def test_programme_total_is_declined(client, tenant_a):
 
     hours = tenant_a.subject.weekly_hours
     assert f"{hours}</strong> урок" in body
+
+
+def test_deploy_does_not_run_migrations_twice():
+    """
+    Миграции применяет контейнер при старте, и только он.
+
+    Скрипт выката однажды делал то же самое сразу после `up -d`,
+    параллельно ещё стартующему контейнеру. Две миграции подрались
+    за одну таблицу, и выкат упал на «relation already exists».
+    """
+    from pathlib import Path
+
+    script = Path("deploy/scripts/remote-deploy.sh").read_text(encoding="utf-8")
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "manage.py migrate" in compose
+    assert "manage.py migrate" not in script
+    assert "up -d --wait" in script
