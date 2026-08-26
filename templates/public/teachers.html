@@ -1,0 +1,63 @@
+{% extends "public/base_public.html" %}
+
+{% block title %}Педагоги — {{ organization.name|default:"Твёрдый знак" }}{% endblock %}
+{% block og_title %}Педагоги «{{ organization.name|default:'Твёрдый знак' }}»{% endblock %}
+{% block og_description %}Кто ведёт занятия в семейном классе: предметы, образование, опыт.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="kicker">Педагоги</span>
+      <h2 class="h-display">Кто ведёт занятия</h2>
+    </div>
+
+    {% if featured_teacher %}
+      <article class="teacher-lead" id="card-{{ featured_teacher.pk }}">
+        {% if featured_teacher.photo %}
+          <img class="teacher-lead__photo" src="{{ featured_teacher.photo.url }}"
+               alt="{{ featured_teacher.full_name }} — {{ featured_teacher.subject_line }}"
+               width="800" height="1000" decoding="async">
+        {% endif %}
+        <div class="teacher-lead__text">
+          <p class="card__title" style="font-size:22px">{{ featured_teacher.full_name }}</p>
+          <p style="color:var(--accent-2);font-weight:600">{{ featured_teacher.subject_line }}</p>
+          {% if featured_teacher.experience %}
+            <p class="small muted">{{ featured_teacher.experience }}</p>
+          {% endif %}
+          {% if featured_teacher.bio %}{{ featured_teacher.bio|linebreaks }}{% endif %}
+        </div>
+      </article>
+    {% endif %}
+
+    {% comment %}
+      Здесь состав целиком и без диалогов: это страница, на которую
+      ведут якоря с главной. Текст должен быть виден сразу, в том числе
+      поисковику и человеку без JS.
+    {% endcomment %}
+    <div class="teachers-grid" style="margin-top:32px">
+      {% for card in teacher_cards %}
+        <div class="card teacher-card" id="card-{{ card.pk }}">
+          {% if card.photo %}
+            <img class="teacher-card__photo" src="{{ card.photo.url }}"
+                 alt="{{ card.full_name }} — {{ card.subject_line }}"
+                 width="800" height="1000" loading="lazy" decoding="async">
+          {% else %}
+            <div class="photo-placeholder" aria-hidden="true">Ъ</div>
+          {% endif %}
+          <p class="card__title" style="margin-top:14px">{{ card.full_name }}</p>
+          <p style="color:var(--accent-2);font-weight:600">{{ card.subject_line }}</p>
+          {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
+          {% if card.bio %}<div class="teacher-card__bio">{{ card.bio|linebreaks }}</div>{% endif %}
+        </div>
+      {% empty %}
+        <p class="muted">Карточки заполняются перед стартом набора.</p>
+      {% endfor %}
+    </div>
+
+    <p style="margin-top:32px">
+      <a class="btn" href="{% url 'public:landing' %}#zayavka">Записаться на диагностику</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

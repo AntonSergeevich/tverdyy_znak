@@ -70,6 +70,8 @@ DOMAINS = ["tverdyy-znak.ru", "www.tverdyy-znak.ru"]
 TEACHERS = [
     {
         "slug": "babadzhanova",
+        # Основатель — единственная крупная карточка на главной.
+        "is_featured": True,
         "full_name": "Бабаджанова Алина Алимовна",
         "subject_line": "Основатель и руководитель центра · наставник",
         "experience": "Более 10 лет в образовании",

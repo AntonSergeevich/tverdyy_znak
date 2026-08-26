@@ -1,0 +1,66 @@
+{% comment %}
+  Педагоги: один крупно, остальные лентой.
+
+  Мини-карточка — обычная ссылка на страницу состава с якорем. Скрипт
+  перехватывает клик и открывает диалог; без скрипта человек просто
+  попадает на страницу и читает то же самое. Так работает и без JS,
+  и в поиске — карточки остаются на настоящем адресе.
+{% endcomment %}
+{% if featured_teacher %}
+  <article class="teacher-lead">
+    {% if featured_teacher.photo %}
+      <img class="teacher-lead__photo" src="{{ featured_teacher.photo.url }}"
+           alt="{{ featured_teacher.full_name }} — {{ featured_teacher.subject_line }}"
+           width="800" height="1000" loading="lazy" decoding="async">
+    {% else %}
+      <div class="photo-placeholder teacher-lead__photo" aria-hidden="true">Ъ</div>
+    {% endif %}
+    <div class="teacher-lead__text">
+      <p class="card__title" style="font-size:22px">{{ featured_teacher.full_name }}</p>
+      <p style="color:var(--accent-2);font-weight:600">{{ featured_teacher.subject_line }}</p>
+      {% if featured_teacher.experience %}
+        <p class="small muted">{{ featured_teacher.experience }}</p>
+      {% endif %}
+      {% if featured_teacher.bio %}{{ featured_teacher.bio|linebreaks }}{% endif %}
+    </div>
+  </article>
+{% endif %}
+
+{% if teacher_cards %}
+  <ul class="teacher-strip">
+    {% for card in teacher_cards %}
+      <li>
+        <a class="teacher-chip" href="{% url 'public:teachers' %}#card-{{ card.pk }}"
+           data-teacher="{{ card.pk }}">
+          {% if card.photo %}
+            <img class="teacher-chip__photo" src="{{ card.photo.url }}" alt=""
+                 width="800" height="1000" loading="lazy" decoding="async">
+          {% else %}
+            <span class="teacher-chip__photo photo-placeholder" aria-hidden="true">Ъ</span>
+          {% endif %}
+          <span class="teacher-chip__name">{{ card.full_name }}</span>
+          <span class="teacher-chip__subject">{{ card.subject_line }}</span>
+        </a>
+        <template data-teacher-details="{{ card.pk }}">
+          <div class="teacher-lead">
+            {% if card.photo %}
+              <img class="teacher-lead__photo" src="{{ card.photo.url }}"
+                   alt="{{ card.full_name }} — {{ card.subject_line }}"
+                   width="800" height="1000" decoding="async">
+            {% endif %}
+            <div class="teacher-lead__text">
+              <p class="card__title" style="font-size:22px">{{ card.full_name }}</p>
+              <p style="color:var(--accent-2);font-weight:600">{{ card.subject_line }}</p>
+              {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
+              {% if card.bio %}{{ card.bio|linebreaks }}{% endif %}
+            </div>
+          </div>
+        </template>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if not featured_teacher and not teacher_cards %}
+  <p class="muted">Карточки педагогов заполняются перед стартом набора.</p>
+{% endif %}

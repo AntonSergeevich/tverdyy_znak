@@ -128,6 +128,12 @@ class TeacherCard(TenantModel):
     photo = models.ImageField("фото", upload_to="teachers/", blank=True)
     position = models.PositiveSmallIntegerField("порядок", default=100)
     is_published = models.BooleanField("опубликован", default=True)
+    is_featured = models.BooleanField(
+        "крупная карточка", default=False,
+        help_text="Показывается на главной большим блоком с полным текстом. "
+                  "Остальные — компактной лентой: педагогов со временем станет "
+                  "больше, и одинаковых карточек в ряд будет не разглядеть.",
+    )
 
     class Meta:
         verbose_name = "карточка педагога"

@@ -263,35 +263,24 @@
       <span class="kicker">Педагоги</span>
       <h2 class="h-display">Кто ведёт занятия</h2>
     </div>
-    <div class="teachers-grid">
-      {% for card in teacher_cards %}
-        <div class="card teacher-card">
-          {% if card.photo %}
-            {# Размеры заданы явно, чтобы блок не «прыгал» при загрузке. #}
-            <img class="teacher-card__photo" src="{{ card.photo.url }}"
-                 alt="{{ card.full_name }} — {{ card.subject_line }}"
-                 width="800" height="1000" loading="lazy" decoding="async">
-          {% else %}
-            <div class="photo-placeholder" aria-hidden="true">Ъ</div>
-          {% endif %}
-          <p class="card__title" style="margin-top:14px">{{ card.full_name }}</p>
-          <p style="color:var(--accent-2);font-weight:600">{{ card.subject_line }}</p>
-          {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
-          {% if card.bio %}<div class="teacher-card__bio">{{ card.bio|linebreaks }}</div>{% endif %}
-        </div>
-      {% empty %}
-        {% for _ in "1234"|make_list %}
-          <div class="card">
-            <div class="photo-placeholder" aria-hidden="true">Ъ</div>
-            <p class="card__title" style="margin-top:12px">Педагог</p>
-            <p class="muted">Предмет уточняется</p>
-            <p class="small muted">Карточки заполняются перед стартом набора.</p>
-          </div>
-        {% endfor %}
-      {% endfor %}
-    </div>
+
+    {% include "public/_teachers.html" %}
+
+    {% if teachers_hidden %}
+      <p style="margin-top:24px">
+        <a class="btn btn--quiet" href="{% url 'public:teachers' %}">
+          Весь состав — {{ teachers_total }} педагог{{ teachers_total|pluralize:",а,ов" }} →
+        </a>
+      </p>
+    {% endif %}
   </div>
 </section>
+
+<dialog class="teacher-modal" data-teacher-modal>
+  <button class="teacher-modal__close" type="button" data-teacher-close
+          aria-label="Закрыть">×</button>
+  <div data-teacher-modal-body></div>
+</dialog>
 
 {# ── 7. Профориентация ───────────────────────────────────────────────────── #}
 <section class="section" id="proforientaciya">

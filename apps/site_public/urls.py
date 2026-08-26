@@ -8,6 +8,7 @@ app_name = "public"
 urlpatterns = [
     path("", views.landing, name="landing"),
     path("proforientaciya/", views.career, name="career"),
+    path("pedagogi/", views.teachers, name="teachers"),
     path("zayavka/", views.lead_create, name="lead_create"),
     path("spasibo/", views.thanks, name="thanks"),
     path(

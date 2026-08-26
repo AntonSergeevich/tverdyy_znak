@@ -258,3 +258,89 @@ def test_deploy_script_checks_that_push_succeeded():
 
     assert push < deploy
     assert "$LASTEXITCODE" in script[push:deploy]
+
+
+def _make_cards(tenant, count, featured_name="Основатель Центра"):
+    from apps.site_public.models import TeacherCard
+
+    TeacherCard.all_objects.create(
+        organization=tenant.organization, full_name=featured_name,
+        subject_line="Основатель", bio="Про основателя.", is_featured=True, position=10,
+    )
+    for index in range(count):
+        TeacherCard.all_objects.create(
+            organization=tenant.organization, full_name=f"Педагог {index}",
+            subject_line=f"Предмет {index}", bio=f"Про педагога {index}.",
+            position=100 + index,
+        )
+
+
+def test_landing_shows_founder_large_and_the_rest_compactly(client, tenant_a):
+    """
+    Главная не должна превращаться в стену одинаковых карточек.
+
+    Основатель — крупным блоком с полным текстом, остальные — лентой.
+    При двадцати педагогах одинаковая сетка перестаёт читаться.
+    """
+    _make_cards(tenant_a, 3)
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:landing")).content.decode()
+
+    assert "teacher-lead" in body
+    assert "Основатель Центра" in body
+    assert "teacher-chip" in body
+    assert "Педагог 0" in body
+
+
+def test_landing_links_to_the_full_list_only_when_it_does_not_fit(client, tenant_a):
+    from apps.site_public.views import TEACHERS_ON_LANDING
+
+    _make_cards(tenant_a, TEACHERS_ON_LANDING)
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    fits = client.get(reverse("public:landing")).content.decode()
+    assert "Весь состав" not in fits
+
+    from apps.site_public.models import TeacherCard
+
+    TeacherCard.all_objects.create(
+        organization=tenant_a.organization, full_name="Лишний педагог",
+        subject_line="Предмет", position=900,
+    )
+    overflow = client.get(reverse("public:landing")).content.decode()
+    assert "Весь состав" in overflow
+
+
+def test_teacher_chip_is_a_real_link_so_it_works_without_javascript(client, tenant_a):
+    """
+    Мини-карточка — ссылка на страницу состава с якорем.
+
+    Диалог открывает скрипт, но без него человек должен попасть туда же
+    и прочитать то же самое — и поисковик тоже.
+    """
+    _make_cards(tenant_a, 2)
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:landing")).content.decode()
+
+    assert f'href="{reverse("public:teachers")}#card-' in body
+
+
+def test_teachers_page_shows_everyone_with_anchors(client, tenant_a):
+    from apps.site_public.models import TeacherCard
+
+    _make_cards(tenant_a, 12)
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:teachers")).content.decode()
+
+    for card in TeacherCard.all_objects.filter(organization=tenant_a.organization):
+        assert card.full_name in body
+        assert f'id="card-{card.pk}"' in body
+
+
+def test_teachers_page_does_not_leak_another_organization(client, tenant_a, tenant_b):
+    _make_cards(tenant_a, 2)
+    _make_cards(tenant_b, 2, featured_name="Чужой основатель")
+
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:teachers")).content.decode()
+
+    assert "Чужой основатель" not in body

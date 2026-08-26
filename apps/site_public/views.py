@@ -139,6 +139,31 @@ SEGMENTS = [
 ]
 
 
+# Сколько педагогов показывать на главной, кроме крупной карточки.
+# Дальше лента перестаёт читаться, а состав со временем растёт — за
+# порогом появляется ссылка на отдельную страницу.
+TEACHERS_ON_LANDING = 7
+
+
+def _teachers_context() -> dict:
+    """
+    Педагоги на главной: один крупно, остальные — компактной лентой.
+
+    Крупная карточка — основатель: с ним знакомятся в первую очередь,
+    и мельчить её нельзя. Остальные одинаковой сеткой в один экран
+    не помещаются уже при семи, а их будет больше.
+    """
+    cards = list(TeacherCard.objects.filter(is_published=True))
+    featured = next((card for card in cards if card.is_featured), None)
+    rest = [card for card in cards if card is not featured]
+    return {
+        "featured_teacher": featured,
+        "teacher_cards": rest[:TEACHERS_ON_LANDING],
+        "teachers_total": len(cards),
+        "teachers_hidden": max(0, len(rest) - TEACHERS_ON_LANDING),
+    }
+
+
 def _landing_context(request, form=None) -> dict:
     organization = request.organization
     # Программа берётся из справочника, а не дублируется в шаблоне:
@@ -160,7 +185,7 @@ def _landing_context(request, form=None) -> dict:
         "initial_score": INITIAL_SCORE,
         "segments": SEGMENTS,
         "faq_items": FaqItem.objects.filter(is_published=True),
-        "teacher_cards": TeacherCard.objects.filter(is_published=True),
+        **_teachers_context(),
         "organization": organization,
         "canonical_path": reverse("public:landing"),
     }
@@ -175,6 +200,21 @@ def career(request):
     context = _landing_context(request)
     context["canonical_path"] = reverse("public:career")
     return render(request, "public/career.html", context)
+
+
+def teachers(request):
+    """Полный состав отдельной страницей: на главной он не помещается."""
+    cards = list(TeacherCard.objects.filter(is_published=True))
+    return render(
+        request,
+        "public/teachers.html",
+        {
+            "organization": request.organization,
+            "featured_teacher": next((c for c in cards if c.is_featured), None),
+            "teacher_cards": [c for c in cards if not c.is_featured],
+            "canonical_path": reverse("public:teachers"),
+        },
+    )
 
 
 @require_http_methods(["POST"])

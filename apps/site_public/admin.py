@@ -24,8 +24,8 @@ class FaqItemAdmin(TenantAdmin):
 
 @admin.register(TeacherCard)
 class TeacherCardAdmin(TenantAdmin):
-    list_display = ("full_name", "subject_line", "position", "is_published")
-    list_filter = ("organization", "is_published")
+    list_display = ("full_name", "subject_line", "position", "is_featured", "is_published")
+    list_filter = ("organization", "is_published", "is_featured")
 
 
 @admin.register(LegalDocument)

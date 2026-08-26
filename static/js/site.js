@@ -166,6 +166,41 @@
     });
   }
 
+  // Педагог по клику — в диалоге, без перехода на другую страницу.
+  //
+  // Мини-карточка остаётся обычной ссылкой на страницу состава: без
+  // скрипта человек просто попадёт туда и прочитает то же самое.
+  // Перехватываем только обычный левый клик — Ctrl+click и «открыть
+  // в новой вкладке» должны работать как у любой ссылки.
+  var modal = document.querySelector('[data-teacher-modal]');
+  if (modal && typeof modal.showModal === 'function') {
+    var body = modal.querySelector('[data-teacher-modal-body]');
+
+    document.addEventListener('click', function (event) {
+      var chip = event.target.closest ? event.target.closest('[data-teacher]') : null;
+      if (!chip) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+
+      var details = document.querySelector(
+        '[data-teacher-details="' + chip.getAttribute('data-teacher') + '"]'
+      );
+      if (!details) return;
+
+      event.preventDefault();
+      body.innerHTML = '';
+      body.appendChild(details.content.cloneNode(true));
+      modal.showModal();
+    });
+
+    modal.addEventListener('click', function (event) {
+      // Клик по подложке — за пределами самого диалога — закрывает его.
+      if (event.target === modal) modal.close();
+      if (event.target.closest('[data-teacher-close]')) modal.close();
+    });
+
+    modal.addEventListener('close', function () { body.innerHTML = ''; });
+  }
+
   // Аналитика подключается только после согласия «принять все».
   // В кабинетах её нет вообще: там персональные данные детей.
   function loadAnalytics() {
