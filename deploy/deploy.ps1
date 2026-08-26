@@ -59,82 +59,102 @@ if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
 }
 
 # ── Тесты: красный прогон на прод не выкатываем ─────────────────────────────
-# Тестам нужен локальный PostgreSQL. Если его нет — -SkipTests, но тогда
-# прогоните тесты хотя бы на сервере после выката.
 if ($SkipTests) {
     Write-Host "`n== Тесты пропущены (-SkipTests)" -ForegroundColor Yellow
 } else {
     Write-Step "Прогоняю тесты"
 
-    # Python берём из окружения проекта, а не с PATH. Иначе тесты уедут
-    # в системный Python, где нет зависимостей, и разбираться придётся
-    # в простыне ImportError вместо одной понятной строчки.
-    $python = @(".venv\Scripts\python.exe", "venv\Scripts\python.exe",
-                ".venv/bin/python", "venv/bin/python") |
-              Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $python) {
-        throw @"
+    # PowerShell 5.1 при $ErrorActionPreference = "Stop" считает любую строку
+    # в stderr внешней команды терминальной ошибкой. Здесь мы коды возврата
+    # проверяем сами, поэтому на время прогона это поведение выключаем —
+    # иначе вместо разбираемого сообщения пользователь видит NativeCommandError.
+    $savedEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        # Python берём из окружения проекта, а не с PATH. Иначе тесты уедут
+        # в системный Python, где нет зависимостей, и разбираться придётся
+        # в простыне ImportError вместо одной понятной строчки.
+        $python = @(".venv\Scripts\python.exe", "venv\Scripts\python.exe",
+                    ".venv/bin/python", "venv/bin/python") |
+                  Where-Object { Test-Path $_ } | Select-Object -First 1
+        if (-not $python) {
+            throw @"
 Не нашёл виртуальное окружение проекта (.venv). Создать и наполнить:
     python -m venv .venv
     .\.venv\Scripts\Activate.ps1
     pip install -r requirements.txt -r requirements-dev.txt
 Либо выкатить без тестов: .\deploy\deploy.ps1 -SkipTests
 "@
-    }
-    Write-Ok "Python: $python"
+        }
+        Write-Ok "Python: $python"
 
-    & $python -c "import pytest, decouple" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw @"
-В окружении $python не хватает зависимостей. Поставить:
-    & '$python' -m pip install -r requirements.txt -r requirements-dev.txt
-Либо выкатить без тестов: .\deploy\deploy.ps1 -SkipTests
-"@
-    }
+        $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
 
-    $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
-
-    # Тестам нужен локальный PostgreSQL. Его отсутствие — не красный прогон,
-    # а отсутствие условий для прогона, и валить из-за этого выкат нельзя:
-    # разница между «код сломан» и «на ноутбуке нет базы» должна быть видна
-    # сразу, а не вычитываться из простыни ошибок подключения.
-    $probe = @'
+        # Проверяем, есть ли условия для прогона: зависимости и живой
+        # PostgreSQL. Отсутствие базы на ноутбуке — не красный прогон,
+        # и валить из-за него выкат нельзя.
+        #
+        # Скрипт молчит в stderr намеренно: причину он печатает в stdout
+        # одной строкой и возвращает код. Так PowerShell не превращает
+        # traceback в собственную ошибку поверх нашей.
+        $probe = @'
 import os
-
-import django
+import sys
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.test")
-django.setup()
 
-import psycopg
-from django.conf import settings
+
+def fail(reason):
+    print(reason)
+    raise SystemExit(1)
+
+
+try:
+    import django
+    import psycopg  # noqa: F401
+    import pytest  # noqa: F401
+except ImportError as exc:
+    fail(f"нет зависимости: {exc}. Поставьте requirements.txt и requirements-dev.txt")
+
+try:
+    django.setup()
+    from django.conf import settings
+except Exception as exc:
+    fail(f"настройки не загрузились: {type(exc).__name__}: {exc}")
 
 # Подключаемся к серверу, а не к конкретной базе: базу для тестов
 # pytest-django создаёт сам, и её отсутствие проблемой не является.
 # Пустой HOST не подменяем на localhost — для Django это означает
 # «через unix-сокет», и подмена сломала бы проверку там, где всё работает.
 db = settings.DATABASES["default"]
-psycopg.connect(
-    host=db.get("HOST") or None,
-    port=db.get("PORT") or None,
-    user=db.get("USER") or None,
-    password=db.get("PASSWORD") or None,
-    dbname="postgres",
-    connect_timeout=5,
-).close()
+try:
+    psycopg.connect(
+        host=db.get("HOST") or None,
+        port=db.get("PORT") or None,
+        user=db.get("USER") or None,
+        password=db.get("PASSWORD") or None,
+        dbname="postgres",
+        connect_timeout=5,
+    ).close()
+except Exception as exc:
+    fail(f"база недоступна: {str(exc).strip().splitlines()[0]}")
+
+print("ok")
+sys.exit(0)
 '@
-    $probeOutput = ($probe | & $python - 2>&1) -join "`n"
-    if ($LASTEXITCODE -ne 0) {
-        $reason = ($probeOutput -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 1)
-        Write-Host "   Тестовое окружение не поднимается — тесты пропускаю." -ForegroundColor Yellow
-        Write-Host "   Чаще всего это отсутствие локального PostgreSQL." -ForegroundColor Yellow
-        Write-Host "   Причина: $reason" -ForegroundColor Yellow
-    } else {
-        & $python -m pytest -q
+        $probeOutput = ($probe | & $python -) -join " "
         if ($LASTEXITCODE -ne 0) {
-            throw "Тесты не прошли — деплой остановлен. Смотрите вывод выше: это настоящие падения, база на месте."
+            Write-Host "   Тесты пропускаю: $probeOutput" -ForegroundColor Yellow
+            Write-Host "   Это не падение тестов. Прогоните их там, где база есть." -ForegroundColor Yellow
+        } else {
+            & $python -m pytest -q
+            if ($LASTEXITCODE -ne 0) {
+                throw "Тесты не прошли — деплой остановлен. Условия для прогона были: смотрите вывод выше."
+            }
+            Write-Ok "Тесты зелёные"
         }
-        Write-Ok "Тесты зелёные"
+    } finally {
+        $ErrorActionPreference = $savedEap
     }
 }
 
