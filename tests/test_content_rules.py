@@ -226,3 +226,22 @@ def test_og_cover_file_exists_and_is_png():
     cover = pathlib.Path(__file__).resolve().parent.parent / "static" / "img" / "og-cover.png"
     assert cover.exists(), "Нет static/img/og-cover.png — соберите: python scripts/build_og_image.py"
     assert cover.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_deploy_script_strips_cr_before_sending_commands_over_ssh():
+    """
+    Скрипт хранится в CRLF, а команды на сервере выполняет bash.
+
+    Для bash \\r — часть слова: он падает на
+    «cd: /srv/tverdyy-znak\\r: No such file or directory», и понять это
+    по выводу почти нельзя. Так уже ломался деплой дважды, поэтому
+    снятие \\r проверяется тестом, а не памятью.
+    """
+    from pathlib import Path
+
+    script = Path("deploy/deploy.ps1").read_text(encoding="utf-8-sig")
+    definition = script.index("$remote = @\"")
+    call = script.index("ssh $Server $remote")
+
+    assert definition < call
+    assert "$remote = $remote -replace" in script[definition:call]

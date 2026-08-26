@@ -128,6 +128,11 @@ docker compose exec -T web python manage.py setup_client_data
 docker compose ps
 "@
 
+# .ps1 хранится в CRLF (так его любит PowerShell 5.1), поэтому в строке
+# выше переводы строк — тоже CRLF. Для bash на сервере \r — часть команды:
+# он спотыкается на «cd: /srv/tverdyy-znak\r: No such file or directory».
+$remote = $remote -replace "`r", ""
+
 ssh $Server $remote
 if ($LASTEXITCODE -ne 0) { throw "Удалённые команды завершились с ошибкой." }
 
