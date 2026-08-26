@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -24,6 +25,7 @@ DST_DIR = BASE_DIR / "media" / "teachers"
 
 TARGET_SIZE = (800, 1000)          # 4:5, как в сетке карточек
 FACE_BIAS = 0.38                   # доля отступа сверху при кадрировании
+SETTINGS_FILE = "crop.json"        # ручная подстройка кадра, необязательный
 WEBP_QUALITY = 86
 SUPPORTED = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic"}
 
@@ -38,13 +40,48 @@ KNOWN_SLUGS = {
 }
 
 
-def crop_portrait(image: Image.Image) -> Image.Image:
+def load_settings() -> dict:
+    """
+    Ручная подстройка кадра из assets/teachers/crop.json.
+
+    Скрипт кадрирует вслепую и на снимках в полный рост оставляет лицо
+    мелким. Вместо распознавания лиц (тяжёлая зависимость ради пяти
+    фотографий) — простой файл с параметрами:
+
+        {
+          "polskaya": {"zoom": 1.6, "bias": 0.30},
+          "manasyan": {"bias": 0.15}
+        }
+
+    zoom — во сколько раз приблизить (1 — без приближения);
+    bias — доля отреза сверху: 0 держит верх кадра, 1 — низ.
+    """
+    path = SRC_DIR / SETTINGS_FILE
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        print(f"{SETTINGS_FILE}: не разобран ({error}), настройки пропущены")
+        return {}
+
+
+def crop_portrait(image: Image.Image, zoom: float = 1.0, bias: float = FACE_BIAS) -> Image.Image:
     """
     Кадрирование под 4:5 со смещением вверх.
 
     Центральный кроп на портретах срезает макушку и оставляет пустой низ,
     поэтому вертикально режем не по центру, а ближе к верху.
     """
+    if zoom > 1:
+        # Приближаем от центра по горизонтали и от верхней трети по вертикали:
+        # именно там обычно лицо.
+        width, height = image.size
+        new_width, new_height = round(width / zoom), round(height / zoom)
+        left = (width - new_width) // 2
+        top = round((height - new_height) * bias)
+        image = image.crop((left, top, left + new_width, top + new_height))
+
     target_ratio = TARGET_SIZE[0] / TARGET_SIZE[1]
     width, height = image.size
     current_ratio = width / height
@@ -57,7 +94,7 @@ def crop_portrait(image: Image.Image) -> Image.Image:
     else:
         # Слишком высокое — режем сверху и снизу со смещением к лицу.
         new_height = round(width / target_ratio)
-        top = round((height - new_height) * FACE_BIAS)
+        top = round((height - new_height) * bias)
         top = max(0, min(top, height - new_height))
         box = (0, top, width, top + new_height)
     return image.crop(box)
@@ -71,7 +108,11 @@ def enhance(image: Image.Image) -> Image.Image:
     return image
 
 
-def process(source: Path) -> Path:
+def process(source: Path, settings: dict | None = None) -> Path:
+    settings = settings or {}
+    zoom = float(settings.get("zoom", 1.0))
+    bias = float(settings.get("bias", FACE_BIAS))
+
     with Image.open(source) as raw:
         image = ImageOps.exif_transpose(raw)
         if image.mode not in ("RGB", "L"):
@@ -80,7 +121,7 @@ def process(source: Path) -> Path:
             image = image.convert("RGB")
 
         original = image.size
-        image = crop_portrait(image)
+        image = crop_portrait(image, zoom=zoom, bias=bias)
         image = image.resize(TARGET_SIZE, Image.LANCZOS)
         image = enhance(image)
 
@@ -90,7 +131,8 @@ def process(source: Path) -> Path:
 
     size_kb = target.stat().st_size // 1024
     upscaled = " (апскейл — исходник мелковат)" if min(original) < 800 else ""
-    print(f"{source.name} {original[0]}×{original[1]} → {target.name} {size_kb} КБ{upscaled}")
+    tuned = f" [zoom {zoom}, bias {bias}]" if settings else ""
+    print(f"{source.name} {original[0]}×{original[1]} → {target.name} {size_kb} КБ{upscaled}{tuned}")
     return target
 
 
@@ -100,6 +142,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     wanted = {name.lower() for name in argv}
+    settings = load_settings()
     sources = sorted(
         path
         for path in SRC_DIR.iterdir()
@@ -112,7 +155,7 @@ def main(argv: list[str]) -> int:
     done: list[str] = []
     for source in sources:
         try:
-            process(source)
+            process(source, settings.get(source.stem.lower()))
             done.append(source.stem.lower())
         except Exception as error:  # noqa: BLE001 — одна битая картинка не должна ронять пакет
             print(f"{source.name}: не удалось обработать — {error}")
@@ -146,6 +189,8 @@ def _report(done: list[str]) -> int:
 
     if ready:
         print("\nДальше: python manage.py setup_client_data")
+        print(f"Кадр не устраивает — подправьте assets/teachers/{SETTINGS_FILE} "
+              f"(zoom, bias) и запустите скрипт заново.")
     return 0
 
 

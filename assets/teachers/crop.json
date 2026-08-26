@@ -1,0 +1,5 @@
+{
+  "_комментарий": "zoom — во сколько раз приблизить, bias — доля отреза сверху (0 держит верх кадра, 1 — низ). Правится руками, потом: python scripts/prepare_teacher_photos.py",
+  "polskaya": {"zoom": 2.0, "bias": 0.45},
+  "manasyan": {"bias": 0.0}
+}

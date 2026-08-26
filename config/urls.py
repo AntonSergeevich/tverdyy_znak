@@ -18,5 +18,12 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    from django.conf.urls.static import static
+
     # Панель отладки нужна, чтобы ловить N+1 на списках (ТЗ 9.1).
     urlpatterns.insert(0, path("__debug__/", include("debug_toolbar.urls")))
+
+    # Медиа в разработке отдаёт сам Django: без этого фотографии педагогов
+    # не проверить локально — они отдаются 404, хотя файлы на месте.
+    # На проде медиа отдаёт nginx из тома media, эта ветка туда не попадает.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
