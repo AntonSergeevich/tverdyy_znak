@@ -15,6 +15,13 @@ if SECRET_KEY.startswith("insecure-"):  # noqa: F405
 if not FIELD_ENCRYPTION_KEYS:  # noqa: F405
     raise RuntimeError("FIELD_ENCRYPTION_KEYS обязателен в проде: поля с ПДн шифруются")
 
+# Локальные адреса нужны healthcheck-у контейнера: он ходит на
+# http://127.0.0.1:8000/healthz изнутри, и со строгим ALLOWED_HOSTS Django
+# отвечал бы 400, а контейнер навсегда оставался бы unhealthy.
+# Снаружи это ничего не открывает: запрос с чужим Host обрывает nginx
+# (default_server → 444), до Django он не доходит.
+ALLOWED_HOSTS = ALLOWED_HOSTS + ["127.0.0.1", "localhost"]  # noqa: F405
+
 # ─── Транспорт (ТЗ 8.1) ─────────────────────────────────────────────────────
 SECURE_SSL_REDIRECT = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
