@@ -324,6 +324,29 @@ class Teacher(SoftDeleteTenantModel):
     def short_name(self) -> str:
         return self.user.short_name
 
+    @property
+    def card_photo(self) -> str:
+        """
+        Фотография с публичной карточки, если она есть.
+
+        Отдельного фото у Teacher нет намеренно: снимок один, и держать
+        его в двух местах — способ получить два разных. Связь по имени,
+        а не по ключу: карточку на сайте заводят раньше, чем доступ.
+        """
+        from apps.site_public.models import TeacherCard
+
+        # Ищем по «Фамилия Имя», а не по полному совпадению: в карточке
+        # на сайте отчество есть, в учётной записи его часто не заполняют.
+        stem = f"{self.user.last_name} {self.user.first_name}".strip()
+        if not stem:
+            return ""
+        card = (
+            TeacherCard.objects.filter(full_name__istartswith=stem, is_published=True)
+            .exclude(photo="")
+            .first()
+        )
+        return card.photo.url if card else ""
+
 
 class GradingScale(TenantModel):
     """

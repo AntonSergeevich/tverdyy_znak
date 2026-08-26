@@ -1,6 +1,15 @@
 from django.urls import path
 
-from apps.journal.views import common, exports, manage, parent, people, student, teacher
+from apps.journal.views import (
+    common,
+    exports,
+    manage,
+    parent,
+    people,
+    scheduler,
+    student,
+    teacher,
+)
 
 app_name = "cabinet"
 
@@ -35,6 +44,13 @@ urlpatterns = [
 
     # Администратор и владелец
     path("panel/", manage.dashboard, name="dashboard"),
+    path("zhurnal/", manage.journal, name="journal"),
+
+    # Конструктор расписания: карточки педагогов перетаскиваются в сетку
+    path("raspisanie/konstruktor/", scheduler.builder, name="schedule_builder"),
+    path("raspisanie/konstruktor/postavit/", scheduler.slot_set, name="slot_set"),
+    path("raspisanie/konstruktor/<uuid:lesson_id>/ubrat/", scheduler.slot_clear, name="slot_clear"),
+    path("raspisanie/konstruktor/kopirovat/", scheduler.week_copy, name="week_copy"),
     path("zayavki/", manage.leads, name="leads"),
     path("zayavki/<uuid:lead_id>/status/", manage.lead_status, name="lead_status"),
     path("ucheniki/", manage.students, name="students"),

@@ -1,0 +1,20 @@
+{% comment %}
+  Клетка расписания. Отдаётся при каждом изменении целиком, чтобы
+  состояние на экране всегда совпадало с тем, что в базе.
+{% endcomment %}
+<div class="slot{% if cell.lesson %} slot--filled{% endif %}"
+     id="slot-{{ cell.key }}"
+     data-slot
+     data-day="{{ cell.day|date:'Y-m-d' }}"
+     data-time="{{ cell.time }}"
+     data-duration="{{ cell.duration }}">
+  {% if cell.lesson %}
+    <span class="slot__subject">{{ cell.lesson.subject.name }}</span>
+    <span class="slot__teacher">{{ cell.lesson.teacher.short_name|default:"без педагога" }}</span>
+    <button class="slot__clear" type="button"
+            data-clear-url="{% url 'cabinet:slot_clear' cell.lesson.pk %}"
+            aria-label="Убрать {{ cell.lesson.subject.name }}">×</button>
+  {% else %}
+    <span class="slot__empty" aria-hidden="true">+</span>
+  {% endif %}
+</div>

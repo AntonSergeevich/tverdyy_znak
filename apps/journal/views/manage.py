@@ -242,3 +242,51 @@ def payment_mark_paid(request, payment_id):
     get_provider(payment.provider).mark_paid(payment, actor=request.user)
     log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=payment, change="paid")
     return render(request, "cabinet/manage/partials/payment_row.html", {"payment": payment})
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+def journal(request):
+    """
+    Журнал глазами администратора: все занятия дня, а не только свои.
+
+    Педагог входит в журнал из «Сегодня» — ему достаточно. Администратору
+    нужен обзор: кто ведёт, что проставлено, где занятие идёт без оценивания.
+    """
+    day = _requested_day(request)
+    lessons = (
+        Lesson.objects.filter(starts_at__date=day)
+        .select_related("subject", "group", "module", "teacher__user")
+        .prefetch_related("grade_item__grades")
+        .order_by("starts_at")
+    )
+    rows = []
+    for lesson in lessons:
+        item = getattr(lesson, "grade_item", None)
+        rows.append(
+            {
+                "lesson": lesson,
+                "graded": item is not None,
+                # Сколько баллов уже выставлено: администратору важно
+                # видеть не факт «журнал открыт», а что работа сделана.
+                "filled": item.grades.count() if item else 0,
+                "total": lesson.group.memberships.count(),
+            }
+        )
+
+    return render(
+        request,
+        "cabinet/manage/journal.html",
+        {"day": day, "rows": rows, "prev_day": day - timedelta(days=1),
+         "next_day": day + timedelta(days=1)},
+    )
+
+
+def _requested_day(request) -> date:
+    raw = request.GET.get("day")
+    if raw:
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            pass
+    return timezone.localdate()

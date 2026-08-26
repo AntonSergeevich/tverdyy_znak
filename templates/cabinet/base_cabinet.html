@@ -3,6 +3,16 @@
 {% block title %}{% block cabinet_title %}Кабинет{% endblock %} — Твёрдый знак{% endblock %}
 {% block head_extra %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 
+{% comment %}
+  Переходы внутри кабинета — без перезагрузки страницы.
+
+  hx-boost перехватывает обычные ссылки и формы, но меняет только <main>:
+  шапка, тема и открытое меню остаются на месте, а обработчики, повешенные
+  на элементы шапки, переживают переход. Без JS всё работает как обычные
+  ссылки — boost только ускоряет то, что и так работало.
+{% endcomment %}
+{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top"{% endblock %}
+
 {% block body %}
 {# В кабинетах нет никакой сторонней аналитики: здесь персональные данные детей (ТЗ 7). #}
 <header class="site-header">
@@ -37,4 +47,13 @@
 </main>
 {% endblock %}
 
-{% block scripts %}{% block cabinet_scripts %}{% endblock %}{% endblock %}
+{% block scripts %}
+{% comment %}
+  Скрипт конструктора подключается ко всему кабинету, а не к одной
+  странице: при переходе без перезагрузки меняется только <main>,
+  и тег со страницы просто не приедет. Сам скрипт молчит там, где
+  сетки нет.
+{% endcomment %}
+<script src="{% static 'js/scheduler.js' %}" defer></script>
+{% block cabinet_scripts %}{% endblock %}
+{% endblock %}

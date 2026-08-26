@@ -1,0 +1,132 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Конструктор расписания{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:journal' %}">Журнал</a>
+  <a href="{% url 'cabinet:students' %}">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
+  <a href="{% url 'cabinet:schedule_builder' %}" aria-current="page">Расписание</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">Расписание</h1>
+  <span class="btn-row">
+    <a class="btn btn--quiet" href="?week={{ prev_week|date:'Y-m-d' }}{% if group %}&group={{ group.pk }}{% endif %}">←</a>
+    <span class="numeral" style="align-self:center">{{ monday|date:"d.m" }} — {{ sunday|date:"d.m.Y" }}</span>
+    <a class="btn btn--quiet" href="?week={{ next_week|date:'Y-m-d' }}{% if group %}&group={{ group.pk }}{% endif %}">→</a>
+  </span>
+</div>
+
+{% if not group %}
+  <div class="empty-state">
+    <p class="empty-state__title">Нет ни одной группы</p>
+    <p>Занятия некуда ставить. Заведите группу в админке — раздел «Группы».</p>
+  </div>
+{% else %}
+
+<div class="builder-bar">
+  <form method="get" class="btn-row">
+    <input type="hidden" name="week" value="{{ monday|date:'Y-m-d' }}">
+    <label class="field" style="margin:0">
+      <span class="field__label">Группа</span>
+      <select class="input" name="group" onchange="this.form.submit()">
+        {% for item in groups %}
+          <option value="{{ item.pk }}" {% if item == group %}selected{% endif %}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+
+  <div class="btn-row">
+    <label class="field" style="margin:0">
+      <span class="field__label">Повторить неделю вперёд</span>
+      <span class="btn-row">
+        <input class="input" type="number" min="1" max="12" value="4" id="copy-weeks" style="width:90px">
+        <button class="btn btn--quiet" type="button" data-copy-week
+                data-url="{% url 'cabinet:week_copy' %}"
+                data-week="{{ monday|date:'Y-m-d' }}"
+                data-group="{{ group.pk }}">Повторить</button>
+      </span>
+    </label>
+  </div>
+</div>
+
+{% if not module %}
+  <div class="message message--warning">
+    Эта неделя не входит ни в один учебный модуль — занятия сюда не поставить.
+    Модули заводятся командой <code>bootstrap_organization</code>.
+  </div>
+{% endif %}
+
+<div class="builder">
+  <aside class="builder__side">
+    <p class="label" style="font-size:15px">Педагоги</p>
+    <p class="muted small">Перетащите карточку в клетку. Карточка остаётся на месте — одного педагога можно поставить сколько угодно раз.</p>
+
+    {% comment %}
+      У педагога может быть несколько предметов. Выбор предмета — рядом
+      с карточкой, а не в диалоге после перетаскивания: лишний шаг на
+      каждом уроке превратил бы составление расписания в мучение.
+    {% endcomment %}
+    <ul class="teacher-deck">
+      {% for teacher in teachers %}
+        <li>
+          <div class="deck-card" draggable="true"
+               data-teacher="{{ teacher.pk }}"
+               data-name="{{ teacher.short_name }}">
+            {% if teacher.card_photo %}
+              <img class="deck-card__photo" src="{{ teacher.card_photo }}" alt="" width="80" height="80">
+            {% else %}
+              <span class="deck-card__photo photo-placeholder" aria-hidden="true">Ъ</span>
+            {% endif %}
+            <span class="deck-card__body">
+              <span class="deck-card__name">{{ teacher.user.full_name }}</span>
+              <span class="deck-card__subjects">
+                {% for subject in teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не заданы{% endfor %}
+              </span>
+              {% if teacher.subjects.all|length > 1 %}
+                <select class="deck-card__subject" data-subject-for="{{ teacher.pk }}" aria-label="Предмет для {{ teacher.short_name }}">
+                  {% for subject in teacher.subjects.all %}
+                    <option value="{{ subject.pk }}">{{ subject.name }}</option>
+                  {% endfor %}
+                </select>
+              {% endif %}
+            </span>
+          </div>
+        </li>
+      {% empty %}
+        <li class="muted">Педагогов нет. <a href="{% url 'cabinet:teacher_create' %}">Добавьте первого</a>.</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <div class="builder__grid-wrap">
+    <table class="builder__grid" data-grid data-group="{{ group.pk }}"
+           data-set-url="{% url 'cabinet:slot_set' %}">
+      <thead>
+        <tr>
+          <th class="builder__time">Время</th>
+          {% for label, day in days %}
+            <th>{{ label }}<span class="muted numeral">{{ day|date:"d.m" }}</span></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in grid %}
+          <tr>
+            <th class="builder__time numeral">{{ row.time }}</th>
+            {% for cell in row.cells %}
+              <td>{% include "cabinet/manage/partials/slot.html" %}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="builder__status" data-builder-status role="status" aria-live="polite"></p>
+{% endif %}
+{% endblock %}

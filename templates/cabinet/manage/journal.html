@@ -1,0 +1,51 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Журнал{% endblock %}
+
+{% block cabinet_nav %}
+  <a href="{% url 'cabinet:dashboard' %}">Панель</a>
+  <a href="{% url 'cabinet:journal' %}" aria-current="page">Журнал</a>
+  <a href="{% url 'cabinet:students' %}">Ученики</a>
+  <a href="{% url 'cabinet:teachers' %}">Педагоги</a>
+  <a href="{% url 'cabinet:schedule_builder' %}">Расписание</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Журнал</h1>
+  <span class="btn-row">
+    <a class="btn btn--quiet" href="?day={{ prev_day|date:'Y-m-d' }}">←</a>
+    <span class="numeral" style="align-self:center">{{ day|date:"d.m.Y" }}</span>
+    <a class="btn btn--quiet" href="?day={{ next_day|date:'Y-m-d' }}">→</a>
+    <a class="btn btn--quiet" href="{% url 'cabinet:journal' %}">Сегодня</a>
+  </span>
+</div>
+
+{% if rows %}
+  <div class="journal-list">
+    {% for row in rows %}
+      <a class="journal-row" href="{% url 'cabinet:lesson_journal' row.lesson.pk %}">
+        <span class="journal-row__points numeral" style="font-size:20px">{{ row.lesson.starts_at|time:"H:i" }}</span>
+        <span class="journal-row__name">
+          {{ row.lesson.subject.name }} · {{ row.lesson.group.name }}
+          <span class="muted" style="display:block;font-weight:400">
+            {% if row.lesson.teacher %}{{ row.lesson.teacher.short_name }}{% else %}педагог не назначен{% endif %}
+            {% if row.lesson.topic %} · {{ row.lesson.topic }}{% endif %}
+          </span>
+        </span>
+        <span class="journal-row__state">
+          {% if row.graded %}
+            {{ row.filled }} из {{ row.total }} баллов
+          {% else %}
+            <span class="muted">без оценивания</span>
+          {% endif %}
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <p class="empty-state__title">В этот день занятий нет</p>
+    <p>Расписание составляется в разделе «Расписание».</p>
+  </div>
+{% endif %}
+{% endblock %}

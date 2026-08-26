@@ -509,6 +509,72 @@ table.programme tfoot th { border-top: 2px solid var(--line); font-size: 15px; c
 .creds__list code { font-size: 15px; word-break: break-all; }
 .creds__copied { margin-left: 10px; font-size: 14px; color: var(--ok); }
 
+/* Переход между разделами кабинета: тонкая полоса сверху вместо
+   белой вспышки. Показывается только если ответ идёт дольше мгновения. */
+.cabinet__body { position: relative; }
+body.htmx-request::after {
+  content: ""; position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 60;
+  background: var(--accent);
+  animation: tz-progress 1.2s ease-out infinite;
+}
+@keyframes tz-progress {
+  0% { transform: scaleX(0); transform-origin: left; }
+  60% { transform: scaleX(.8); transform-origin: left; }
+  100% { transform: scaleX(1); transform-origin: left; opacity: .2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.htmx-request::after { animation: none; opacity: .6; }
+}
+
+/* ─── Конструктор расписания ─────────────────────────────────────────────── */
+.builder-bar {
+  display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end;
+  margin-bottom: 20px;
+}
+.builder { display: grid; gap: 20px; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); align-items: start; }
+.builder__side { position: sticky; top: calc(var(--header-h) + 12px); }
+.builder__grid-wrap { overflow-x: auto; }
+.builder__grid { width: 100%; border-collapse: collapse; min-width: 720px; }
+.builder__grid th, .builder__grid td { border: 1px solid var(--line); padding: 4px; vertical-align: top; }
+.builder__grid thead th { font-size: 14px; text-align: left; padding: 8px; background: var(--surface); }
+.builder__grid thead th .muted { display: block; font-weight: 400; }
+.builder__time { width: 74px; font-size: 14px; color: var(--ink-3); white-space: nowrap; }
+
+/* Карточка педагога остаётся на месте после перетаскивания: одного
+   человека ставят на несколько уроков подряд. */
+.teacher-deck { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.deck-card {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); padding: 8px; cursor: grab;
+}
+.deck-card:active { cursor: grabbing; }
+.deck-card--dragging { opacity: .5; }
+.deck-card__photo { width: 44px; height: 44px; object-fit: cover; object-position: center 22%; }
+.deck-card .photo-placeholder { aspect-ratio: 1 / 1; font-size: 20px; }
+.deck-card__body { display: grid; gap: 2px; min-width: 0; }
+.deck-card__name { font-weight: 600; font-size: 14px; line-height: 1.25; }
+.deck-card__subjects { font-size: 12px; color: var(--ink-3); line-height: 1.25; }
+.deck-card__subject { font: inherit; font-size: 13px; margin-top: 4px; padding: 4px 6px; min-height: 32px; }
+
+.slot {
+  min-height: 62px; display: grid; gap: 2px; align-content: center;
+  padding: 6px 8px; position: relative; font-size: 13px;
+}
+.slot--filled { background: var(--peach-soft); }
+.slot--over { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.slot--busy { opacity: .5; }
+.slot__subject { font-weight: 600; line-height: 1.2; }
+.slot__teacher { color: var(--ink-3); line-height: 1.2; }
+.slot__empty { color: var(--line); font-size: 20px; text-align: center; }
+.slot__clear {
+  position: absolute; top: 2px; right: 4px; border: 0; background: none;
+  color: var(--ink-3); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 4px;
+}
+.slot__clear:hover { color: var(--accent-2); }
+.builder__status { margin-top: 16px; min-height: 24px; color: var(--ok); }
+.builder__status--error { color: var(--accent-2); }
+.message--warning { border-color: var(--warn); }
+
 /* ─── Подвал ─────────────────────────────────────────────────────────────── */
 .site-footer { border-top: 1px solid var(--line); padding: var(--pad-y) var(--pad-x); color: var(--ink-2); font-size: 15px; }
 .site-footer .grid > * { flex: 1 1 260px; }
@@ -691,6 +757,10 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
   /* На телефоне неделя читается сверху вниз: колонки по 200px там
      превращаются в нечитаемые обрезки. */
   .week { grid-template-columns: 1fr; }
+
+  /* Конструктор на телефоне: колода педагогов над сеткой, а не сбоку. */
+  .builder { grid-template-columns: 1fr; }
+  .builder__side { position: static; }
 
   /* Крупная карточка педагога на телефоне: фото сверху, текст под ним. */
   .teacher-lead { grid-template-columns: 1fr; }
