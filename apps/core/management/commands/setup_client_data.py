@@ -15,12 +15,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.core.models import Organization, OrganizationDomain
 from apps.core.tenancy import organization_context
-from apps.site_public.models import TeacherCard
+from apps.journal.models import Teacher
 
 # Реквизиты. Эти поля команда выставляет всегда: они обязаны совпадать
 # с документами ИП, и «поправить в админке» здесь — не фича, а ошибка.
@@ -194,23 +195,18 @@ class Command(BaseCommand):
         photos_dir = Path(settings.MEDIA_ROOT) / "teachers"
         with organization_context(organization):
             for entry in TEACHERS:
-                data = {key: value for key, value in entry.items() if key != "slug"}
-                slug = entry["slug"]
-                card, created = TeacherCard.objects.update_or_create(
-                    organization=organization,
-                    full_name=data["full_name"],
-                    defaults={**data, "is_published": True},
-                )
+                teacher, created = self._sync_teacher(organization, entry)
 
-                photo = photos_dir / f"{slug}.webp"
+                photo = photos_dir / f"{entry['slug']}.webp"
                 if photo.exists():
-                    card.photo.name = f"teachers/{slug}.webp"
-                    card.save(update_fields=["photo", "updated_at"])
+                    teacher.photo.name = f"teachers/{entry['slug']}.webp"
+                    teacher.save(update_fields=["photo", "updated_at"])
                     mark = "с фото"
                 else:
                     mark = "без фото — положите оригинал в assets/teachers/"
                 self.stdout.write(
-                    f"  {'создана' if created else 'обновлена'}: {card.full_name} ({mark})"
+                    f"  {'создан' if created else 'обновлён'}: "
+                    f"{teacher.user.full_name} ({mark})"
                 )
 
         # Telegram-уведомления заказчик подключит отдельно, когда понадобятся,
@@ -232,3 +228,48 @@ class Command(BaseCommand):
                     + "\n  - ".join(missing)
                 )
             )
+
+    def _sync_teacher(self, organization, entry: dict):
+        """
+        Педагог для сайта — запись журнала, а не отдельная карточка.
+
+        Учётная запись создаётся неактивной и без пароля: человек на
+        сайте есть, доступа в кабинет у него нет. Выдать доступ —
+        отдельное осознанное действие администратора, а не побочный
+        эффект заполнения справочника.
+        """
+        from apps.accounts.models import Membership, Role
+        from apps.journal.services.onboarding import build_login
+
+        User = get_user_model()
+        parts = entry["full_name"].split()
+        last_name = parts[0]
+        first_name = parts[1] if len(parts) > 1 else ""
+        middle_name = parts[2] if len(parts) > 2 else ""
+
+        teacher = Teacher.objects.filter(
+            user__last_name__iexact=last_name, user__first_name__iexact=first_name
+        ).first()
+        created = teacher is None
+
+        if created:
+            user = User.objects.create(
+                username=build_login(last_name, first_name),
+                last_name=last_name, first_name=first_name, middle_name=middle_name,
+                is_active=False,
+            )
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
+            Membership.objects.get_or_create(
+                user=user, organization=organization, role=Role.TEACHER
+            )
+            teacher = Teacher.objects.create(organization=organization, user=user)
+
+        teacher.subject_line = entry["subject_line"]
+        teacher.experience = entry.get("experience", "")
+        teacher.bio = entry.get("bio", "")
+        teacher.public_position = entry.get("position", 100)
+        teacher.is_featured = entry.get("is_featured", False)
+        teacher.is_published = True
+        teacher.save()
+        return teacher, created

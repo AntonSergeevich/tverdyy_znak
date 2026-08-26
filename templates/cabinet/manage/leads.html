@@ -11,12 +11,13 @@
   {% for value, label in statuses %}
     <a class="chip" href="?status={{ value }}" {% if active_status == value %}aria-current="true"{% endif %}>{{ label }}</a>
   {% endfor %}
+  <a class="chip" href="?deleted=1" {% if show_deleted %}aria-current="true"{% endif %}>Удалённые</a>
 </div>
 
 {% if leads %}
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>Когда</th><th>Кто</th><th>Класс</th><th>Звонить</th><th>Источник</th><th>Статус</th></tr></thead>
+      <thead><tr><th>Когда</th><th>Кто</th><th>Класс</th><th>Звонить</th><th>Источник</th><th>Статус</th><th></th></tr></thead>
       <tbody>
       {% for lead in leads %}
         {% include "cabinet/manage/partials/lead_row.html" %}
@@ -26,8 +27,10 @@
   </div>
 {% else %}
   <div class="empty-state">
-    <p class="empty-state__title">Заявок с таким фильтром нет</p>
-    <p>Как только с сайта придёт новая заявка, она появится здесь и в Telegram.</p>
+    <p class="empty-state__title">
+      {% if show_deleted %}Удалённых заявок нет{% else %}Заявок с таким фильтром нет{% endif %}
+    </p>
+    <p>{% if not show_deleted %}Как только с сайта придёт новая заявка, она появится здесь.{% endif %}</p>
   </div>
 {% endif %}
 {% endblock %}

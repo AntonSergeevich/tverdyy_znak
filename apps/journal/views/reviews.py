@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
+from apps.accounts.models import Role
 from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
 from apps.journal.access import accessible_students
@@ -39,20 +40,27 @@ class ReviewForm(forms.ModelForm):
         labels = {"rating": "Оценка", "text": "Отзыв"}
 
 
-def _teaches_my_child(user, organization, teacher: Teacher) -> bool:
-    children = accessible_students(user, organization)
-    return teacher.lessons.filter(group__memberships__student__in=children).exists()
+def _teaches_me_or_my_child(user, organization, teacher: Teacher) -> bool:
+    """
+    Отзыв — только о том, кто реально ведёт занятия.
+
+    Для родителя это педагог его ребёнка, для ученика — его собственный.
+    accessible_students отвечает на оба вопроса одинаково, поэтому
+    отдельной ветки для роли здесь нет.
+    """
+    students = accessible_students(user, organization)
+    return teacher.lessons.filter(group__memberships__student__in=students).exists()
 
 
 @login_required
-@role_required("parent")
+@role_required("parent", "student")
 @require_http_methods(["GET", "POST"])
 def review_create(request, teacher_id):
     organization = request.organization
     teacher = get_object_or_404(Teacher.objects.select_related("user"), pk=teacher_id)
 
-    if not _teaches_my_child(request.user, organization, teacher):
-        raise PermissionDenied("Отзыв можно оставить только о педагоге своего ребёнка.")
+    if not _teaches_me_or_my_child(request.user, organization, teacher):
+        raise PermissionDenied("Отзыв можно оставить только о том, кто ведёт занятия.")
 
     existing = TeacherReview.objects.filter(teacher=teacher, author=request.user).first()
     form = ReviewForm(request.POST or None, instance=existing)
@@ -87,19 +95,21 @@ def review_create(request, teacher_id):
 
 def _signature(user, organization) -> str:
     """
-    Как отзыв подписан на сайте: «Анна М., мама девятиклассника».
+    Как отзыв подписан на сайте: «Анна М., родитель ученика 9 класса».
 
-    Фамилию целиком не публикуем: это отзыв родителя о педагоге, а не
-    документ, и полное имя здесь ничего не добавляет, зато делает
-    семью узнаваемой.
+    Фамилию целиком не публикуем: это отзыв о педагоге, а не документ,
+    и полное имя здесь ничего не добавляет, зато делает семью узнаваемой.
     """
     initial = f"{user.last_name[:1]}." if user.last_name else ""
-    name = f"{user.first_name} {initial}".strip() or "Родитель"
+    name = f"{user.first_name} {initial}".strip() or "Аноним"
 
-    children = list(accessible_students(user, organization)[:1])
-    if children:
-        return f"{name}, родитель ученика {children[0].grade_level} класса"
-    return name
+    students = list(accessible_students(user, organization)[:1])
+    if not students:
+        return name
+    grade = students[0].grade_level
+    if user.has_role(organization, Role.STUDENT):
+        return f"{name}, ученик {grade} класса"
+    return f"{name}, родитель ученика {grade} класса"
 
 
 @login_required

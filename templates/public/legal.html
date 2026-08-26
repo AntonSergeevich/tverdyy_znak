@@ -14,6 +14,31 @@
       {% else %}Версия {{ policy_version }}{% endif %}
     </p>
 
+    {% comment %}
+      Реквизиты выводятся из карточки организации, а не вшиты в текст.
+      Текст документа правит владелец в админке, и однажды сохранённые
+      в нём ИНН с адресом устарели бы молча — здесь они всегда те же,
+      что в подвале сайта и в договоре.
+    {% endcomment %}
+    <div class="legal-requisites">
+      <p class="label" style="font-size:13px">Оператор персональных данных</p>
+      <dl>
+        <dt>Наименование</dt>
+        <dd>{{ organization.legal_name|default:"реквизиты уточняются" }}</dd>
+        {% if organization.ogrnip %}<dt>ОГРНИП</dt><dd>{{ organization.ogrnip }}</dd>{% endif %}
+        {% if organization.inn %}<dt>ИНН</dt><dd>{{ organization.inn }}</dd>{% endif %}
+        {% if organization.address %}<dt>Адрес</dt><dd>{{ organization.address }}</dd>{% endif %}
+        {% if organization.contact_email %}
+          <dt>Email для обращений</dt>
+          <dd><a href="mailto:{{ organization.contact_email }}">{{ organization.contact_email }}</a></dd>
+        {% endif %}
+        {% if organization.contact_phone %}
+          <dt>Телефон</dt>
+          <dd><a href="tel:{{ organization.contact_phone }}">{{ organization.contact_phone }}</a></dd>
+        {% endif %}
+      </dl>
+    </div>
+
     {% if document %}
       <div style="margin-top:24px;font-size:16px;line-height:1.7">{{ document.body|linebreaks }}</div>
     {% else %}

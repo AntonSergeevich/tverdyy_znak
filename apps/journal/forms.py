@@ -130,14 +130,36 @@ class DeleteConfirmForm(forms.Form):
         return value
 
 
+# Поля, которые решают, что о педагоге видно на сайте. Их набор один
+# и там, где педагога заводят, и там, где правят: раньше публичная
+# карточка жила отдельно, и половину данных приходилось вводить дважды.
+PUBLIC_TEACHER_FIELDS = [
+    "photo", "subject_line", "experience", "bio",
+    "is_published", "is_featured", "public_position",
+]
+
+
 class TeacherForm(PersonForm):
     hourly_rate = forms.DecimalField(
         label="Ставка за час, ₽", max_digits=8, decimal_places=2, min_value=0, initial=0,
     )
-    public_title = forms.CharField(label="Подпись для сайта", max_length=200, required=False)
     subjects = forms.ModelMultipleChoiceField(
         label="Предметы", queryset=Subject.objects.none(), required=False,
         widget=forms.CheckboxSelectMultiple,
+    )
+    photo = forms.ImageField(label="Фотография", required=False)
+    subject_line = forms.CharField(
+        label="Предметы для сайта", max_length=120, required=False,
+        help_text="Если пусто, соберётся из отмеченных предметов.",
+    )
+    experience = forms.CharField(label="Опыт", max_length=200, required=False)
+    bio = forms.CharField(
+        label="О педагоге", required=False, widget=forms.Textarea(attrs={"rows": 4}),
+        help_text="Показывается на сайте. Каждая мысль с новой строки.",
+    )
+    is_published = forms.BooleanField(
+        label="Показывать на сайте", required=False,
+        help_text="Пока выключено, педагог виден только в кабинете.",
     )
 
     def __init__(self, *args, **kwargs):
@@ -152,8 +174,11 @@ class TeacherForm(PersonForm):
 class TeacherEditForm(forms.ModelForm):
     class Meta:
         model = Teacher
-        fields = ["hourly_rate", "public_title", "subjects"]
-        widgets = {"subjects": forms.CheckboxSelectMultiple}
+        fields = ["hourly_rate", "public_title", "subjects", *PUBLIC_TEACHER_FIELDS]
+        widgets = {
+            "subjects": forms.CheckboxSelectMultiple,
+            "bio": forms.Textarea(attrs={"rows": 4}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

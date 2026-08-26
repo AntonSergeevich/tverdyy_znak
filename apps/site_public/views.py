@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods
 
 from apps.journal.models import Subject, SubjectKind
 from apps.site_public.forms import LeadForm
-from apps.site_public.models import FaqItem, LegalDocument, TeacherCard
+from apps.site_public.models import FaqItem, LegalDocument
 from apps.site_public.services.leads import check_rate_limit, create_lead
 
 # Пороги и тексты 100-балльной шкалы для интерактива на первом экране.
@@ -145,33 +145,22 @@ SEGMENTS = [
 TEACHERS_ON_LANDING = 7
 
 
-def _attach_reviews(cards: list) -> None:
+def _published_teachers():
     """
-    Подтянуть опубликованные отзывы к карточкам.
+    Педагоги для сайта — из журнала, а не из отдельной карточки.
 
-    Карточка на сайте и педагог в журнале — разные записи (на сайт
-    попадает только то, что человек разрешил публиковать), поэтому
-    связываем по имени, как и фотографию. Один запрос на всех, а не
-    по запросу на карточку.
+    Раньше человека заводили дважды, и два источника правды об одном
+    педагоге однажды расходились. Теперь запись одна: галочка
+    «показывать на сайте» решает, попадает ли он на главную.
     """
     from apps.journal.models import Teacher
-    from apps.site_public.models import TeacherReview
 
-    reviews = (
-        TeacherReview.objects.filter(status=TeacherReview.Status.PUBLISHED)
-        .select_related("teacher__user")
-        .order_by("-created_at")
+    return list(
+        Teacher.objects.filter(is_published=True)
+        .select_related("user")
+        .prefetch_related("subjects", "reviews")
+        .order_by("public_position", "user__last_name")
     )
-    by_name: dict[str, list] = {}
-    for review in reviews:
-        user = review.teacher.user
-        key = f"{user.last_name} {user.first_name}".strip().casefold()
-        by_name.setdefault(key, []).append(review)
-
-    for card in cards:
-        parts = card.full_name.split()
-        key = " ".join(parts[:2]).casefold()
-        card.reviews = by_name.get(key, [])
 
 
 def _teachers_context() -> dict:
@@ -182,14 +171,13 @@ def _teachers_context() -> dict:
     и мельчить её нельзя. Остальные одинаковой сеткой в один экран
     не помещаются уже при семи, а их будет больше.
     """
-    cards = list(TeacherCard.objects.filter(is_published=True))
-    _attach_reviews(cards)
-    featured = next((card for card in cards if card.is_featured), None)
-    rest = [card for card in cards if card is not featured]
+    teachers = _published_teachers()
+    featured = next((t for t in teachers if t.is_featured), None)
+    rest = [t for t in teachers if t is not featured]
     return {
         "featured_teacher": featured,
         "teacher_cards": rest[:TEACHERS_ON_LANDING],
-        "teachers_total": len(cards),
+        "teachers_total": len(teachers),
         "teachers_hidden": max(0, len(rest) - TEACHERS_ON_LANDING),
     }
 
@@ -244,15 +232,14 @@ def career(request):
 
 def teachers(request):
     """Полный состав отдельной страницей: на главной он не помещается."""
-    cards = list(TeacherCard.objects.filter(is_published=True))
-    _attach_reviews(cards)
+    teachers = _published_teachers()
     return render(
         request,
         "public/teachers.html",
         {
             "organization": request.organization,
-            "featured_teacher": next((c for c in cards if c.is_featured), None),
-            "teacher_cards": [c for c in cards if not c.is_featured],
+            "featured_teacher": next((t for t in teachers if t.is_featured), None),
+            "teacher_cards": [t for t in teachers if not t.is_featured],
             "canonical_path": reverse("public:teachers"),
         },
     )

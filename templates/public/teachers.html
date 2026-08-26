@@ -1,4 +1,4 @@
-{% extends "public/base_public.html" %}
+{% extends "public/base_public.html" %}{% load public_extras %}
 
 {% block title %}Педагоги — {{ organization.name|default:"Твёрдый знак" }}{% endblock %}
 {% block og_title %}Педагоги «{{ organization.name|default:'Твёрдый знак' }}»{% endblock %}
@@ -14,19 +14,20 @@
 
     {% if featured_teacher %}
       <article class="teacher-lead" id="card-{{ featured_teacher.pk }}">
-        {% if featured_teacher.photo %}
-          <img class="teacher-lead__photo" src="{{ featured_teacher.photo.url }}"
-               alt="{{ featured_teacher.full_name }} — {{ featured_teacher.subject_line }}"
+        {% if featured_teacher.card_photo %}
+          <img class="teacher-lead__photo" src="{{ featured_teacher.card_photo }}"
+               alt="{{ featured_teacher.user.full_name }} — {{ featured_teacher.public_subjects }}"
                width="800" height="1000" decoding="async">
         {% endif %}
         <div class="teacher-lead__text">
-          <p class="card__title" style="font-size:22px">{{ featured_teacher.full_name }}</p>
-          <p style="color:var(--accent-2);font-weight:600">{{ featured_teacher.subject_line }}</p>
+          <p class="card__title" style="font-size:22px">{{ featured_teacher.user.full_name }}</p>
+          <p style="color:var(--accent-2);font-weight:600">{{ featured_teacher.public_subjects }}</p>
+          {% include "public/_rating.html" with teacher=featured_teacher %}
           {% if featured_teacher.experience %}
             <p class="small muted">{{ featured_teacher.experience }}</p>
           {% endif %}
           {% if featured_teacher.bio %}{{ featured_teacher.bio|linebreaks }}{% endif %}
-          {% include "public/_reviews.html" with card=featured_teacher %}
+          {% include "public/_reviews.html" with teacher=featured_teacher %}
         </div>
       </article>
     {% endif %}
@@ -37,20 +38,21 @@
       поисковику и человеку без JS.
     {% endcomment %}
     <div class="teachers-grid" style="margin-top:32px">
-      {% for card in teacher_cards %}
-        <div class="card teacher-card" id="card-{{ card.pk }}">
-          {% if card.photo %}
-            <img class="teacher-card__photo" src="{{ card.photo.url }}"
-                 alt="{{ card.full_name }} — {{ card.subject_line }}"
+      {% for teacher in teacher_cards %}
+        <div class="card teacher-card" id="card-{{ teacher.pk }}">
+          {% if teacher.card_photo %}
+            <img class="teacher-card__photo" src="{{ teacher.card_photo }}"
+                 alt="{{ teacher.user.full_name }} — {{ teacher.public_subjects }}"
                  width="800" height="1000" loading="lazy" decoding="async">
           {% else %}
             <div class="photo-placeholder" aria-hidden="true">Ъ</div>
           {% endif %}
-          <p class="card__title" style="margin-top:14px">{{ card.full_name }}</p>
-          <p style="color:var(--accent-2);font-weight:600">{{ card.subject_line }}</p>
-          {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
-          {% if card.bio %}<div class="teacher-card__bio">{{ card.bio|linebreaks }}</div>{% endif %}
-          {% include "public/_reviews.html" with card=card %}
+          <p class="card__title" style="margin-top:14px">{{ teacher.user.full_name }}</p>
+          <p style="color:var(--accent-2);font-weight:600">{{ teacher.public_subjects }}</p>
+          {% include "public/_rating.html" with teacher=teacher %}
+          {% if teacher.experience %}<p class="small muted">{{ teacher.experience }}</p>{% endif %}
+          {% if teacher.bio %}<div class="teacher-card__bio">{{ teacher.bio|linebreaks }}</div>{% endif %}
+          {% include "public/_reviews.html" with teacher=teacher %}
         </div>
       {% empty %}
         <p class="muted">Карточки заполняются перед стартом набора.</p>

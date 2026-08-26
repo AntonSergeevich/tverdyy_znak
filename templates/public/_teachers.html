@@ -1,60 +1,65 @@
-{% comment %}
+{% load public_extras %}{% comment %}
   Педагоги: один крупно, остальные лентой.
+
+  Данные берутся из журнала: педагог заводится один раз в кабинете,
+  а галочка «показывать на сайте» решает, попадает ли он сюда.
 
   Мини-карточка — обычная ссылка на страницу состава с якорем. Скрипт
   перехватывает клик и открывает диалог; без скрипта человек просто
-  попадает на страницу и читает то же самое. Так работает и без JS,
-  и в поиске — карточки остаются на настоящем адресе.
+  попадает на страницу и читает то же самое.
 {% endcomment %}
 {% if featured_teacher %}
   <article class="teacher-lead">
-    {% if featured_teacher.photo %}
-      <img class="teacher-lead__photo" src="{{ featured_teacher.photo.url }}"
-           alt="{{ featured_teacher.full_name }} — {{ featured_teacher.subject_line }}"
+    {% if featured_teacher.card_photo %}
+      <img class="teacher-lead__photo" src="{{ featured_teacher.card_photo }}"
+           alt="{{ featured_teacher.user.full_name }} — {{ featured_teacher.public_subjects }}"
            width="800" height="1000" loading="lazy" decoding="async">
     {% else %}
       <div class="photo-placeholder teacher-lead__photo" aria-hidden="true">Ъ</div>
     {% endif %}
     <div class="teacher-lead__text">
-      <p class="card__title" style="font-size:22px">{{ featured_teacher.full_name }}</p>
-      <p style="color:var(--accent-2);font-weight:600">{{ featured_teacher.subject_line }}</p>
+      <p class="card__title" style="font-size:22px">{{ featured_teacher.user.full_name }}</p>
+      <p style="color:var(--accent-2);font-weight:600">{{ featured_teacher.public_subjects }}</p>
+      {% include "public/_rating.html" with teacher=featured_teacher %}
       {% if featured_teacher.experience %}
         <p class="small muted">{{ featured_teacher.experience }}</p>
       {% endif %}
       {% if featured_teacher.bio %}{{ featured_teacher.bio|linebreaks }}{% endif %}
-      {% include "public/_reviews.html" with card=featured_teacher %}
+      {% include "public/_reviews.html" with teacher=featured_teacher %}
     </div>
   </article>
 {% endif %}
 
 {% if teacher_cards %}
   <ul class="teacher-strip">
-    {% for card in teacher_cards %}
+    {% for teacher in teacher_cards %}
       <li>
-        <a class="teacher-chip" href="{% url 'public:teachers' %}#card-{{ card.pk }}"
-           data-teacher="{{ card.pk }}">
-          {% if card.photo %}
-            <img class="teacher-chip__photo" src="{{ card.photo.url }}" alt=""
+        <a class="teacher-chip" href="{% url 'public:teachers' %}#card-{{ teacher.pk }}"
+           data-teacher="{{ teacher.pk }}">
+          {% if teacher.card_photo %}
+            <img class="teacher-chip__photo" src="{{ teacher.card_photo }}" alt=""
                  width="800" height="1000" loading="lazy" decoding="async">
           {% else %}
             <span class="teacher-chip__photo photo-placeholder" aria-hidden="true">Ъ</span>
           {% endif %}
-          <span class="teacher-chip__name">{{ card.full_name }}</span>
-          <span class="teacher-chip__subject">{{ card.subject_line }}</span>
+          <span class="teacher-chip__name">{{ teacher.user.full_name }}</span>
+          <span class="teacher-chip__subject">{{ teacher.public_subjects }}</span>
+          {% include "public/_rating.html" with teacher=teacher compact=1 %}
         </a>
-        <template data-teacher-details="{{ card.pk }}">
+        <template data-teacher-details="{{ teacher.pk }}">
           <div class="teacher-lead">
-            {% if card.photo %}
-              <img class="teacher-lead__photo" src="{{ card.photo.url }}"
-                   alt="{{ card.full_name }} — {{ card.subject_line }}"
+            {% if teacher.card_photo %}
+              <img class="teacher-lead__photo" src="{{ teacher.card_photo }}"
+                   alt="{{ teacher.user.full_name }} — {{ teacher.public_subjects }}"
                    width="800" height="1000" decoding="async">
             {% endif %}
             <div class="teacher-lead__text">
-              <p class="card__title" style="font-size:22px">{{ card.full_name }}</p>
-              <p style="color:var(--accent-2);font-weight:600">{{ card.subject_line }}</p>
-              {% if card.experience %}<p class="small muted">{{ card.experience }}</p>{% endif %}
-              {% if card.bio %}{{ card.bio|linebreaks }}{% endif %}
-              {% include "public/_reviews.html" with card=card %}
+              <p class="card__title" style="font-size:22px">{{ teacher.user.full_name }}</p>
+              <p style="color:var(--accent-2);font-weight:600">{{ teacher.public_subjects }}</p>
+              {% include "public/_rating.html" with teacher=teacher %}
+              {% if teacher.experience %}<p class="small muted">{{ teacher.experience }}</p>{% endif %}
+              {% if teacher.bio %}{{ teacher.bio|linebreaks }}{% endif %}
+              {% include "public/_reviews.html" with teacher=teacher %}
             </div>
           </div>
         </template>

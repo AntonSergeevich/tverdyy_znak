@@ -298,7 +298,7 @@ def teachers(request):
 @require_http_methods(["GET", "POST"])
 def teacher_create(request):
     organization = request.organization
-    form = TeacherForm(request.POST or None)
+    form = TeacherForm(request.POST or None, request.FILES or None)
 
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
@@ -314,7 +314,14 @@ def teacher_create(request):
             )
             teacher = Teacher.objects.create(
                 organization=organization, user=user,
-                hourly_rate=data["hourly_rate"], public_title=data["public_title"],
+                hourly_rate=data["hourly_rate"],
+                # Всё, что видно на сайте, заполняется здесь же: заводить
+                # человека второй раз в другом месте больше не нужно.
+                photo=data.get("photo"),
+                subject_line=data.get("subject_line", ""),
+                experience=data.get("experience", ""),
+                bio=data.get("bio", ""),
+                is_published=data.get("is_published", False),
             )
             teacher.subjects.set(data["subjects"])
 
@@ -331,7 +338,7 @@ def teacher_create(request):
 @require_http_methods(["GET", "POST"])
 def teacher_edit(request, teacher_id):
     teacher = get_object_or_404(Teacher.objects.select_related("user"), pk=teacher_id)
-    form = TeacherEditForm(request.POST or None, instance=teacher)
+    form = TeacherEditForm(request.POST or None, request.FILES or None, instance=teacher)
 
     if request.method == "POST" and form.is_valid():
         form.save()

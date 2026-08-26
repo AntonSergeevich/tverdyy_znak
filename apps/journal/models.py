@@ -310,7 +310,30 @@ class Teacher(SoftDeleteTenantModel):
     hourly_rate = models.DecimalField(
         "ставка за час, ₽", max_digits=8, decimal_places=2, default=Decimal("0.00")
     )
+
+    # ── Что о педагоге видно на сайте ───────────────────────────────────────
+    # Раньше публичная карточка жила отдельной моделью, и её приходилось
+    # заводить второй раз, руками, в другом месте. Два источника правды об
+    # одном человеке — гарантия, что однажды они разойдутся: на сайте один
+    # предмет, в журнале другой. Теперь педагог один, а поля ниже решают,
+    # что из него показывать.
     public_title = models.CharField("подпись для сайта", max_length=200, blank=True)
+    photo = models.ImageField("фотография", upload_to="teachers/", blank=True)
+    subject_line = models.CharField(
+        "предметы для сайта", max_length=120, blank=True,
+        help_text="Если пусто, соберётся из списка предметов.",
+    )
+    experience = models.CharField("опыт", max_length=200, blank=True)
+    bio = models.TextField("о педагоге", blank=True)
+    is_published = models.BooleanField(
+        "показывать на сайте", default=False,
+        help_text="Пока выключено, педагог виден только в кабинете.",
+    )
+    is_featured = models.BooleanField(
+        "крупная карточка", default=False,
+        help_text="Один человек на главной показывается большим блоком.",
+    )
+    public_position = models.PositiveSmallIntegerField("порядок на сайте", default=100)
 
     class Meta:
         verbose_name = "педагог"
@@ -326,26 +349,43 @@ class Teacher(SoftDeleteTenantModel):
 
     @property
     def card_photo(self) -> str:
-        """
-        Фотография с публичной карточки, если она есть.
+        return self.photo.url if self.photo else ""
 
-        Отдельного фото у Teacher нет намеренно: снимок один, и держать
-        его в двух местах — способ получить два разных. Связь по имени,
-        а не по ключу: карточку на сайте заводят раньше, чем доступ.
-        """
-        from apps.site_public.models import TeacherCard
+    @property
+    def public_subjects(self) -> str:
+        """Что написать под именем: своя подпись или список предметов."""
+        if self.subject_line:
+            return self.subject_line
+        return ", ".join(subject.name for subject in self.subjects.all())
 
-        # Ищем по «Фамилия Имя», а не по полному совпадению: в карточке
-        # на сайте отчество есть, в учётной записи его часто не заполняют.
-        stem = f"{self.user.last_name} {self.user.first_name}".strip()
-        if not stem:
-            return ""
-        card = (
-            TeacherCard.objects.filter(full_name__istartswith=stem, is_published=True)
-            .exclude(photo="")
-            .first()
-        )
-        return card.photo.url if card else ""
+    @property
+    def rating(self) -> float | None:
+        """
+        Средняя оценка по опубликованным отзывам.
+
+        Считается по тем же отзывам, что видны на сайте: показывать
+        среднее, в которое входят непроверенные, значит показывать
+        то, чего никто не читал.
+        """
+        marks = [r.rating for r in self.published_reviews]
+        if not marks:
+            return None
+        return round(sum(marks) / len(marks), 1)
+
+    @property
+    def reviews_count(self) -> int:
+        return len(self.published_reviews)
+
+    @property
+    def published_reviews(self) -> list:
+        """
+        Отзывы, прошедшие проверку.
+
+        Фильтруем в Python, а не запросом: список уже загружен через
+        prefetch_related, и лишний запрос на каждую карточку превратил бы
+        главную страницу в десяток обращений к базе.
+        """
+        return [r for r in self.reviews.all() if r.status == "published"]
 
 
 class GradingScale(TenantModel):

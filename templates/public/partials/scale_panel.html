@@ -6,7 +6,24 @@
     <span class="small muted">потяните →</span>
   </div>
   <div class="scale-panel__value">
-    <span class="numeral" data-scale-value>{{ initial_score }}</span>
+    {% comment %}
+      На сотне число уступает место подмигивающему смайлу. Мелочь, но
+      сотня — единственная точка шкалы, где уместно порадоваться вместе
+      с подростком, а не сообщить ему уровень.
+    {% endcomment %}
+    <span class="scale-panel__score">
+      <span class="numeral" data-scale-value>{{ initial_score }}</span>
+      <span class="scale-wink" data-scale-wink aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="64" height="64" role="presentation">
+          <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="4"/>
+          <circle class="scale-wink__eye" cx="22" cy="26" r="3.4" fill="currentColor"/>
+          <path class="scale-wink__wink" d="M37 26q5-5 10 0" fill="none"
+                stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+          <path d="M20 40q12 11 24 0" fill="none" stroke="currentColor"
+                stroke-width="4" stroke-linecap="round"/>
+        </svg>
+      </span>
+    </span>
     <span style="font-size:17px;font-weight:600" data-scale-level>уверенно</span>
   </div>
   <div class="scale-track">

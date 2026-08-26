@@ -5,6 +5,7 @@ import time
 
 import pytest
 from django.core.cache import cache
+from django.utils import timezone
 from django.urls import reverse
 
 from apps.core.models import Consent, ConsentType
@@ -131,3 +132,60 @@ def test_lead_notification_is_queued(client_a, tenant_a, settings):
         assert notification is not None
         assert notification.status == Notification.Status.FAILED
         assert "TG_BOT_TOKEN" in notification.last_error
+
+
+def test_spam_lead_can_be_removed_from_the_funnel(client, tenant_a):
+    """
+    Спам и ошибочные отправки не должны копиться в воронке.
+
+    Удаление мягкое: в заявке лежит согласие на обработку данных с датой
+    и версией текста — именно им подтверждается законность обработки,
+    и стирать его насовсем нельзя.
+    """
+    from django.test import override_settings
+    from django.urls import reverse
+
+    from apps.site_public.models import Lead
+    from tests.conftest import PASSWORD
+
+    lead = Lead.all_objects.create(
+        organization=tenant_a.organization, name="Спамер", phone="79990000000",
+        grade=9, consent_at=timezone.now(), policy_version="1",
+    )
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.owner_user.email, "password": PASSWORD},
+        )
+        response = client.post(reverse("cabinet:lead_delete", args=[lead.pk]))
+
+    lead.refresh_from_db()
+    assert response.status_code == 200
+    assert lead.deleted_at is not None
+    # Согласие на месте: удалили строку из списка, а не доказательство.
+    assert lead.consent_at is not None
+
+
+def test_deleted_lead_can_be_brought_back(client, tenant_a):
+    from django.test import override_settings
+    from django.urls import reverse
+
+    from apps.site_public.models import Lead
+    from tests.conftest import PASSWORD
+
+    lead = Lead.all_objects.create(
+        organization=tenant_a.organization, name="Ошиблись", phone="79990000001",
+        grade=10, consent_at=timezone.now(), policy_version="1",
+    )
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.owner_user.email, "password": PASSWORD},
+        )
+        client.post(reverse("cabinet:lead_delete", args=[lead.pk]))
+        client.post(reverse("cabinet:lead_restore", args=[lead.pk]))
+
+    lead.refresh_from_db()
+    assert lead.deleted_at is None

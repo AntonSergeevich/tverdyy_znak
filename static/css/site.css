@@ -545,12 +545,112 @@ body.htmx-request::after {
 .rating li label { display: flex; gap: 6px; align-items: center; cursor: pointer; font-size: 18px; color: var(--accent); }
 .rating input[type=radio] { width: 20px; height: 20px; accent-color: var(--accent); }
 
+/* Оценка педагога. Число рядом со звёздами обязательно: звёзды без
+   цифры читаются как украшение, а не как оценка. */
+.rating-badge {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 6px 0 0; font-size: 15px;
+}
+.rating-badge__stars { color: var(--accent); letter-spacing: 1px; }
+.rating-badge__value { font-weight: 700; }
+.rating-badge__count { font-size: 13px; color: var(--ink-3); }
+.rating-badge__count:hover { color: var(--accent); }
+.rating-badge--compact { font-size: 13px; gap: 5px; margin-top: 4px; }
+.rating-badge--compact .rating-badge__count { display: none; }
+
 /* Отзывы в карточке педагога на сайте. */
 .reviews { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 12px; }
 .review__head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .review__stars { color: var(--accent); letter-spacing: 1px; }
 .review__who { font-size: 13px; color: var(--ink-3); }
 .review__text { font-size: 14px; line-height: 1.5; margin: 4px 0 0; }
+
+/* Реквизиты в шапке правового документа: они берутся из карточки
+   организации, поэтому не устаревают вместе с текстом. */
+.legal-requisites {
+  margin-top: 24px; padding: clamp(14px, 2vw, 20px);
+  background: var(--surface); border: 1px solid var(--line);
+}
+.legal-requisites dl {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 10px 0 0;
+}
+.legal-requisites dt { color: var(--ink-3); font-size: 14px; }
+.legal-requisites dd { margin: 0; font-size: 15px; }
+
+/* ─── Мелкая анимация ────────────────────────────────────────────────────── */
+/* Движения ровно столько, чтобы страница казалась живой. Всё ниже
+   выключается при prefers-reduced-motion: анимация не должна мешать
+   тем, кому она мешает физически. */
+
+/* Логотип: «Ъ» приподнимается и чуть отклоняется — как буква,
+   которую подхватили со страницы. */
+.logo__mark {
+  display: inline-block;
+  transition: transform .35s cubic-bezier(.34, 1.56, .64, 1), color .35s ease;
+}
+.logo:hover .logo__mark,
+.logo:focus-visible .logo__mark {
+  transform: translateY(-3px) rotate(-8deg) scale(1.06);
+  color: var(--accent);
+}
+
+/* Кнопки и карточки: подъём на 1–2 пикселя. Больше — и интерфейс
+   начинает «плавать» под курсором. */
+.btn { transition: transform .18s ease, background-color .18s ease, border-color .18s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.card { transition: transform .22s ease, border-color .22s ease; }
+.teacher-card:hover, .price-card:hover { transform: translateY(-2px); }
+
+/* Сотня на шкале: цифра уходит, смайл появляется и подмигивает. */
+.scale-panel__score { position: relative; display: inline-block; }
+.scale-panel__score .numeral { transition: opacity .2s ease, transform .3s ease; }
+.scale-panel__score.is-full .numeral { opacity: 0; transform: scale(.7); }
+.scale-wink {
+  /* Размер берём от самой цифры: смайл занимает её место, а не висит
+     рядом крошечной иконкой. */
+  position: absolute; left: 50%; top: 50%;
+  width: clamp(56px, 6vw, 80px); height: clamp(56px, 6vw, 80px);
+  color: var(--accent);
+  opacity: 0; transform: translate(-50%, -50%) scale(.6);
+  transition: opacity .25s ease, transform .35s cubic-bezier(.34, 1.56, .64, 1);
+  pointer-events: none;
+}
+.scale-wink svg { width: 100%; height: 100%; display: block; }
+.scale-panel__score.is-full .scale-wink { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.scale-wink__wink { opacity: 0; }
+.scale-wink__eye { transform-origin: 22px 26px; }
+.scale-wink.is-winking .scale-wink__eye { animation: tz-eye-close 1.5s ease .35s 1; }
+.scale-wink.is-winking .scale-wink__wink { animation: tz-eye-open 1.5s ease .35s 1; }
+@keyframes tz-eye-close {
+  0%, 28% { opacity: 1; }
+  32%, 52% { opacity: 0; }
+  56%, 100% { opacity: 1; }
+}
+@keyframes tz-eye-open {
+  0%, 28% { opacity: 0; }
+  32%, 52% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+/* Заголовок раздела появляется при прокрутке — один раз и без задержки
+   содержимого: текст уже в разметке, анимируется только его подача. */
+@media (prefers-reduced-motion: no-preference) {
+  .section__head { animation: tz-rise .5s ease both; animation-timeline: view(); animation-range: entry 0% cover 22%; }
+}
+@keyframes tz-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo__mark, .btn, .card { transition: none; }
+  .logo:hover .logo__mark, .btn:hover, .teacher-card:hover, .price-card:hover { transform: none; }
+  .scale-wink, .scale-panel__score .numeral { transition: none; }
+  .scale-wink.is-winking .scale-wink__eye,
+  .scale-wink.is-winking .scale-wink__wink { animation: none; }
+  .section__head { animation: none; }
+}
 
 /* ─── Конструктор расписания ─────────────────────────────────────────────── */
 .builder-bar {

@@ -46,9 +46,22 @@
 </div>
 
 {% if not module %}
+  {% comment %}
+    Сообщение без технических слов: этот экран открывает администратор
+    центра, а не разработчик. Вместо названия команды — что именно
+    сделать и куда нажать.
+  {% endcomment %}
   <div class="message message--warning">
-    Эта неделя не входит ни в один учебный модуль — занятия сюда не поставить.
-    Модули заводятся командой <code>bootstrap_organization</code>.
+    <strong>На эту неделю занятия не ставятся.</strong>
+    Она не входит ни в один учебный модуль — скорее всего, это каникулы
+    или время до начала года.
+    {% if nearest_module %}
+      Ближайший модуль: {{ nearest_module }},
+      с {{ nearest_module.starts_on|date:"d.m.Y" }} по {{ nearest_module.ends_on|date:"d.m.Y" }}.
+      <a href="?week={{ nearest_module.starts_on|date:'Y-m-d' }}&group={{ group.pk }}">Перейти к нему</a>.
+    {% else %}
+      Учебный год ещё не заведён — обратитесь к тому, кто настраивал систему.
+    {% endif %}
   </div>
 {% endif %}
 

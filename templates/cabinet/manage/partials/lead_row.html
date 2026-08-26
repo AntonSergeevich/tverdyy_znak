@@ -23,4 +23,27 @@
       {% if error %}<span class="field-error">{{ error }}</span>{% endif %}
     </form>
   </td>
+  <td>
+    {% if lead.is_deleted %}
+      <form hx-post="{% url 'cabinet:lead_restore' lead.pk %}"
+            hx-target="#lead-{{ lead.pk }}" hx-swap="outerHTML">
+        {% csrf_token %}
+        <button class="btn btn--quiet" type="submit">Вернуть</button>
+      </form>
+    {% else %}
+      {% comment %}
+        Спам и ошибочные отправки убираются из воронки, иначе они портят
+        и конверсию, и внимание. Удаление мягкое: в заявке лежит согласие
+        на обработку данных с датой и версией текста — именно им
+        подтверждается законность обработки, стирать его нельзя.
+      {% endcomment %}
+      <button class="btn btn--quiet" type="button"
+              hx-post="{% url 'cabinet:lead_delete' lead.pk %}"
+              hx-target="#lead-{{ lead.pk }}" hx-swap="delete"
+              hx-confirm="Убрать заявку из списка? Её можно вернуть во вкладке «Удалённые»."
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        Удалить
+      </button>
+    {% endif %}
+  </td>
 </tr>

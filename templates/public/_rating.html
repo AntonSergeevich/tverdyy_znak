@@ -1,0 +1,17 @@
+{% load public_extras %}{% comment %}
+  Оценка педагога — среднее по опубликованным отзывам.
+
+  Показываем только когда отзывы есть: «0.0 из 5» у нового педагога
+  выглядит как плохая оценка, хотя означает «ещё никто не писал».
+  Число рядом со звёздами обязательно: звёзды без цифры читаются
+  как украшение, а не как оценка.
+{% endcomment %}
+{% if teacher.rating %}
+  <p class="rating-badge{% if compact %} rating-badge--compact{% endif %}">
+    <span class="rating-badge__stars" aria-hidden="true">{{ teacher.rating|stars }}</span>
+    <span class="rating-badge__value numeral">{{ teacher.rating }}</span>
+    <a class="rating-badge__count" href="{% url 'public:teachers' %}#card-{{ teacher.pk }}">
+      {{ teacher.reviews_count }} {{ teacher.reviews_count|plural:"отзыв,отзыва,отзывов" }}
+    </a>
+  </p>
+{% endif %}

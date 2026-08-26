@@ -59,6 +59,8 @@ urlpatterns = [
     path("raspisanie/konstruktor/kopirovat/", scheduler.week_copy, name="week_copy"),
     path("zayavki/", manage.leads, name="leads"),
     path("zayavki/<uuid:lead_id>/status/", manage.lead_status, name="lead_status"),
+    path("zayavki/<uuid:lead_id>/udalit/", manage.lead_delete, name="lead_delete"),
+    path("zayavki/<uuid:lead_id>/vernut/", manage.lead_restore, name="lead_restore"),
     path("ucheniki/", manage.students, name="students"),
     path("ucheniki/<uuid:student_id>/vosstanovit/", manage.student_restore, name="student_restore"),
 

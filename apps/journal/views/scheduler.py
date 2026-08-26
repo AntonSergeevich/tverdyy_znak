@@ -128,8 +128,25 @@ def builder(request):
             "prev_week": monday - dt.timedelta(days=7),
             "next_week": monday + dt.timedelta(days=7),
             "module": _module_for(organization, monday),
+            # Если неделя вне модуля, показываем куда идти, а не название
+            # команды: этот экран открывает администратор центра.
+            "nearest_module": _nearest_module(monday),
         },
     )
+
+
+def _nearest_module(day: dt.date) -> Module | None:
+    """Ближайший модуль, который начинается не раньше этой недели."""
+    upcoming = (
+        Module.objects.filter(
+            academic_year__is_current=True, kind=ModuleKind.MODULE, ends_on__gte=day
+        )
+        .order_by("starts_on")
+        .first()
+    )
+    return upcoming or Module.objects.filter(
+        academic_year__is_current=True, kind=ModuleKind.MODULE
+    ).order_by("-starts_on").first()
 
 
 @login_required

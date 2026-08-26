@@ -367,13 +367,13 @@ def test_review_waits_for_moderation_before_appearing_on_the_site(client, tenant
 
     Отзыв появляется на сайте только после того, как его кто-то прочитал.
     """
-    from apps.site_public.models import TeacherCard, TeacherReview
+    from apps.site_public.models import TeacherReview
 
-    TeacherCard.all_objects.create(
-        organization=tenant_a.organization,
-        full_name=tenant_a.teacher.user.full_name,
-        subject_line="Математика",
-    )
+    # Отзыв виден на сайте только у опубликованного педагога — как и он сам.
+    tenant_a.teacher.is_published = True
+    tenant_a.teacher.subject_line = "Математика"
+    tenant_a.teacher.save()
+
     _login(client, tenant_a, tenant_a.parent_user)
     client.post(
         reverse("cabinet:review_create", args=[tenant_a.teacher.pk]),

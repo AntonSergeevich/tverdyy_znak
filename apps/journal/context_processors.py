@@ -64,6 +64,7 @@ def cabinet_menu(request) -> dict:
             "cabinet_menu": [
                 _item("student_home", "Мой кабинет"),
                 _item("schedule", "Расписание"),
+                _item("parent_teachers", "Педагоги"),
             ]
         }
     return {}

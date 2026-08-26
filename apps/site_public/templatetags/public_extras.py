@@ -37,3 +37,18 @@ def plural(value, forms: str) -> str:
     if 2 <= last <= 4:
         return parts[1]
     return parts[2]
+
+
+@register.filter
+def stars(value) -> str:
+    """
+    Оценка звёздами: 4.6 → «★★★★★» с половинкой на глаз не читается,
+    поэтому округляем до целого. Рядом всегда стоит число — звёзды
+    без цифры выглядят украшением, а не оценкой.
+    """
+    try:
+        filled = int(round(float(value)))
+    except (TypeError, ValueError):
+        return ""
+    filled = max(0, min(5, filled))
+    return "★" * filled + "☆" * (5 - filled)

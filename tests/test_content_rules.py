@@ -129,23 +129,37 @@ def test_single_target_action(client_a):
 
 
 def test_teacher_cards_are_published_with_bio(client_a, tenant_a):
-    """Карточки педагогов выводятся с должностью и описанием."""
-    from apps.core.tenancy import organization_context
-    from apps.site_public.models import TeacherCard
+    """
+    Педагог на сайте — та же запись, что в журнале.
 
-    with organization_context(tenant_a.organization):
-        TeacherCard.objects.create(
-            organization=tenant_a.organization,
-            full_name="Манасян Сергей Керопович",
-            subject_line="Математика, физика, информатика",
-            experience="Стаж более 30 лет",
-            bio="Опыт работы в школе и вузе. Учит думать, а не зубрить.",
-            position=10,
-        )
+    Заводить человека второй раз, отдельной публичной карточкой, больше
+    не нужно: два источника правды об одном педагоге однажды расходятся.
+    """
+    tenant_a.teacher.subject_line = "Математика, физика, информатика"
+    tenant_a.teacher.experience = "Стаж более 30 лет"
+    tenant_a.teacher.bio = "Опыт работы в школе и вузе. Учит думать, а не зубрить."
+    tenant_a.teacher.is_published = True
+    tenant_a.teacher.save()
+
     body = _text(client_a, "public:landing")
-    assert "Манасян Сергей Керопович" in body
+    assert tenant_a.teacher.user.full_name in body
     assert "Математика, физика, информатика" in body
     assert "Учит думать" in body
+
+
+def test_unpublished_teacher_stays_out_of_the_site(client_a, tenant_a):
+    """
+    Пока галочка не поставлена, педагог виден только в кабинете.
+
+    Иначе каждый заведённый человек мгновенно попадал бы на главную —
+    вместе с недописанным текстом и без фотографии.
+    """
+    tenant_a.teacher.bio = "Черновик описания."
+    tenant_a.teacher.is_published = False
+    tenant_a.teacher.save()
+
+    body = _text(client_a, "public:landing")
+    assert "Черновик описания" not in body
 
 
 def test_bank_details_never_appear_on_public_pages(client_a, tenant_a):
@@ -261,18 +275,43 @@ def test_deploy_script_checks_that_push_succeeded():
 
 
 def _make_cards(tenant, count, featured_name="Основатель Центра"):
-    from apps.site_public.models import TeacherCard
+    """
+    Публикуемые педагоги — записи журнала, а не отдельные карточки.
 
-    TeacherCard.all_objects.create(
-        organization=tenant.organization, full_name=featured_name,
-        subject_line="Основатель", bio="Про основателя.", is_featured=True, position=10,
-    )
-    for index in range(count):
-        TeacherCard.all_objects.create(
-            organization=tenant.organization, full_name=f"Педагог {index}",
-            subject_line=f"Предмет {index}", bio=f"Про педагога {index}.",
-            position=100 + index,
+    Человека заводят один раз, галочка «показывать на сайте» решает,
+    попадает ли он на главную.
+    """
+    from decimal import Decimal
+
+    from django.contrib.auth import get_user_model
+
+    from apps.accounts.models import Membership, Role
+    from apps.journal.models import Teacher
+
+    User = get_user_model()
+
+    def make(last_name, first_name, *, featured=False, position=100, subject_line=""):
+        # Логин уникален на всю базу, а фикстуры создают одинаковые
+        # фамилии в двух организациях — добавляем код арендатора.
+        user = User.objects.create_user(
+            username=f"{tenant.organization.slug}-{last_name.lower()}{position}",
+            password="x", last_name=last_name, first_name=first_name,
         )
+        Membership.objects.create(
+            user=user, organization=tenant.organization, role=Role.TEACHER
+        )
+        return Teacher.all_objects.create(
+            organization=tenant.organization, user=user, hourly_rate=Decimal("0.00"),
+            subject_line=subject_line or "Предмет", bio=f"Про {last_name}.",
+            is_published=True, is_featured=featured, public_position=position,
+        )
+
+    parts = featured_name.split()
+    make(parts[0], parts[1] if len(parts) > 1 else "И", featured=True, position=10,
+         subject_line="Основатель")
+    for index in range(count):
+        make(f"Педагог{index}", "Имя", position=100 + index,
+             subject_line=f"Предмет {index}")
 
 
 def test_landing_shows_founder_large_and_the_rest_compactly(client, tenant_a):
@@ -289,7 +328,7 @@ def test_landing_shows_founder_large_and_the_rest_compactly(client, tenant_a):
     assert "teacher-lead" in body
     assert "Основатель Центра" in body
     assert "teacher-chip" in body
-    assert "Педагог 0" in body
+    assert "Педагог0" in body
 
 
 def test_landing_links_to_the_full_list_only_when_it_does_not_fit(client, tenant_a):
@@ -300,11 +339,22 @@ def test_landing_links_to_the_full_list_only_when_it_does_not_fit(client, tenant
     fits = client.get(reverse("public:landing")).content.decode()
     assert "Весь состав" not in fits
 
-    from apps.site_public.models import TeacherCard
+    from decimal import Decimal
 
-    TeacherCard.all_objects.create(
-        organization=tenant_a.organization, full_name="Лишний педагог",
-        subject_line="Предмет", position=900,
+    from django.contrib.auth import get_user_model
+
+    from apps.accounts.models import Membership, Role
+    from apps.journal.models import Teacher
+
+    extra_user = get_user_model().objects.create_user(
+        username="lishniy", password="x", last_name="Лишний", first_name="Педагог"
+    )
+    Membership.objects.create(
+        user=extra_user, organization=tenant_a.organization, role=Role.TEACHER
+    )
+    Teacher.all_objects.create(
+        organization=tenant_a.organization, user=extra_user, hourly_rate=Decimal("0.00"),
+        subject_line="Предмет", is_published=True, public_position=900,
     )
     overflow = client.get(reverse("public:landing")).content.decode()
     assert "Весь состав" in overflow
@@ -325,15 +375,18 @@ def test_teacher_chip_is_a_real_link_so_it_works_without_javascript(client, tena
 
 
 def test_teachers_page_shows_everyone_with_anchors(client, tenant_a):
-    from apps.site_public.models import TeacherCard
+    from apps.journal.models import Teacher
 
     _make_cards(tenant_a, 12)
     client.defaults["HTTP_HOST"] = tenant_a.host
     body = client.get(reverse("public:teachers")).content.decode()
 
-    for card in TeacherCard.all_objects.filter(organization=tenant_a.organization):
-        assert card.full_name in body
-        assert f'id="card-{card.pk}"' in body
+    published = Teacher.all_objects.filter(
+        organization=tenant_a.organization, is_published=True
+    )
+    for teacher in published:
+        assert teacher.user.full_name in body
+        assert f'id="card-{teacher.pk}"' in body
 
 
 def test_teachers_page_does_not_leak_another_organization(client, tenant_a, tenant_b):
@@ -482,3 +535,100 @@ def test_deploy_checks_a_real_page_not_only_healthz():
 
     assert "check /healthz" in script
     assert "check /" in script
+
+
+def test_legal_pages_show_requisites_from_the_organization_card(client_a, tenant_a):
+    """
+    Реквизиты на правовых страницах берутся из карточки организации.
+
+    Вшитые в текст ИНН с адресом устаревают молча: текст правит владелец,
+    а сверять его с договором никто не будет.
+    """
+    tenant_a.organization.legal_name = "ИП Проверкин Пётр Петрович"
+    tenant_a.organization.inn = "241502815698"
+    tenant_a.organization.ogrnip = "326246800106544"
+    tenant_a.organization.save()
+
+    for name in ("public:legal_privacy", "public:legal_consent", "public:legal_terms"):
+        body = _text(client_a, name)
+        assert "ИП Проверкин Пётр Петрович" in body, name
+        assert "241502815698" in body, name
+        assert "326246800106544" in body, name
+
+
+def test_teacher_rating_appears_only_with_published_reviews(client_a, tenant_a):
+    """
+    «0.0 из 5» у нового педагога выглядит как плохая оценка,
+    хотя означает «ещё никто не писал».
+    """
+    from apps.site_public.models import TeacherReview
+
+    tenant_a.teacher.is_published = True
+    tenant_a.teacher.subject_line = "Математика"
+    tenant_a.teacher.save()
+
+    assert "rating-badge" not in _text(client_a, "public:landing")
+
+    TeacherReview.all_objects.create(
+        organization=tenant_a.organization, teacher=tenant_a.teacher,
+        author_label="Мария П.", rating=5, text="Отличный педагог.",
+        status=TeacherReview.Status.PUBLISHED,
+    )
+    body = _text(client_a, "public:landing")
+    assert "rating-badge" in body
+    # Русская локаль печатает дробь через запятую — так и надо.
+    assert "5,0" in body
+
+
+def test_rating_ignores_reviews_that_are_not_published(client_a, tenant_a):
+    """Среднее считается по тем же отзывам, что видны на сайте."""
+    from apps.site_public.models import TeacherReview
+
+    tenant_a.teacher.is_published = True
+    tenant_a.teacher.save()
+
+    TeacherReview.all_objects.create(
+        organization=tenant_a.organization, teacher=tenant_a.teacher,
+        author_label="Один", rating=5, text="Пять.",
+        status=TeacherReview.Status.PUBLISHED,
+    )
+    TeacherReview.all_objects.create(
+        organization=tenant_a.organization, teacher=tenant_a.teacher,
+        author_label="Другой", rating=1, text="Один.",
+        status=TeacherReview.Status.PENDING,
+    )
+    from apps.core.tenancy import organization_context
+
+    tenant_a.teacher.refresh_from_db()
+    # Отзывы читаются менеджером арендатора: без контекста он честно
+    # отдаёт пустоту, и тест проверял бы не то.
+    with organization_context(tenant_a.organization):
+        assert tenant_a.teacher.rating == 5.0
+        assert tenant_a.teacher.reviews_count == 1
+
+
+def test_schedule_builder_speaks_human_language(admin_client_for_rules, tenant_a):
+    """
+    Экран открывает администратор центра, а не разработчик.
+
+    Название команды в сообщении об ошибке для него — шум, из которого
+    непонятно, что делать.
+    """
+    body = admin_client_for_rules.get(reverse("cabinet:schedule_builder")).content.decode()
+    assert "bootstrap_organization" not in body
+
+
+@pytest.fixture
+def admin_client_for_rules(client, tenant_a):
+    """Владелец без второго фактора: проверяем тексты, а не вход."""
+    from django.test import override_settings
+
+    from tests.conftest import PASSWORD
+
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.defaults["HTTP_HOST"] = tenant_a.host
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.owner_user.email, "password": PASSWORD},
+        )
+        yield client

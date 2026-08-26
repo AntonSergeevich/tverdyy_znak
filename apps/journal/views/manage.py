@@ -7,6 +7,7 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -113,9 +114,15 @@ def dashboard(request):
 @role_required(*MANAGER_ROLES)
 def leads(request):
     status = request.GET.get("status") or ""
-    queryset = Lead.objects.all().order_by("-created_at")
-    if status in dict(Lead.Status.choices):
-        queryset = queryset.filter(status=status)
+    show_deleted = request.GET.get("deleted") == "1"
+    if show_deleted:
+        queryset = Lead.all_objects.filter(
+            organization=request.organization, deleted_at__isnull=False
+        ).order_by("-created_at")
+    else:
+        queryset = Lead.objects.all().order_by("-created_at")
+        if status in dict(Lead.Status.choices):
+            queryset = queryset.filter(status=status)
     log_audit(action=AuditAction.VIEW_LEAD, request=request, scope="list", status=status or "all")
     return render(
         request,
@@ -124,6 +131,7 @@ def leads(request):
             "leads": list(queryset[:200]),
             "statuses": Lead.Status.choices,
             "active_status": status,
+            "show_deleted": show_deleted,
         },
     )
 
@@ -185,6 +193,43 @@ def student_restore(request, student_id):
     student.restore()
     log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=student, change="restore")
     return render(request, "cabinet/manage/partials/student_row.html", {"student": student})
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def lead_delete(request, lead_id):
+    """
+    Убрать заявку из списка.
+
+    Спам и ошибочные отправки не должны копиться в воронке: они портят
+    и конверсию, и внимание. Удаление мягкое — заявка содержит согласие
+    на обработку данных с датой и версией текста, и стирать её насовсем
+    нельзя: именно этим согласием подтверждается законность обработки.
+    """
+    lead = get_object_or_404(Lead.objects.all(), pk=lead_id)
+    lead.delete()
+    log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=lead,
+              change="lead_deleted")
+    # Пустой ответ: HTMX убирает строку со страницы.
+    return HttpResponse(status=200)
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def lead_restore(request, lead_id):
+    lead = get_object_or_404(
+        Lead.all_objects.filter(organization=request.organization), pk=lead_id
+    )
+    lead.restore()
+    log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=lead,
+              change="lead_restored")
+    return render(
+        request,
+        "cabinet/manage/partials/lead_row.html",
+        {"lead": lead, "statuses": Lead.Status.choices},
+    )
 
 
 def _payroll_rows(start: date, end: date) -> list[dict]:

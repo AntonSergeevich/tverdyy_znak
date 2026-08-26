@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from apps.core.admin import TenantAdmin
-from apps.site_public.models import FaqItem, Lead, LegalDocument, TeacherCard
+from apps.site_public.models import FaqItem, Lead, LegalDocument, TeacherReview
 
 
 @admin.register(Lead)
@@ -22,13 +22,22 @@ class FaqItemAdmin(TenantAdmin):
     list_filter = ("organization", "is_published")
 
 
-@admin.register(TeacherCard)
-class TeacherCardAdmin(TenantAdmin):
-    list_display = ("full_name", "subject_line", "position", "is_featured", "is_published")
-    list_filter = ("organization", "is_published", "is_featured")
-
-
 @admin.register(LegalDocument)
 class LegalDocumentAdmin(TenantAdmin):
     list_display = ("title", "kind", "version", "edited_on", "organization")
     list_filter = ("organization", "kind")
+
+
+@admin.register(TeacherReview)
+class TeacherReviewAdmin(TenantAdmin):
+    """
+    Отзывы обычно разбирают в кабинете — здесь только на всякий случай.
+
+    Текст отзыва не редактируется: править чужие слова и оставлять их
+    подписанными автором нельзя.
+    """
+
+    list_display = ("created_at", "teacher", "rating", "status", "author_label")
+    list_filter = ("organization", "status", "rating")
+    search_fields = ("author_label", "text")
+    readonly_fields = ("text", "rating", "author", "author_label", "created_at")

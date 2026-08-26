@@ -66,11 +66,23 @@
     var rowLevel = panel.querySelector('[data-scale-row-level]');
     var rowFocus = panel.querySelector('[data-scale-row-focus]');
     var rowRetake = panel.querySelector('[data-scale-row-retake]');
+    var wink = panel.querySelector('[data-scale-wink]');
+    var scoreBox = panel.querySelector('.scale-panel__score');
 
     function render() {
       var score = parseInt(input.value, 10) || 0;
       var level = levels.find(function (l) { return score <= l.max; }) || levels[levels.length - 1];
       if (valueEl) valueEl.textContent = score;
+      // Сотня — единственная точка шкалы, где уместно порадоваться вместе
+      // с подростком: число уступает место подмигивающему смайлу.
+      if (scoreBox) scoreBox.classList.toggle('is-full', score === 100);
+      if (wink && score === 100) {
+        wink.classList.remove('is-winking');
+        // Перезапуск анимации: без чтения offsetWidth браузер склеит
+        // снятие и установку класса в один кадр и ничего не проиграет.
+        void wink.offsetWidth;
+        wink.classList.add('is-winking');
+      }
       if (nameEl) nameEl.textContent = level.name;
       if (hintEl) hintEl.textContent = level.hint;
       if (rowLevel) rowLevel.textContent = level.name;
