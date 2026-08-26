@@ -1,4 +1,4 @@
-{% extends "public/base_public.html" %}{% load journal_extras %}
+{% extends "public/base_public.html" %}{% load journal_extras %}{% load public_extras %}
 
 {% block canonical %}<link rel="canonical" href="https://{{ request.get_host }}{{ canonical_path }}">{% endblock %}
 
@@ -167,65 +167,39 @@
         встроена в предметы, а не вынесена в отдельные платные курсы.
       </p>
     </div>
-    <div class="table-wrap" style="max-width:760px">
-      <table class="data programme">
-        <thead>
-          <tr><th style="width:56px">№</th><th>Основные дисциплины</th><th style="width:140px">Уроков в неделю</th></tr>
-        </thead>
-        <tbody>
-          {% for subject in subjects %}
-            <tr>
-              <td class="muted">{{ forloop.counter }}</td>
-              <td>{{ subject.name }}</td>
-              <td><strong>{{ subject.weekly_hours }}</strong></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="3" class="muted">Программа на учебный год заполняется.</td></tr>
-          {% endfor %}
-        </tbody>
-        {% if subjects %}
-          <tfoot>
-            <tr><th></th><th>Всего</th><th>{{ subjects_total_hours }}</th></tr>
-          </tfoot>
-        {% endif %}
-      </table>
-    </div>
-  </div>
-</section>
-
-{# ── Пример учебного дня ─────────────────────────────────────────────────── #}
-<section class="section" id="uchebnyy-den">
-  <div class="container">
-    <div class="section__head">
-      <span class="kicker">Распорядок</span>
-      <h2 class="h-display">Пример учебного дня</h2>
-      <p class="lead">
-        День собран так, чтобы предметы шли блоками, а между ними были паузы
-        на еду и разгрузку. Точное расписание зависит от модуля и класса.
+    {% if subjects %}
+      <div class="programme-columns">
+        {% for column in subject_columns %}
+          {% if column %}
+            <div class="table-wrap">
+              <table class="data programme">
+                <thead>
+                  <tr>
+                    <th style="width:48px">№</th>
+                    <th>Дисциплина</th>
+                    <th style="width:96px">Уроков</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for number, subject in column %}
+                    <tr>
+                      <td class="muted">{{ number }}</td>
+                      <td>{{ subject.name }}</td>
+                      <td><strong>{{ subject.weekly_hours }}</strong></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <p class="programme-total">
+        Всего <strong>{{ subjects_total_hours }}</strong> {{ subjects_total_hours|plural:"урок,урока,уроков" }} в неделю
       </p>
-    </div>
-    <div class="grid">
-      <div class="card" style="flex:1 1 360px">
-        <p class="card__title">Основное расписание</p>
-        <table class="data schedule">
-          <tbody>
-            {% for time, what in schedule_main %}
-              <tr><th style="width:130px">{{ time }}</th><td>{{ what }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div class="card" style="flex:1 1 300px">
-        <p class="card__title">Дополнительные занятия</p>
-        <table class="data schedule">
-          <tbody>
-            {% for time, what in schedule_extra %}
-              <tr><th style="width:130px">{{ time }}</th><td>{{ what }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    {% else %}
+      <p class="muted">Программа на учебный год заполняется.</p>
+    {% endif %}
   </div>
 </section>
 
@@ -269,7 +243,7 @@
     {% if teachers_hidden %}
       <p style="margin-top:24px">
         <a class="btn btn--quiet" href="{% url 'public:teachers' %}">
-          Весь состав — {{ teachers_total }} педагог{{ teachers_total|pluralize:",а,ов" }} →
+          Весь состав — {{ teachers_total }} {{ teachers_total|plural:"педагог,педагога,педагогов" }} →
         </a>
       </p>
     {% endif %}
@@ -489,11 +463,27 @@
         <p>{{ organization.contact_email|default:"email уточняется" }}</p>
         <p class="muted">{{ organization.address|default:"адрес уточняется" }}</p>
       </div>
-      <div class="card card--flat" style="padding:0">
-        {# Карта грузится по клику: iframe на первом экране стоил бы секунды загрузки. #}
-        <button class="photo-placeholder" type="button" style="width:100%;border:1px solid var(--line);cursor:pointer"
-                data-map-placeholder aria-label="Показать карту">Карта · нажмите, чтобы открыть</button>
-      </div>
+      {% if organization.address %}
+        <div class="card card--flat" style="padding:0">
+          {% comment %}
+            Карта грузится по клику: iframe на первом экране стоил бы
+            секунды загрузки. Адрес и запрос берём из карточки организации,
+            чтобы виджет открывался на нужной точке, а не на всей стране.
+          {% endcomment %}
+          <button class="map-teaser" type="button"
+                  data-map-placeholder
+                  data-map-query="{{ organization.map_query }}"
+                  aria-label="Показать карту">
+            <span class="map-teaser__mark" aria-hidden="true">Ъ</span>
+            <span class="map-teaser__text">{{ organization.address }}</span>
+            <span class="map-teaser__hint">Нажмите, чтобы открыть карту</span>
+          </button>
+        </div>
+        <p class="small">
+          <a href="https://yandex.ru/maps/?text={{ organization.map_query|urlencode }}"
+             target="_blank" rel="noopener noreferrer">Открыть в Яндекс.Картах</a>
+        </p>
+      {% endif %}
     </div>
   </div>
 </section>
@@ -505,7 +495,11 @@
   document.querySelectorAll('[data-map-placeholder]').forEach(function (button) {
     button.addEventListener('click', function () {
       var frame = document.createElement('iframe');
-      frame.src = 'https://yandex.ru/map-widget/v1/?text=' + encodeURIComponent('{{ organization.address|escapejs }}');
+      // mode=search и z заставляют виджет поставить метку и приблизиться
+      // к адресу. Без них он открывается обзором всей страны — карта
+      // формально есть, а толку от неё нет.
+      frame.src = 'https://yandex.ru/map-widget/v1/?mode=search&z=17&text='
+        + encodeURIComponent(button.getAttribute('data-map-query') || '');
       frame.width = '100%'; frame.height = '320'; frame.loading = 'lazy';
       frame.title = 'Карта проезда'; frame.style.border = '1px solid var(--line)';
       button.replaceWith(frame);

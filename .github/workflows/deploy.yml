@@ -89,10 +89,10 @@ jobs:
           USER: ${{ secrets.DEPLOY_USER }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          # Рабочую копию обновляем до вызова скрипта: сам скрипт приезжает
-          # вместе с кодом, и запустить ещё не доставленную версию нельзя.
-          # Внутри fetch повторяется — второй раз он ничего не меняет.
-          ssh "$USER@$HOST" "cd /srv/tverdyy-znak \
-            && git fetch origin '$BRANCH' \
-            && git reset --hard 'origin/$BRANCH' \
-            && bash deploy/scripts/remote-deploy.sh '$BRANCH'"
+          # Та же команда, что человек набирает на сервере руками.
+          # Один путь выката — меньше шансов, что «через CI» и «руками»
+          # начнут делать разное.
+          # Если короткая команда на сервере ещё не установлена (симлинк
+          # ставит provision.sh), зовём скрипт по полному пути — выкат не
+          # должен зависеть от того, дошли ли руки до симлинка.
+          ssh "$USER@$HOST" "command -v tz-deploy >/dev/null && tz-deploy '$BRANCH' || bash /srv/tverdyy-znak/deploy/scripts/pull-and-deploy.sh '$BRANCH'"

@@ -141,6 +141,24 @@ class Organization(TimeStampedModel):
         return timezone.localtime(value or timezone.now(), self.tzinfo)
 
     @property
+    def map_query(self) -> str:
+        """
+        Что искать на карте.
+
+        Адрес в карточке пишется без страны и иногда без города — для
+        подвала так и надо. Виджету же короткая строка вроде «ул. Весны, 10»
+        даёт обзор всей России вместо точки, поэтому недостающее
+        дописываем здесь.
+        """
+        address = (self.address or "").strip()
+        if not address:
+            return ""
+        parts = [address]
+        if "россия" not in address.lower():
+            parts.insert(0, "Россия")
+        return ", ".join(parts)
+
+    @property
     def primary_domain(self) -> str | None:
         domain = self.domains.filter(is_primary=True).first() or self.domains.first()
         return domain.host if domain else None

@@ -5,12 +5,12 @@
 .DESCRIPTION
     Обычный путь — не этот: пуш в ветку запускает GitHub Actions, который
     прогоняет тесты и выкатывает сам (.github/workflows/deploy.yml).
-    Скрипт нужен, когда выкатить надо прямо сейчас: Actions недоступны,
-    упали, или изменение на сервере, а не в коде.
 
-    Что происходит на сервере, описано в deploy/scripts/remote-deploy.sh —
-    один и тот же файл для CI и для ручного запуска. Тесты локально не
-    гоняются: их место в CI, где база всегда есть.
+    Скрипт — обёртка над той же серверной командой `tz-deploy`, ради
+    единственного удобства: он ещё и пушит текущую ветку. Если пушить
+    нечего, ровно то же делает
+
+        ssh tz@85.198.66.41 tz-deploy
 
 .EXAMPLE
     .\deploy\deploy.ps1
@@ -20,7 +20,6 @@
 [CmdletBinding()]
 param(
     [string]$Server = "tz@85.198.66.41",   # приложение работает не от root
-    [string]$Path   = "/srv/tverdyy-znak",
     [string]$Branch = "",
     [switch]$SkipPush
 )
@@ -62,14 +61,12 @@ if (-not $SkipPush) {
 }
 
 Write-Step "Выкатываю на $Server"
-# Рабочую копию на сервере обновляем до вызова скрипта, а не внутри него:
-# сам скрипт приезжает вместе с кодом, и запустить ещё не доставленную
-# версию нельзя. Внутри fetch повторяется — второй раз он ничего не меняет.
-$remote = "cd '$Path' && git fetch origin '$Branch' && git reset --hard 'origin/$Branch'" +
-          " && bash deploy/scripts/remote-deploy.sh '$Branch'"
-ssh $Server $remote
+# Вся серверная логика живёт в tz-deploy: одна команда и там, и здесь.
+# Если короткая команда на сервере ещё не установлена, зовём скрипт
+# по полному пути: выкат не должен зависеть от симлинка.
+ssh $Server "command -v tz-deploy >/dev/null && tz-deploy '$Branch' || bash /srv/tverdyy-znak/deploy/scripts/pull-and-deploy.sh '$Branch'"
 if ($LASTEXITCODE -ne 0) {
-    throw "Выкат не прошёл. Логи: ssh $Server 'cd $Path && docker compose logs --tail=50 web'"
+    throw "Выкат не прошёл. Логи: ssh $Server 'cd /srv/tverdyy-znak && docker compose logs --tail=50 web'"
 }
 
 Write-Host "`nГотово: https://tverdyy-znak.ru" -ForegroundColor Green

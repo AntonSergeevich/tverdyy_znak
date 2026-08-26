@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
-from apps.journal.models import Subject
+from apps.journal.models import Subject, SubjectKind
 from apps.site_public.forms import LeadForm
 from apps.site_public.models import FaqItem, LegalDocument, TeacherCard
 from apps.site_public.services.leads import check_rate_limit, create_lead
@@ -168,11 +168,21 @@ def _landing_context(request, form=None) -> dict:
     organization = request.organization
     # Программа берётся из справочника, а не дублируется в шаблоне:
     # поменяли нагрузку в админке — таблица на сайте изменилась.
+    # Только учебные предметы: обед, утренний круг и рефлексия занимают
+    # место в расписании, но в таблице «Программа ФГОС» им делать нечего —
+    # они попадали туда строками с нулём часов.
     subjects = list(
-        Subject.objects.filter(academic_year__is_current=True).order_by("position", "name")
+        Subject.objects.filter(
+            academic_year__is_current=True, kind=SubjectKind.ACADEMIC
+        ).order_by("position", "name")
     )
+    # Тринадцать строк в один столбец растягивают экран, а справа пусто.
+    # Режем пополам: перенос — задача разметки, а не глаза дизайнера.
+    numbered = list(enumerate(subjects, start=1))
+    half = (len(numbered) + 1) // 2
     return {
         "subjects": subjects,
+        "subject_columns": [numbered[:half], numbered[half:]],
         "subjects_total_hours": sum(subject.weekly_hours for subject in subjects),
         "features": FEATURES,
         "program_benefits": PROGRAM_BENEFITS,

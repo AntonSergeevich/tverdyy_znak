@@ -254,7 +254,7 @@ def test_deploy_script_checks_that_push_succeeded():
 
     script = Path("deploy/deploy.ps1").read_text(encoding="utf-8-sig")
     push = script.index("git push origin $Branch")
-    deploy = script.index("ssh $Server")
+    deploy = script.index("ssh $Server \"command -v tz-deploy")
 
     assert push < deploy
     assert "$LASTEXITCODE" in script[push:deploy]
@@ -344,3 +344,80 @@ def test_teachers_page_does_not_leak_another_organization(client, tenant_a, tena
     body = client.get(reverse("public:teachers")).content.decode()
 
     assert "Чужой основатель" not in body
+
+
+def test_programme_table_lists_only_academic_subjects(client, tenant_a):
+    """
+    Обед и утренний круг стоят в расписании, но не в программе ФГОС.
+
+    Они попадали в публичную таблицу строками с нулём часов — выглядело
+    так, будто центр отчитывается об обеде как об учебной дисциплине.
+    """
+    from apps.journal.models import Subject, SubjectKind
+
+    Subject.all_objects.create(
+        organization=tenant_a.organization, academic_year=tenant_a.year,
+        name="Обед", kind=SubjectKind.ACTIVITY, weekly_hours=0,
+    )
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:landing")).content.decode()
+
+    programme = body[body.index('id="programma"'):body.index('id="pedagogi"')]
+    assert tenant_a.subject.name in programme
+    assert "Обед" not in programme
+
+
+def test_map_query_is_specific_enough_to_find_the_place(tenant_a):
+    """
+    Виджету карт короткого адреса мало: он открывается обзором страны.
+
+    В подвале адрес должен остаться коротким, поэтому строку для карты
+    собираем отдельно.
+    """
+    tenant_a.organization.address = "Красноярск, ул. Весны, 10"
+    assert tenant_a.organization.map_query == "Россия, Красноярск, ул. Весны, 10"
+
+    tenant_a.organization.address = ""
+    assert tenant_a.organization.map_query == ""
+
+
+def test_map_is_not_offered_without_an_address(client, tenant_a):
+    tenant_a.organization.address = ""
+    tenant_a.organization.save(update_fields=["address"])
+
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:landing")).content.decode()
+
+    # Скрипт-обработчик в разметке остаётся всегда, а вот кнопки,
+    # которая обещает карту, без адреса быть не должно.
+    assert 'class="map-teaser"' not in body
+    assert "Открыть в Яндекс.Картах" not in body
+
+
+@pytest.mark.parametrize(
+    "number, expected",
+    [
+        (1, "урок"), (2, "урока"), (4, "урока"), (5, "уроков"),
+        (11, "уроков"), (12, "уроков"), (14, "уроков"),
+        (21, "урок"), (22, "урока"), (33, "урока"), (100, "уроков"),
+        (0, "уроков"),
+    ],
+)
+def test_russian_plural(number, expected):
+    """
+    Встроенный pluralize знает две формы и на трёх молча отдаёт пустоту.
+
+    На сайте это выглядело как «Всего 33 урок в неделю» и
+    «Весь состав — 9 педагог».
+    """
+    from apps.site_public.templatetags.public_extras import plural
+
+    assert plural(number, "урок,урока,уроков") == expected
+
+
+def test_programme_total_is_declined(client, tenant_a):
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    body = client.get(reverse("public:landing")).content.decode()
+
+    hours = tenant_a.subject.weekly_hours
+    assert f"{hours}</strong> урок" in body

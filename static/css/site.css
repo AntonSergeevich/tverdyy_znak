@@ -366,6 +366,32 @@ table.programme tfoot th { border-top: 2px solid var(--line); font-size: 15px; c
 .teacher-card__bio p { margin: 0 0 6px; }
 .teacher-card__bio p:last-child { margin-bottom: 0; }
 
+/* Заглушка карты: до клика это кнопка, а не серый прямоугольник —
+   человек должен видеть адрес, даже если карту не откроет. */
+.map-teaser {
+  width: 100%; display: grid; gap: 6px; justify-items: center; align-content: center;
+  min-height: 180px; padding: 20px 16px; cursor: pointer;
+  background: var(--peach-soft); border: 1px solid var(--line); color: var(--ink);
+  font: inherit; text-align: center;
+}
+.map-teaser:hover { border-color: var(--accent); }
+.map-teaser__mark {
+  font-family: 'Constantine', Georgia, serif; font-weight: 700;
+  font-size: 40px; line-height: 1; color: var(--peach);
+}
+.map-teaser__text { font-weight: 600; }
+.map-teaser__hint { font-size: 14px; color: var(--ink-3); }
+
+/* Программа в два столбца: тринадцать дисциплин в одну колонку тянут
+   экран вниз, а половина ширины при этом пустует. На узком экране
+   auto-fit сам сводит их обратно в один столбец. */
+.programme-columns {
+  display: grid; gap: clamp(12px, 2vw, 28px);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+}
+.programme-total { margin-top: 16px; font-size: 17px; }
+
 /* Педагог крупно: фото слева, текст справа. Так подан основатель
    на главной и на странице состава. */
 .teacher-lead {

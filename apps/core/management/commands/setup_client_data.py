@@ -213,11 +213,15 @@ class Command(BaseCommand):
                     f"  {'создана' if created else 'обновлена'}: {card.full_name} ({mark})"
                 )
 
+        # Telegram-уведомления заказчик подключит отдельно, когда понадобятся,
+        # поэтому про TG_CHAT_ID здесь больше не напоминаем: напоминание,
+        # которое не собираются выполнять, обесценивает весь список.
         missing = [
             label
             for label, value in [
-                ("Telegram chat_id для заявок", organization.telegram_chat_id),
-
+                ("телефон", organization.contact_phone),
+                ("email", organization.contact_email),
+                ("адрес", organization.address),
             ]
             if not value
         ]

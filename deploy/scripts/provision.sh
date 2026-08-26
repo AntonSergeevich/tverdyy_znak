@@ -44,6 +44,12 @@ echo "== Каталог приложения как доверенный для 
 git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 sudo -u "$APP_USER" git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 
+echo "== Команда выката"
+# Одна короткая команда вместо длинной строки с путями: «tz-deploy»
+# работает и на сервере, и снаружи через ssh tz@<host> tz-deploy.
+# Симлинк, а не копия: обновляется вместе с репозиторием.
+ln -sf "$APP_DIR/deploy/scripts/pull-and-deploy.sh" /usr/local/bin/tz-deploy
+
 echo "== Файрвол"
 ufw --force default deny incoming
 ufw --force default allow outgoing
