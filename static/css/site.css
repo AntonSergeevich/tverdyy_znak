@@ -618,19 +618,15 @@ body.htmx-request::after {
 }
 .scale-wink svg { width: 100%; height: 100%; display: block; }
 .scale-panel__score.is-full .scale-wink { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.scale-wink__wink { opacity: 0; }
-.scale-wink__eye { transform-origin: 22px 26px; }
-.scale-wink.is-winking .scale-wink__eye { animation: tz-eye-close 1.5s ease .35s 1; }
-.scale-wink.is-winking .scale-wink__wink { animation: tz-eye-open 1.5s ease .35s 1; }
-@keyframes tz-eye-close {
-  0%, 28% { opacity: 1; }
-  32%, 52% { opacity: 0; }
-  56%, 100% { opacity: 1; }
-}
-@keyframes tz-eye-open {
-  0%, 28% { opacity: 0; }
-  32%, 52% { opacity: 1; }
-  56%, 100% { opacity: 0; }
+/* Подмигивает правый глаз — сплющивается и распрямляется обратно.
+   Оба глаза нарисованы всегда: раньше один прятался, а второй появлялся
+   вместо него, и смайл заканчивал подмигивание одноглазым. */
+.scale-wink__eye { transform-box: fill-box; transform-origin: center; }
+.scale-wink.is-winking .scale-wink__eye--right { animation: tz-wink 1.2s ease .35s 1; }
+@keyframes tz-wink {
+  0%, 24% { transform: scaleY(1); }
+  32%, 46% { transform: scaleY(.14); }
+  54%, 100% { transform: scaleY(1); }
 }
 
 /* Заголовок раздела появляется при прокрутке — один раз и без задержки
@@ -647,8 +643,7 @@ body.htmx-request::after {
   .logo__mark, .btn, .card { transition: none; }
   .logo:hover .logo__mark, .btn:hover, .teacher-card:hover, .price-card:hover { transform: none; }
   .scale-wink, .scale-panel__score .numeral { transition: none; }
-  .scale-wink.is-winking .scale-wink__eye,
-  .scale-wink.is-winking .scale-wink__wink { animation: none; }
+  .scale-wink.is-winking .scale-wink__eye--right { animation: none; }
   .section__head { animation: none; }
 }
 
@@ -938,3 +933,26 @@ details.fieldset > summary::after {
   font-weight: 700;
 }
 details.fieldset[open] > summary::after { content: ' −'; }
+
+/* Разрушающее действие рядом с обычным: тихая кнопка, но в цвете
+   предупреждения. Заливкой она перетягивала бы на себя внимание с той,
+   которой пользуются каждый день. */
+.btn--quiet.btn--danger {
+  background: var(--surface);
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+}
+.btn--quiet.btn--danger:hover { background: var(--accent-2); color: #FFF; }
+
+/* Подсказка к конструктору: отдельной строкой под кнопками и свёрнутая.
+   В колонке педагогов она занимала экран целиком, и до первой карточки
+   приходилось прокручивать. */
+.builder-help { flex: 1 0 100%; font-size: 14px; color: var(--ink-3); }
+.builder-help > summary {
+  cursor: pointer; list-style: none; width: max-content;
+  color: var(--ink-2); font-weight: 600;
+}
+.builder-help > summary::-webkit-details-marker { display: none; }
+.builder-help > summary::after { content: ' +'; color: var(--accent); }
+.builder-help[open] > summary::after { content: ' −'; }
+.builder-help p { margin: 8px 0 0; max-width: 78ch; line-height: 1.5; }

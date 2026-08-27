@@ -13,14 +13,28 @@
     {% endcomment %}
     <span class="scale-panel__score">
       <span class="numeral" data-scale-value>{{ initial_score }}</span>
+      {% comment %}
+        Смайл — это сама буква Ъ, а не безымянный кружок: стойка с флагом
+        слева, чаша справа внизу. Верхний край чаши слегка провисает и
+        читается как улыбка, а глаза стоят в пустоте над ней — там, где у
+        буквы и так ничего нет. Получается знак центра, который улыбается,
+        а не посторонняя иконка.
+
+        Глаза оба нарисованы всегда. Раньше правого в разметке не было
+        вовсе — вместо него лежала дуга закрытого глаза, и после
+        подмигивания смайл оставался одноглазым.
+      {% endcomment %}
       <span class="scale-wink" data-scale-wink aria-hidden="true">
         <svg viewBox="0 0 64 64" width="64" height="64" role="presentation">
-          <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="4"/>
-          <circle class="scale-wink__eye" cx="22" cy="26" r="3.4" fill="currentColor"/>
-          <path class="scale-wink__wink" d="M37 26q5-5 10 0" fill="none"
-                stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-          <path d="M20 40q12 11 24 0" fill="none" stroke="currentColor"
-                stroke-width="4" stroke-linecap="round"/>
+          <g fill="none" stroke="currentColor" stroke-width="6.5"
+             stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13 H22 V50"/>
+            <path d="M22 33 Q31.5 40.5 41 33 C49.5 33 53 36.6 53 41.5
+                     C53 46.4 49.5 50 41 50 H22"/>
+          </g>
+          <circle class="scale-wink__eye" cx="30" cy="22" r="3.8" fill="currentColor"/>
+          <circle class="scale-wink__eye scale-wink__eye--right" cx="42" cy="22"
+                  r="3.8" fill="currentColor"/>
         </svg>
       </span>
     </span>

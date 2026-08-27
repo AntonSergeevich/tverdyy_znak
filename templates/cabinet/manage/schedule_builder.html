@@ -31,28 +31,42 @@
     </label>
   </form>
 
-  <div class="btn-row">
-    <label class="field" style="margin:0">
-      <span class="field__label">Повторить неделю вперёд</span>
-      <span class="btn-row">
-        <input class="input" type="number" min="1" max="12" value="4" id="copy-weeks" style="width:90px">
-        <button class="btn btn--quiet" type="button" data-copy-week
-                data-url="{% url 'cabinet:week_copy' %}"
-                data-week="{{ monday|date:'Y-m-d' }}"
-                data-group="{{ group.pk }}">Повторить</button>
-      </span>
-    </label>
+  <label class="field" style="margin:0">
+    <span class="field__label">Повторить неделю вперёд</span>
+    <span class="btn-row">
+      <input class="input" type="number" min="1" max="12" value="4" id="copy-weeks" style="width:90px">
+      <button class="btn btn--quiet" type="button" data-copy-week
+              data-url="{% url 'cabinet:week_copy' %}"
+              data-week="{{ monday|date:'Y-m-d' }}"
+              data-group="{{ group.pk }}">Повторить</button>
+    </span>
+  </label>
 
-    {% comment %}
-      Очистка недели стоит отдельно и подписана словом «неделю»: рядом с
-      кнопкой «Повторить» слово «Очистить» само по себе читалось бы как
-      «очистить клетку».
-    {% endcomment %}
-    <button class="btn btn--quiet btn--danger" type="button" data-clear-week
-            data-url="{% url 'cabinet:week_clear' %}"
-            data-week="{{ monday|date:'Y-m-d' }}"
-            data-group="{{ group.pk }}">Очистить неделю</button>
-  </div>
+  {% comment %}
+    Очистка недели стоит отдельным ребёнком панели, а не внутри соседнего
+    ряда: вложенная, она выравнивалась по середине высокой подписи и
+    висела выше «Повторить». Подписана словом «неделю» — рядом с
+    «Повторить» одно «Очистить» читалось бы как «очистить клетку».
+  {% endcomment %}
+  <button class="btn btn--quiet btn--danger" type="button" data-clear-week
+          data-url="{% url 'cabinet:week_clear' %}"
+          data-week="{{ monday|date:'Y-m-d' }}"
+          data-group="{{ group.pk }}">Очистить неделю</button>
+
+  {% comment %}
+    Подсказка переехала сюда из колонки педагогов: там она занимала
+    экран целиком, и до первой карточки приходилось прокручивать.
+    Свёрнута по умолчанию — читают её один раз.
+  {% endcomment %}
+  <details class="builder-help">
+    <summary>Как ставить занятия</summary>
+    <p>Перетащите карточку педагога в клетку. Карточка остаётся на месте —
+      одного педагога можно поставить сколько угодно раз.</p>
+    <p>Если в клетке уже стоит занятие, карточка поверх него назначает
+      педагога, а предмет оставляет как есть — так наставник встаёт на
+      утренний круг и рефлексию. Сменить сам предмет: убрать занятие
+      крестиком и перетащить заново.</p>
+  </details>
 </div>
 
 {% if not module %}
@@ -78,8 +92,6 @@
 <div class="builder">
   <aside class="builder__side">
     <p class="label" style="font-size:15px">Педагоги</p>
-    <p class="muted small">Перетащите карточку в клетку. Карточка остаётся на месте — одного педагога можно поставить сколько угодно раз.</p>
-    <p class="muted small">Если в клетке уже стоит занятие, карточка поверх него назначает педагога, а предмет оставляет как есть — так наставник встаёт на утренний круг и рефлексию. Сменить сам предмет: убрать занятие крестиком и перетащить заново.</p>
 
     {% comment %}
       У педагога может быть несколько предметов. Выбор предмета — рядом
