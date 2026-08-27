@@ -1,0 +1,126 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}{{ person.full_name|default:person.login }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">
+    {{ person.full_name|default:person.login }}
+  </h1>
+  <a class="btn btn--quiet" href="{% url 'cabinet:staff' %}">К списку</a>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+  <p class="card__title">Доступ в кабинет</p>
+  {% if has_access %}
+    <p>Логин: <code>{{ person.login }}</code></p>
+    <p class="muted small">
+      Последний вход: {{ person.last_activity_at|date:"d.m.Y H:i"|default:"ещё не заходил" }}
+    </p>
+  {% else %}
+    <p class="muted">
+      Доступа нет: человек заведён, но войти в кабинет пока не может.
+      Кнопка выдаст логин и пароль и включит учётную запись.
+    </p>
+  {% endif %}
+  <span class="btn-row" style="margin-top:10px">
+    <form method="post" action="{% url 'cabinet:password_reset' person.pk %}">
+      {% csrf_token %}
+      <button class="btn{% if has_access %} btn--quiet{% endif %}" type="submit">
+        {% if has_access %}Новый пароль{% else %}Выдать логин и пароль{% endif %}
+      </button>
+    </form>
+    {% if has_access %}
+      <form method="post" action="{% url 'cabinet:two_factor_reset' person.pk %}">
+        {% csrf_token %}
+        <button class="btn btn--quiet" type="submit"
+                {% if not person.totp_device.is_confirmed %}disabled title="Приложение не привязано"{% endif %}>
+          Отвязать приложение
+        </button>
+      </form>
+    {% endif %}
+  </span>
+</div>
+
+<form method="post" class="form form--wide" enctype="multipart/form-data">{% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="message message--error">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <fieldset class="fieldset">
+    <legend>Кто это</legend>
+    <div class="field-grid">
+      {% for field in form %}
+        {% if field.name != "roles" %}
+          <label class="field{% if field.errors %} field--error{% endif %}">
+            <span class="field__label">{{ field.label }}</span>
+            {{ field }}
+            {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+            {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+          </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  {% comment %}
+    Роли — галочками: один человек бывает и владельцем, и педагогом сразу.
+    Именно так устроен центр, и форма не должна заставлять выбирать.
+  {% endcomment %}
+  <fieldset class="fieldset">
+    <legend>Роли</legend>
+    {% if can_edit_roles %}
+      {% if form.roles.errors %}
+        <p class="field__error">{{ form.roles.errors.0 }}</p>
+      {% endif %}
+      <div class="checkbox-grid">{{ form.roles }}</div>
+      <p class="field__hint" style="margin-top:10px">
+        Педагог видит свои занятия и выставляет баллы. Администратор ведёт
+        журнал и заявки. Владелец видит ещё и деньги.
+        {% if is_self %}Снять права с самого себя нельзя.{% endif %}
+      </p>
+    {% else %}
+      <p>{{ roles_now }}</p>
+      <p class="field__hint">Роли меняет владелец.</p>
+    {% endif %}
+  </fieldset>
+
+  {% comment %}
+    Блок педагога показываем всегда: отметить «педагог» и тут же указать
+    предметы должно получаться за один заход, без сохранить-и-вернуться.
+    Если роль не отмечена и карточки педагога нет — эти поля просто не
+    сохраняются.
+  {% endcomment %}
+  <fieldset class="fieldset">
+    <legend>Если ведёт занятия</legend>
+    {% if not teacher %}
+      <p class="field__hint" style="margin-bottom:12px">
+        Заполняется, когда отмечена роль «педагог». Ставка нужна для расчёта
+        ФОТ, остальное — для карточки на сайте.
+      </p>
+    {% endif %}
+    <div class="field-grid">
+      {% for field in teacher_form %}
+        {% if field.name != "subjects" %}
+          <label class="field{% if field.errors %} field--error{% endif %}">
+            <span class="field__label">{{ field.label }}</span>
+            {{ field }}
+            {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+            {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+          </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div style="margin-top:16px">
+      <span class="field__label">Предметы</span>
+      <div class="checkbox-grid">{{ teacher_form.subjects }}</div>
+    </div>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn" type="submit">Сохранить</button>
+    {% if can_edit_roles and not is_self %}
+      <a class="btn btn--quiet" href="{% url 'cabinet:staff_remove' person.pk %}">Убрать сотрудника</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

@@ -73,10 +73,6 @@ urlpatterns = [
     path("ucheniki/<uuid:student_id>/izmenit/", people.student_edit, name="student_edit"),
     path("ucheniki/<uuid:student_id>/udalit/", people.student_delete, name="student_delete"),
 
-    path("pedagogi/", people.teachers, name="teachers"),
-    path("pedagogi/dobavit/", people.teacher_create, name="teacher_create"),
-    path("pedagogi/<uuid:teacher_id>/izmenit/", people.teacher_edit, name="teacher_edit"),
-    path("pedagogi/<uuid:teacher_id>/udalit/", people.teacher_delete, name="teacher_delete"),
 
     # Справочник предметов: список не зашит в код
     path("predmety/", subjects_views.subjects, name="subjects"),
@@ -84,8 +80,13 @@ urlpatterns = [
     path("predmety/<int:subject_id>/izmenit/", subjects_views.subject_edit, name="subject_edit"),
     path("predmety/<int:subject_id>/udalit/", subjects_views.subject_delete, name="subject_delete"),
 
+    # Один раздел на всех, кто работает в центре: педагоги, администраторы
+    # и владельцы. Заводить человека и править его данные — одно действие,
+    # и делаться оно должно в одном месте.
     path("sotrudniki/", people.staff, name="staff"),
     path("sotrudniki/dobavit/", people.staff_create, name="staff_create"),
+    path("sotrudniki/<uuid:user_id>/", people.staff_card, name="staff_card"),
+    path("sotrudniki/<uuid:user_id>/ubrat/", people.staff_remove, name="staff_remove"),
 
     path("dostup/<uuid:user_id>/novyy-parol/", people.password_reset, name="password_reset"),
     path("lyudi/<uuid:user_id>/vtoroy-faktor/", people.two_factor_reset, name="two_factor_reset"),

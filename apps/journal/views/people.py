@@ -21,7 +21,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from apps.accounts.models import Role
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+
+from apps.accounts.models import Membership, Role, STAFF_ROLES
 from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
 from apps.journal.forms import (
@@ -29,10 +32,10 @@ from apps.journal.forms import (
     ParentInviteForm,
     PaymentForm,
     StaffForm,
+    StaffIdentityForm,
     StudentEditForm,
     StudentForm,
     TeacherEditForm,
-    TeacherForm,
 )
 from apps.journal.models import (
     Goal,
@@ -49,6 +52,7 @@ from apps.journal.models import (
     Teacher,
 )
 from apps.journal.services import onboarding
+from apps.journal.services import staff as staff_service
 from apps.journal.services.grading import get_scale
 from apps.journal.views.parent import current_module
 
@@ -282,149 +286,291 @@ def student_card(request, student_id):
 
 # ─── Педагоги ───────────────────────────────────────────────────────────────
 
+# ─── Сотрудники ─────────────────────────────────────────────────────────────
+#
+# Один раздел на всех, кто работает в центре. Раньше педагоги жили в своём
+# списке, а администраторы в другом — при том что действие одно: завести
+# человека, выдать ему доступ, поправить данные. Разделение заставляло
+# помнить, какая дверь для кого, и делало невозможным простое: сделать
+# педагога ещё и владельцем.
+
+# Порядок разделов на странице и старшинство ролей: человек с двумя ролями
+# показывается один раз, в разделе старшей.
+ROLE_ORDER = [
+    (Role.OWNER, "Владельцы"),
+    (Role.PLATFORM_ADMIN, "Администраторы платформы"),
+    (Role.ADMIN, "Администраторы"),
+    (Role.TEACHER, "Педагоги"),
+]
+
+
+def _can_edit_roles(request) -> bool:
+    return request.user.is_superuser or request.user.has_role(
+        request.organization, Role.OWNER, Role.PLATFORM_ADMIN
+    )
+
+
+def _available_roles(request):
+    return staff_service.role_choices(
+        with_platform_admin=(
+            request.user.is_superuser
+            or request.user.has_role(request.organization, Role.PLATFORM_ADMIN)
+        )
+    )
+
+
+def _assert_may_touch(request, target) -> None:
+    """
+    Владельца правит только владелец.
+
+    Иначе роль администратора становится способом добраться до владельца:
+    сменить ему почту, выдать новый пароль и войти.
+    """
+    if target.pk == request.user.pk:
+        return
+    target_is_privileged = target.memberships.filter(
+        organization=request.organization, is_active=True,
+        role__in=(Role.OWNER, Role.PLATFORM_ADMIN),
+    ).exists()
+    if target_is_privileged and not _can_edit_roles(request):
+        raise PermissionDenied("Карточку владельца открывает только владелец.")
+
+
 @login_required
 @role_required(*MANAGER_ROLES)
-def teachers(request):
-    rows = (
-        Teacher.objects.select_related("user")
-        .prefetch_related("subjects")
-        .order_by("user__last_name")
+def staff(request):
+    """Все, кто работает в центре, — по разделам."""
+    organization = request.organization
+    memberships = (
+        Membership.objects.filter(
+            organization=organization, is_active=True, role__in=STAFF_ROLES
+        )
+        .select_related("user")
+        .prefetch_related("user__teacher_profile__subjects")
+        .order_by("user__last_name", "user__first_name")
     )
-    return render(request, "cabinet/manage/teachers.html", {"teachers": list(rows)})
+
+    people: dict = {}
+    for membership in memberships:
+        people.setdefault(membership.user, set()).add(membership.role)
+
+    sections = []
+    for role, label in ROLE_ORDER:
+        rows = []
+        for user, roles in people.items():
+            # Человек показывается один раз — в разделе своей старшей роли.
+            top = next(r for r, _ in ROLE_ORDER if r in roles)
+            if top != role:
+                continue
+            rows.append(
+                {
+                    "user": user,
+                    "roles": ", ".join(
+                        Role(r).label for r, _ in ROLE_ORDER if r in roles
+                    ),
+                    "teacher": getattr(user, "teacher_profile", None),
+                    # «Выдать доступ» превращается в «новый пароль» только
+                    # после того, как доступ действительно выдан.
+                    "has_access": user.is_active and user.has_usable_password(),
+                }
+            )
+        rows.sort(key=lambda row: (row["user"].last_name, row["user"].first_name))
+        if rows:
+            sections.append({"label": label, "rows": rows})
+
+    return render(request, "cabinet/manage/staff.html", {"sections": sections})
 
 
 @login_required
 @role_required(*MANAGER_ROLES)
 @require_http_methods(["GET", "POST"])
-def teacher_create(request):
+def staff_create(request):
+    """Новый сотрудник — любой роли, включая педагога."""
     organization = request.organization
-    form = TeacherForm(request.POST or None, request.FILES or None)
+    roles = _available_roles(request)
+    if not _can_edit_roles(request):
+        # Администратор заводит педагогов, но не себе подобных.
+        roles = [choice for choice in roles if choice[0] == Role.TEACHER]
+
+    form = StaffForm(request.POST or None, roles=roles)
+    teacher_form = TeacherEditForm(
+        request.POST or None, request.FILES or None, prefix="teacher"
+    )
 
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
+        is_teacher = data["role"] == Role.TEACHER
+        if is_teacher and not teacher_form.is_valid():
+            return _staff_form_page(request, form, teacher_form)
+
         with transaction.atomic():
             user, credentials = onboarding.issue_account(
                 organization=organization,
-                role=Role.TEACHER,
+                role=data["role"],
                 last_name=data["last_name"],
                 first_name=data["first_name"],
                 middle_name=data["middle_name"],
                 phone=data["phone"],
                 email=data["email"],
             )
-            teacher = Teacher.objects.create(
-                organization=organization, user=user,
-                hourly_rate=data["hourly_rate"],
-                # Всё, что видно на сайте, заполняется здесь же: заводить
-                # человека второй раз в другом месте больше не нужно.
-                photo=data.get("photo"),
-                subject_line=data.get("subject_line", ""),
-                experience=data.get("experience", ""),
-                bio=data.get("bio", ""),
-                is_published=data.get("is_published", False),
-            )
-            teacher.subjects.set(data["subjects"])
+            if is_teacher:
+                teacher = teacher_form.save(commit=False)
+                teacher.organization = organization
+                teacher.user = user
+                teacher.save()
+                teacher_form.save_m2m()
 
-        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=teacher,
-                  change="teacher_created")
-        messages.success(request, f"{teacher.short_name} добавлен.")
-        return _credentials_response(request, credentials, back_url=reverse("cabinet:teachers"))
+        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=user,
+                  change="staff_created", role=data["role"])
+        messages.success(request, f"{user.full_name} добавлен.")
+        return _credentials_response(request, credentials, back_url=reverse("cabinet:staff"))
 
-    return render(request, "cabinet/manage/teacher_form.html", {"form": form, "mode": "create"})
+    return _staff_form_page(request, form, teacher_form)
 
 
-@login_required
-@role_required(*MANAGER_ROLES)
-@require_http_methods(["GET", "POST"])
-def teacher_edit(request, teacher_id):
-    teacher = get_object_or_404(Teacher.objects.select_related("user"), pk=teacher_id)
-    form = TeacherEditForm(request.POST or None, request.FILES or None, instance=teacher)
-
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=teacher,
-                  change="teacher_edited")
-        messages.success(request, "Сохранено.")
-        return redirect("cabinet:teachers")
-
+def _staff_form_page(request, form, teacher_form):
     return render(
         request,
-        "cabinet/manage/teacher_form.html",
-        {"form": form, "mode": "edit", "teacher": teacher},
+        "cabinet/manage/staff_form.html",
+        {"form": form, "teacher_form": teacher_form, "teacher_role": Role.TEACHER},
     )
 
 
 @login_required
 @role_required(*MANAGER_ROLES)
 @require_http_methods(["GET", "POST"])
-def teacher_delete(request, teacher_id):
-    teacher = get_object_or_404(Teacher.objects.select_related("user"), pk=teacher_id)
-    form = DeleteConfirmForm(request.POST or None, expected=teacher.user.last_name)
+def staff_card(request, user_id):
+    """
+    Карточка сотрудника: имя, контакты, роли и — если он педагог — всё,
+    что о нём знает журнал и видит сайт.
+    """
+    organization = request.organization
+    User = get_user_model()
+    target = get_object_or_404(
+        User.objects.filter(memberships__organization=organization).distinct(), pk=user_id
+    )
+    _assert_may_touch(request, target)
+
+    can_edit_roles = _can_edit_roles(request)
+    roles_now = staff_service.current_roles(target, organization)
+    teacher = getattr(target, "teacher_profile", None)
+
+    form = StaffIdentityForm(
+        request.POST or None, instance=target,
+        roles=_available_roles(request), can_edit_roles=can_edit_roles,
+        initial={"roles": sorted(roles_now)},
+    )
+    teacher_form = TeacherEditForm(
+        request.POST or None, request.FILES or None, prefix="teacher", instance=teacher
+    )
 
     if request.method == "POST" and form.is_valid():
-        teacher.delete()
-        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=teacher,
-                  change="teacher_deleted")
-        messages.success(request, "Педагог удалён. Занятия и баллы сохранены.")
-        return redirect("cabinet:teachers")
+        wanted = form.cleaned_data.get("roles", roles_now) if can_edit_roles else roles_now
+        # Педагогический блок разбираем, только если он к этому человеку
+        # относится. Иначе правка карточки владельца упиралась бы в
+        # незаполненную ставку за час — поле, которое ей ни к чему.
+        needs_teacher = Role.TEACHER in wanted or teacher is not None
+        if needs_teacher and not teacher_form.is_valid():
+            return _staff_card_page(
+                request, form, teacher_form, target, teacher, roles_now, can_edit_roles
+            )
+        try:
+            staff_service.check_role_change(
+                actor=request.user, target=target, organization=organization, roles=wanted
+            )
+        except ValidationError as error:
+            for message in error.messages:
+                form.add_error("roles" if can_edit_roles else None, message)
+        else:
+            with transaction.atomic():
+                form.save()
+                if can_edit_roles:
+                    staff_service.set_roles(
+                        target=target, organization=organization, roles=wanted
+                    )
+                # Карточка педагога заводится, когда роль появилась, и
+                # остаётся, когда её сняли: на неё ссылаются занятия и
+                # баллы, а их терять нельзя.
+                if needs_teacher:
+                    profile = teacher_form.save(commit=False)
+                    profile.organization = organization
+                    profile.user = target
+                    profile.save()
+                    teacher_form.save_m2m()
+
+            log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=target,
+                      change="staff_edited", roles=sorted(wanted))
+            messages.success(request, "Сохранено.")
+            return redirect("cabinet:staff")
+
+    return _staff_card_page(
+        request, form, teacher_form, target, teacher, roles_now, can_edit_roles
+    )
+
+
+def _staff_card_page(request, form, teacher_form, target, teacher, roles_now, can_edit_roles):
+    return render(
+        request,
+        "cabinet/manage/staff_card.html",
+        {
+            "form": form,
+            "teacher_form": teacher_form,
+            "person": target,
+            "teacher": teacher,
+            "roles_now": ", ".join(Role(r).label for r, _ in ROLE_ORDER if r in roles_now),
+            "can_edit_roles": can_edit_roles,
+            "has_access": target.is_active and target.has_usable_password(),
+            "is_self": target.pk == request.user.pk,
+        },
+    )
+
+
+@login_required
+@role_required(*OWNER_ROLES)
+@require_http_methods(["GET", "POST"])
+def staff_remove(request, user_id):
+    """
+    Убрать сотрудника.
+
+    Учётная запись выключается, роли гаснут, карточка педагога мягко
+    удаляется — а занятия и выставленные баллы остаются: это история
+    центра, и она не должна исчезать вместе с человеком.
+    """
+    organization = request.organization
+    User = get_user_model()
+    target = get_object_or_404(
+        User.objects.filter(memberships__organization=organization).distinct(), pk=user_id
+    )
+    if target.pk == request.user.pk:
+        raise PermissionDenied("Убрать самого себя нельзя.")
+
+    form = DeleteConfirmForm(request.POST or None, expected=target.last_name)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            Membership.objects.filter(organization=organization, user=target).update(
+                is_active=False
+            )
+            target.is_active = False
+            target.save(update_fields=["is_active", "updated_at"])
+            profile = getattr(target, "teacher_profile", None)
+            if profile is not None:
+                profile.delete()
+        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=target,
+                  change="staff_removed")
+        messages.success(request, "Сотрудник убран. Занятия и баллы сохранены.")
+        return redirect("cabinet:staff")
 
     return render(
         request,
         "cabinet/manage/confirm_delete.html",
         {
             "form": form,
-            "object_label": teacher.user.full_name,
-            "expected": teacher.user.last_name,
-            "back_url": reverse("cabinet:teachers"),
-            "what": "педагога",
+            "object_label": target.full_name,
+            "expected": target.last_name,
+            "back_url": reverse("cabinet:staff"),
+            "what": "сотрудника",
         },
     )
-
-
-# ─── Сотрудники ─────────────────────────────────────────────────────────────
-
-@login_required
-@role_required(*OWNER_ROLES)
-@require_http_methods(["GET", "POST"])
-def staff_create(request):
-    form = StaffForm(
-        request.POST or None,
-        with_platform_admin=(
-            request.user.is_superuser
-            or request.user.has_role(request.organization, Role.PLATFORM_ADMIN)
-        ),
-    )
-
-    if request.method == "POST" and form.is_valid():
-        data = form.cleaned_data
-        user, credentials = onboarding.issue_account(
-            organization=request.organization,
-            role=data["role"],
-            last_name=data["last_name"],
-            first_name=data["first_name"],
-            middle_name=data["middle_name"],
-            phone=data["phone"],
-            email=data["email"],
-        )
-        log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=user,
-                  change="staff_created", role=data["role"])
-        messages.success(request, f"{user.full_name} добавлен.")
-        return _credentials_response(request, credentials, back_url=reverse("cabinet:staff"))
-
-    return render(request, "cabinet/manage/staff_form.html", {"form": form})
-
-
-@login_required
-@role_required(*OWNER_ROLES)
-def staff(request):
-    from apps.accounts.models import Membership, STAFF_ROLES
-
-    rows = (
-        Membership.objects.filter(organization=request.organization, role__in=STAFF_ROLES)
-        .select_related("user")
-        .order_by("user__last_name")
-    )
-    return render(request, "cabinet/manage/staff.html", {"memberships": list(rows)})
 
 
 # ─── Общий сброс пароля ─────────────────────────────────────────────────────

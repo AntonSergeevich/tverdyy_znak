@@ -923,3 +923,18 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
   color: #fff;
 }
 .impersonation-bar .btn:hover { background: rgba(255, 255, 255, .28); }
+
+/* Раскрывающийся блок внутри формы — «если это педагог».
+   Выглядит как обычный fieldset, но заголовок кликабельный. */
+details.fieldset > summary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+details.fieldset > summary::-webkit-details-marker { display: none; }
+details.fieldset > summary::after {
+  content: ' +';
+  color: var(--accent);
+  font-weight: 700;
+}
+details.fieldset[open] > summary::after { content: ' −'; }

@@ -9,7 +9,10 @@ from __future__ import annotations
 import datetime as dt
 
 from django import forms
+from django.contrib.auth import get_user_model
 
+from apps.accounts.models import Role
+from apps.journal.services.staff import role_choices
 from apps.journal.models import (
     Group,
     Parent,
@@ -154,35 +157,15 @@ PUBLIC_TEACHER_FIELDS = [
 ]
 
 
-class TeacherForm(PersonForm):
-    hourly_rate = forms.DecimalField(
-        label="Ставка за час, ₽", max_digits=8, decimal_places=2, min_value=0, initial=0,
-    )
-    subjects = forms.ModelMultipleChoiceField(
-        label="Предметы", queryset=Subject.objects.none(), required=False,
-        widget=forms.CheckboxSelectMultiple,
-    )
-    photo = forms.ImageField(label="Фотография", required=False)
-    subject_line = forms.CharField(
-        label="Предметы для сайта", max_length=120, required=False,
-        help_text="Если пусто, соберётся из отмеченных предметов.",
-    )
-    experience = forms.CharField(label="Опыт", max_length=200, required=False)
-    bio = forms.CharField(
-        label="О педагоге", required=False, widget=forms.Textarea(attrs={"rows": 4}),
-        help_text="Показывается на сайте. Каждая мысль с новой строки.",
-    )
-    is_published = forms.BooleanField(
-        label="Показывать на сайте", required=False,
-        help_text="Пока выключено, педагог виден только в кабинете.",
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["subjects"].queryset = teachable_subjects()
-
-
 class TeacherEditForm(forms.ModelForm):
+    """
+    Всё, что о педагоге знает журнал и видит сайт.
+
+    Одна форма и там, где педагога заводят, и там, где правят: пока их
+    было две, половину данных приходилось вводить дважды, а потом гадать,
+    почему на сайте один предмет, а в расписании другой.
+    """
+
     class Meta:
         model = Teacher
         fields = ["hourly_rate", "subjects", *PUBLIC_TEACHER_FIELDS]
@@ -197,26 +180,52 @@ class TeacherEditForm(forms.ModelForm):
 
 
 class StaffForm(PersonForm):
-    """Администратор или владелец. Роль выбирается явно, а не угадывается."""
+    """
+    Новый сотрудник — любой: владелец, администратор, педагог.
 
-    role = forms.ChoiceField(
-        label="Роль",
-        choices=[("admin", "администратор"), ("owner", "владелец")],
-        initial="admin",
+    Раньше педагогов заводили в одном разделе, а администраторов в другом,
+    хотя действие одно и то же: завести человека и выдать ему доступ.
+    Разделять их значило заставлять помнить, какая дверь для кого.
+    """
+
+    role = forms.ChoiceField(label="Роль", choices=[], initial=Role.TEACHER)
+
+    def __init__(self, *args, roles=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].choices = roles or role_choices()
+
+
+class StaffIdentityForm(forms.ModelForm):
+    """
+    Имя и контакты сотрудника плюс его роли.
+
+    Роли — галочками, а не выбором из списка: один человек бывает и
+    владельцем, и педагогом сразу. Так устроен центр, и форма не должна
+    заставлять выбирать.
+    """
+
+    roles = forms.MultipleChoiceField(
+        label="Роли", choices=[], widget=forms.CheckboxSelectMultiple, required=False,
     )
 
-    def __init__(self, *args, with_platform_admin: bool = False, **kwargs):
-        """
-        Администратора платформы заводит только администратор платформы.
+    class Meta:
+        model = get_user_model()
+        fields = ["last_name", "first_name", "middle_name", "phone", "email"]
 
-        Это роль сопровождения, а не центра: у неё есть просмотр чужого
-        кабинета, и раздавать её из кабинета владельца незачем.
-        """
+    def __init__(self, *args, roles=None, can_edit_roles: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
-        if with_platform_admin:
-            self.fields["role"].choices = list(self.fields["role"].choices) + [
-                ("platform_admin", "администратор платформы")
-            ]
+        if not can_edit_roles:
+            del self.fields["roles"]
+            return
+        self.fields["roles"].choices = roles or role_choices()
+
+    def clean_roles(self):
+        roles = set(self.cleaned_data.get("roles") or [])
+        if not roles:
+            raise forms.ValidationError(
+                "Хотя бы одна роль нужна: без неё человек не попадёт никуда."
+            )
+        return roles
 
 
 class PaymentForm(forms.ModelForm):

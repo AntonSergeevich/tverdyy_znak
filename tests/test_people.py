@@ -237,11 +237,12 @@ def test_student_edit_moves_between_groups_without_duplicating(admin_client, ten
 
 def test_admin_creates_teacher_with_rate(admin_client, tenant_a):
     response = admin_client.post(
-        reverse("cabinet:teacher_create"),
+        reverse("cabinet:staff_create"),
         {
             "last_name": "Крылов", "first_name": "Олег", "middle_name": "",
-            "phone": "", "email": "", "hourly_rate": "1200", "public_title": "",
-            "subjects": [str(tenant_a.subject.pk)],
+            "phone": "", "email": "", "role": "teacher",
+            "teacher-hourly_rate": "1200", "teacher-public_position": "100",
+            "teacher-subjects": [str(tenant_a.subject.pk)],
         },
     )
 
@@ -256,11 +257,14 @@ def test_admin_creates_teacher_with_rate(admin_client, tenant_a):
     assert "krylov" in response.content.decode()
 
 
-def test_only_owner_can_create_staff(client, tenant_a):
-    """Администратор, заводящий себе администраторов, — не роль, а дыра."""
-    from django.test import override_settings
+def test_admin_can_only_add_teachers(client, tenant_a):
+    """
+    Администратор, заводящий себе администраторов, — не роль, а дыра.
 
-    from apps.accounts.models import Membership
+    Педагогов он заводит: это его работа. Владельцев и администраторов —
+    нет, такой роли в списке для него просто не будет.
+    """
+    from django.test import override_settings
 
     user, credentials = onboarding.issue_account(
         organization=tenant_a.organization, role=Role.ADMIN,
@@ -272,10 +276,21 @@ def test_only_owner_can_create_staff(client, tenant_a):
             reverse("accounts:login"),
             {"username": credentials.login, "password": credentials.password},
         )
-        response = client.get(reverse("cabinet:staff_create"))
+        body = client.get(reverse("cabinet:staff_create")).content.decode()
+        sneaky = client.post(
+            reverse("cabinet:staff_create"),
+            {
+                "last_name": "Свой", "first_name": "Человек", "middle_name": "",
+                "phone": "", "email": "", "role": "owner",
+            },
+        )
 
-    assert response.status_code == 403
-    assert Membership.objects.filter(organization=tenant_a.organization).count() >= 1
+    assert 'value="teacher"' in body
+    assert 'value="owner"' not in body
+    assert not Membership.objects.filter(
+        organization=tenant_a.organization, role=Role.OWNER, user__last_name="Свой"
+    ).exists()
+    assert sneaky.status_code == 200
 
 
 def test_owner_creates_admin(admin_client, tenant_a):
@@ -297,7 +312,6 @@ def test_people_pages_are_closed_for_parents(client, tenant_a):
 
     for name, args in [
         ("cabinet:student_create", []),
-        ("cabinet:teachers", []),
         ("cabinet:staff", []),
         ("cabinet:student_card", [tenant_a.student.pk]),
     ]:

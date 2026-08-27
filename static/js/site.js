@@ -263,3 +263,31 @@
     window.ym(id, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true });
   }
 })();
+
+/**
+ * Форма нового сотрудника: блок педагога раскрывается вместе с ролью.
+ *
+ * Без скрипта форма работает так же — блок просто остаётся свёрнутым,
+ * и его открывают рукой. Это подсказка, а не условие.
+ */
+(function () {
+  'use strict';
+
+  function init() {
+    var block = document.querySelector('[data-teacher-block]');
+    var role = document.querySelector('select[name="role"]');
+    if (!block || !role || block.dataset.ready === '1') return;
+    block.dataset.ready = '1';
+
+    role.addEventListener('change', function () {
+      block.open = role.value === 'teacher';
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  document.body.addEventListener('htmx:afterSettle', init);
+})();

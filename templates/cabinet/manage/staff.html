@@ -7,44 +7,65 @@
   <a class="btn" href="{% url 'cabinet:staff_create' %}">Добавить</a>
 </div>
 
-<p class="muted" style="max-width:60ch">
-  Администраторов и владельцев заводит только владелец. Администратор,
-  который может завести себе второго администратора, — это не роль, а дыра.
+{% comment %}
+  Один список на всех. Раньше педагоги жили отдельно от администраторов,
+  хотя действие одно: завести человека, выдать доступ, поправить данные.
+  Человек с двумя ролями показывается один раз — в разделе старшей.
+{% endcomment %}
+<p class="muted" style="max-width:64ch">
+  Здесь все, кто работает в центре. У человека может быть несколько ролей
+  сразу — наставник, который ведёт занятия и при этом руководит центром,
+  это один человек, а не два. Роли меняются в его карточке.
 </p>
 
-<div class="table-wrap">
-  <table class="data">
-    <thead><tr><th>Человек</th><th>Роль</th><th>Логин</th><th>Последний вход</th><th></th></tr></thead>
-    <tbody>
-      {% for membership in memberships %}
-        <tr>
-          <td>{{ membership.user.full_name|default:membership.user.login }}</td>
-          <td>{{ membership.get_role_display }}</td>
-          <td class="muted"><code>{{ membership.user.login }}</code></td>
-          <td class="muted">{{ membership.user.last_activity_at|date:"d.m.Y H:i"|default:"—" }}</td>
-          <td>
-            <span class="btn-row">
-              <form method="post" action="{% url 'cabinet:password_reset' membership.user.pk %}">
-                {% csrf_token %}
-                <button class="btn btn--quiet" type="submit">Новый пароль</button>
-              </form>
+{% for section in sections %}
+  <h2 class="label" style="font-size:18px;margin:32px 0 12px">{{ section.label }}</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Человек</th><th>Роли</th><th>Ведёт</th><th>Логин</th>
+            <th>Последний вход</th><th>Доступ</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in section.rows %}
+          <tr>
+            <td>
+              <a href="{% url 'cabinet:staff_card' row.user.pk %}">
+                <strong>{{ row.user.full_name|default:row.user.login }}</strong>
+              </a>
+            </td>
+            <td class="muted">{{ row.roles }}</td>
+            <td class="muted">
+              {% if row.teacher %}
+                {% for subject in row.teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не заданы{% endfor %}
+              {% else %}—{% endif %}
+            </td>
+            <td class="muted"><code>{{ row.user.login }}</code></td>
+            <td class="muted">{{ row.user.last_activity_at|date:"d.m.Y H:i"|default:"не заходил" }}</td>
+            <td>
               {% comment %}
-                Телефон меняют и теряют. Без этой кнопки отвязать приложение
-                с кодами можно было только командой на сервере, а аккаунт до
-                тех пор оставался запертым.
+                «Новый пароль» появляется только после того, как доступ
+                действительно выдан: у педагогов, перенесённых с сайта,
+                учётная запись выключена и пароля нет — предлагать им
+                новый пароль значило бы предлагать ключ от запертой двери.
               {% endcomment %}
-              <form method="post" action="{% url 'cabinet:two_factor_reset' membership.user.pk %}">
+              <form method="post" action="{% url 'cabinet:password_reset' row.user.pk %}">
                 {% csrf_token %}
-                <button class="btn btn--quiet" type="submit"
-                        {% if not membership.user.totp_device.is_confirmed %}disabled title="Приложение не привязано"{% endif %}>
-                  Отвязать приложение
+                <button class="btn{% if row.has_access %} btn--quiet{% endif %}" type="submit">
+                  {% if row.has_access %}Новый пароль{% else %}Выдать доступ{% endif %}
                 </button>
               </form>
-            </span>
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+            </td>
+            <td><a href="{% url 'cabinet:staff_card' row.user.pk %}">Изменить</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% empty %}
+  <div class="empty-state">
+    <p class="empty-state__title">Сотрудников пока нет</p>
+    <p>Первый добавляется кнопкой выше — доступ выдастся сразу.</p>
+  </div>
+{% endfor %}
 {% endblock %}

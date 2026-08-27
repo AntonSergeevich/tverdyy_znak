@@ -125,12 +125,12 @@ def test_teacher_without_access_gets_it_from_the_card(admin_client, tenant_a):
     assert user.has_usable_password()
 
 
-def test_teacher_list_offers_access_button(admin_client, tenant_a):
+def test_staff_list_offers_access_button(admin_client, tenant_a):
     user = tenant_a.teacher.user
     user.is_active = False
     user.save(update_fields=["is_active"])
 
-    body = admin_client.get(reverse("cabinet:teachers")).content.decode()
+    body = admin_client.get(reverse("cabinet:staff")).content.decode()
 
     assert "Выдать доступ" in body
     assert reverse("cabinet:password_reset", args=[user.pk]) in body

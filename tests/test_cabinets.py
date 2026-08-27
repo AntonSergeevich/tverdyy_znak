@@ -252,8 +252,10 @@ def test_owner_can_unbind_a_lost_authenticator(logged_in, tenant_a):
     )
     client = logged_in(tenant_a.owner_user)
 
-    staff = client.get(reverse("cabinet:staff")).content.decode()
-    assert reverse("cabinet:two_factor_reset", args=[tenant_a.teacher_user.pk]) in staff
+    card = client.get(
+        reverse("cabinet:staff_card", args=[tenant_a.teacher_user.pk])
+    ).content.decode()
+    assert reverse("cabinet:two_factor_reset", args=[tenant_a.teacher_user.pk]) in card
 
     response = client.post(
         reverse("cabinet:two_factor_reset", args=[tenant_a.teacher_user.pk])

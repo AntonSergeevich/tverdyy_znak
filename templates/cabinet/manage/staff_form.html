@@ -7,22 +7,57 @@
   <a class="btn btn--quiet" href="{% url 'cabinet:staff' %}">Отмена</a>
 </div>
 
-<p class="muted" style="max-width:60ch">
+<p class="muted" style="max-width:64ch">
+  Доступ создаётся сразу: логин из фамилии и имени, пароль генерируется.
   Владельцу и администратору при входе потребуется код из приложения —
-  второй фактор для этих ролей обязателен.
+  второй фактор для этих ролей обязателен. Роли можно будет добавить
+  потом, в карточке человека.
 </p>
 
-<form method="post" class="form form--wide">{% csrf_token %}
-  <div class="field-grid">
-    {% for field in form %}
-      <label class="field{% if field.errors %} field--error{% endif %}">
-        <span class="field__label">{{ field.label }}</span>
-        {{ field }}
-        {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
-        {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
-      </label>
-    {% endfor %}
-  </div>
+<form method="post" class="form form--wide" enctype="multipart/form-data">{% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="message message--error">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <fieldset class="fieldset">
+    <legend>Кто это</legend>
+    <div class="field-grid">
+      {% for field in form %}
+        <label class="field{% if field.errors %} field--error{% endif %}">
+          <span class="field__label">{{ field.label }}</span>
+          {{ field }}
+          {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+          {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  {% comment %}
+    Поля педагога нужны только педагогу, но скрывать их до выбора роли
+    нельзя без JS — и без JS форма должна работать. Поэтому раскрывающийся
+    блок: видно, что он есть, и он не мешает, когда заводят администратора.
+  {% endcomment %}
+  <details class="fieldset" data-teacher-block {% if form.role.value == teacher_role %}open{% endif %}>
+    <summary>Если это педагог — предметы, ставка и карточка на сайте</summary>
+    <div class="field-grid" style="margin-top:16px">
+      {% for field in teacher_form %}
+        {% if field.name != "subjects" %}
+          <label class="field{% if field.errors %} field--error{% endif %}">
+            <span class="field__label">{{ field.label }}</span>
+            {{ field }}
+            {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+            {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+          </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div style="margin-top:16px">
+      <span class="field__label">Предметы</span>
+      <div class="checkbox-grid">{{ teacher_form.subjects }}</div>
+    </div>
+  </details>
+
   <div class="btn-row"><button class="btn" type="submit">Создать и выдать доступ</button></div>
 </form>
 {% endblock %}

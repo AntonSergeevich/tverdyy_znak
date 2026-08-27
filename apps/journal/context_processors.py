@@ -35,14 +35,15 @@ def cabinet_menu(request) -> dict:
             _item("leads", "Заявки"),
             _item("students", "Ученики", "student_card", "student_create", "student_edit",
                   "student_delete"),
-            _item("teachers", "Педагоги", "teacher_create", "teacher_edit", "teacher_delete"),
+            # Один раздел на всех, кто работает в центре: педагоги,
+            # администраторы и владельцы. Раньше их было два, и завести
+            # педагога владельцем было попросту негде.
+            _item("staff", "Сотрудники", "staff_create", "staff_card", "staff_remove"),
             _item("subjects", "Предметы", "subject_create", "subject_edit", "subject_delete"),
             _item("schedule_builder", "Расписание"),
             _item("payroll", "ФОТ"),
             _item("review_queue", "Отзывы"),
         ]
-        if user.is_superuser or user.has_role(organization, Role.OWNER, Role.PLATFORM_ADMIN):
-            menu.append(_item("staff", "Сотрудники", "staff_create"))
         # Просмотр чужого кабинета — сопровождению платформы, не центру.
         if user.is_superuser or user.has_role(organization, Role.PLATFORM_ADMIN):
             menu.append(
