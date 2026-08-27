@@ -1023,3 +1023,46 @@ details.fieldset[open] > summary::after { content: ' −'; }
 .deck-card--block { border-style: dashed; }
 .slot--block { background: color-mix(in srgb, var(--ink-3) 8%, transparent); }
 .slot--block .slot__subject { font-weight: 500; color: var(--ink-2); }
+
+/* ─── Тема и домашнее задание в журнале занятия ──────────────────────────── */
+/* Два поля, которые педагог заполняет сразу после занятия. На телефоне
+   они идут друг под другом на всю ширину — это первое, что должно быть
+   под рукой. */
+.lesson-meta {
+  display: grid; gap: 16px; margin: 16px 0 8px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+}
+.lesson-field {
+  display: grid; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line);
+  padding: clamp(12px, 2vw, 16px);
+}
+.lesson-field .field__label { display: flex; gap: 8px; align-items: baseline; }
+/* «Сохранено» появляется рядом с подписью и само гаснет: подтверждение
+   нужно на секунду, а место занимает постоянно. */
+.lesson-field__state {
+  font-size: 12px; font-weight: 500; color: var(--ok, #3F7A4B);
+  animation: tz-fade-out 2.6s ease forwards;
+}
+.lesson-field__state:empty { animation: none; }
+@keyframes tz-fade-out {
+  0%, 55% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.lesson-field__row {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+}
+.lesson-field__row .field { flex: 1 1 130px; min-width: 0; }
+.lesson-field__row .btn { flex: 0 0 auto; }
+.lesson-field textarea { min-height: 62px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-field__state { animation: none; }
+}
+
+/* Домашнее задание в кабинете ученика и родителя: карточка с текстом,
+   а не строка таблицы. «§12, задачи 3–7 письменно» в колонку не влезает,
+   а прочитать надо именно это. */
+.homework-card { border-left: 3px solid var(--line-strong); }
+.homework-card--late { border-left-color: var(--warn); }

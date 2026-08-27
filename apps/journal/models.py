@@ -478,6 +478,63 @@ class Lesson(TenantModel):
         return timezone.localtime(self.starts_at).date()
 
 
+class Homework(TenantModel):
+    """
+    Домашнее задание к занятию.
+
+    Удаляется по-настоящему, а не пометкой: «убрать» здесь значит убрать.
+    Мягкое удаление оставляло бы строку с тем же занятием, а связь с ним
+    единственная — и второе задание к тому же занятию просто не завелось
+    бы. Хранить историю опечаток педагога незачем: персональных данных в
+    задании нет, а баллы за него живут отдельно, в оценивании.
+
+    Отдельная запись, а не элемент оценивания: задают домашнее почти на
+    каждом занятии, а на баллы идёт малая часть. Требовать баллы за
+    «прочитать параграф» значило бы либо ломать распределение сотни, либо
+    заставлять педагога писать задание где-то на стороне.
+
+    Когда задание всё-таки на оценку, к нему привязывается обычный
+    GradeItem — и оно попадает в те же сто баллов модуля, что и всё
+    остальное. Двух источников правды не возникает: баллы живут там же,
+    где всегда.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lesson = models.OneToOneField(
+        Lesson, on_delete=models.CASCADE, related_name="homework", verbose_name="занятие"
+    )
+    text = models.TextField("задание")
+    due_date = models.DateField("сдать до", null=True, blank=True)
+    grade_item = models.OneToOneField(
+        "GradeItem", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="homework", verbose_name="оценивание",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="homework_given", verbose_name="кто задал",
+    )
+
+    class Meta:
+        verbose_name = "домашнее задание"
+        verbose_name_plural = "домашние задания"
+        ordering = ["-lesson__starts_at"]
+        indexes = [models.Index(fields=["organization", "due_date"])]
+
+    def __str__(self) -> str:
+        return f"Д/з к занятию {self.lesson_id}"
+
+    @property
+    def is_graded(self) -> bool:
+        return self.grade_item_id is not None
+
+    @property
+    def is_overdue(self) -> bool:
+        """Срок прошёл. Показываем, но не прячем — задолженность не исчезает."""
+        from django.utils import timezone
+
+        return bool(self.due_date and self.due_date < timezone.localdate())
+
+
 class GradeItemKind(models.TextChoices):
     LESSON = "lesson", "занятие"
     HOMEWORK = "homework", "домашняя работа"

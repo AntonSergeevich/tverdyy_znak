@@ -1,0 +1,56 @@
+{% load journal_extras public_extras %}
+{% comment %}
+  Домашнее задание к занятию. Пустой текст означает «задания нет» —
+  убрать случайно заданное должно быть так же просто, как задать.
+
+  Баллы необязательны: задают домашнее почти каждый раз, а на оценку идёт
+  малая часть. Если баллы поставлены, задание попадает в те же сто баллов
+  модуля, что и всё остальное.
+{% endcomment %}
+{% comment %}
+  hx-boost="false" обязателен: кабинет перехватывает отправку любых форм и
+  подменяет ими середину страницы. Эту форму он бы перехватил раньше
+  нашего кода — и вместо обновления блока страница уехала бы на адрес
+  сохранения. Та же ловушка, что была с кнопкой «Выйти».
+{% endcomment %}
+<form class="lesson-field" hx-boost="false"
+      method="post" action="{% url 'cabinet:lesson_homework_save' lesson.pk %}"
+      data-homework-form>
+  {% csrf_token %}
+  <label class="field" style="margin:0">
+    <span class="field__label">
+      Домашнее задание
+      <span class="lesson-field__state" data-state>
+        {% if saved and homework %}сохранено{% elif saved %}убрано{% endif %}
+      </span>
+    </span>
+    <textarea class="input" name="text" rows="2"
+              placeholder="Например: §12, задачи 3–7 письменно">{% if error %}{{ draft.text }}{% elif homework %}{{ homework.text }}{% endif %}</textarea>
+  </label>
+
+  {% if error %}<p class="field__error" role="alert">{{ error }}</p>{% endif %}
+
+  <div class="lesson-field__row">
+    <label class="field" style="margin:0">
+      <span class="field__label">Сдать до</span>
+      <input class="input" type="date" name="due_date"
+             value="{% if error %}{{ draft.due_date }}{% elif homework.due_date %}{{ homework.due_date|date:'Y-m-d' }}{% endif %}">
+    </label>
+    <label class="field" style="margin:0">
+      <span class="field__label">Баллы</span>
+      <input class="input" type="number" name="max_points" min="0" step="0.5"
+             inputmode="decimal" placeholder="без оценки"
+             value="{% if error %}{{ draft.max_points }}{% elif homework.grade_item %}{{ homework.grade_item.max_points|points }}{% endif %}">
+    </label>
+    <button class="btn" type="submit">Сохранить</button>
+  </div>
+
+  <p class="field__hint">
+    {% if homework.grade_item %}
+      Идёт в зачёт модуля на {{ homework.grade_item.max_points|points }}
+      {{ homework.grade_item.max_points|plural:"балл,балла,баллов" }}.
+    {% else %}
+      Оставьте баллы пустыми — задание будет без оценки. Пустое задание убирается вместе с полем.
+    {% endif %}
+  </p>
+</form>

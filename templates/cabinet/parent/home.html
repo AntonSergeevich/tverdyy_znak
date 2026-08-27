@@ -1,4 +1,4 @@
-{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras public_extras %}
 {% block cabinet_title %}Кабинет родителя{% endblock %}
 
 {% block content %}
@@ -151,6 +151,25 @@
   </div>
 {% else %}
   <p class="muted">На этой неделе занятий нет.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Что задано</h2>
+{% if homework %}
+  <div class="stack">
+    {% for item in homework %}
+      <div class="card homework-card{% if item.is_overdue %} homework-card--late{% endif %}">
+        <p class="small muted">
+          {{ item.lesson.subject.name }} · задано {{ item.lesson.starts_at|date:"d.m" }}
+          {% if item.due_date %} · сдать до {{ item.due_date|date:"d.m.Y" }}{% endif %}
+          {% if item.grade_item %} · на {{ item.grade_item.max_points|points }}
+            {{ item.grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
+        </p>
+        <p style="margin-top:6px">{{ item.text|linebreaksbr }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">Ничего не задано.</p>
 {% endif %}
 
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Комментарии педагогов</h2>

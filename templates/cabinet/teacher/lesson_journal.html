@@ -6,6 +6,16 @@
   {% include "cabinet/teacher/partials/lesson_header.html" %}
 </div>
 
+{% comment %}
+  Тема и домашнее задание — первым делом, до таблицы баллов. Это то, что
+  педагог заполняет сразу после занятия, и ради этого он сюда и заходит
+  чаще, чем ради оценок.
+{% endcomment %}
+<div class="lesson-meta">
+  {% include "cabinet/teacher/partials/lesson_topic.html" %}
+  {% include "cabinet/teacher/partials/lesson_homework.html" %}
+</div>
+
 {% if grade_item %}
   {% include "cabinet/teacher/partials/journal_body.html" %}
   <p class="small muted" style="margin-top:12px">
@@ -21,4 +31,7 @@
 {% endif %}
 {% endblock %}
 
-{% block cabinet_scripts %}<script src="{% static 'js/journal.js' %}" defer></script>{% endblock %}
+{% block cabinet_scripts %}
+<script src="{% static 'js/lesson_meta.js' %}" defer></script>
+<script src="{% static 'js/journal.js' %}" defer></script>
+{% endblock %}

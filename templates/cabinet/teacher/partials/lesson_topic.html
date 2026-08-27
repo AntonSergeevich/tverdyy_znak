@@ -1,0 +1,26 @@
+{% comment %}
+  Тема занятия прямо в журнале. Сохраняется на лету, через полсекунды
+  после того, как педагог перестал печатать: тему дописывают между делом,
+  и кнопка «сохранить» здесь только повод забыть на неё нажать.
+
+  Само поле при этом не подменяется — меняется одна отметка «сохранено».
+  Подменить поле значит оборвать набор на полуслове: теряется курсор, а
+  на телефоне закрывается клавиатура.
+{% endcomment %}
+<form class="lesson-field" id="lesson-topic" hx-boost="false"
+      method="post" action="{% url 'cabinet:lesson_topic_save' lesson.pk %}"
+      data-topic-form>
+  {% csrf_token %}
+  <input type="hidden" name="view" value="journal">
+  <label class="field" style="margin:0">
+    <span class="field__label">
+      Тема занятия
+      <span class="lesson-field__state" data-state></span>
+    </span>
+    <input class="input" type="text" name="topic" maxlength="250"
+           value="{{ lesson.topic }}" autocomplete="off"
+           placeholder="О чём было занятие">
+  </label>
+  {# Без скриптов тему сохраняет обычная кнопка. #}
+  <noscript><button class="btn btn--quiet" type="submit">Сохранить тему</button></noscript>
+</form>

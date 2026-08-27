@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Prefetch
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -114,6 +115,7 @@ def lesson_journal(request, lesson_id):
         {
             "lesson": lesson,
             "grade_item": grade_item,
+            "homework": getattr(lesson, "homework", None),
             "rows": _lesson_rows(lesson),
             "budget": budget,
         },
@@ -343,14 +345,75 @@ def module_plan_action(request, module_id, subject_id, group_id):
 @role_required("teacher", "admin", "owner", "platform_admin")
 @require_http_methods(["POST"])
 def lesson_topic_save(request, lesson_id):
-    """Тематическое планирование: темы занятий на модуль вперёд (ТЗ 5.3)."""
+    """
+    Тема занятия.
+
+    Правится и в планировании модуля, и в самом журнале занятия — вид
+    ответа зависит от того, откуда пришли. Сохраняется на лету: тему
+    дописывают между делом, и кнопка «сохранить» здесь только повод
+    забыть на неё нажать.
+    """
     organization = request.organization
     lesson = get_lesson_or_403(request.user, organization, lesson_id)
     assert_can_grade(request.user, organization, lesson)
     lesson.topic = (request.POST.get("topic") or "").strip()[:250]
     lesson.save(update_fields=["topic", "updated_at"])
+
+    if request.POST.get("view") == "journal":
+        # Отвечаем коротко: страницу трогать не надо, браузеру достаточно
+        # знать, что сохранилось. Подменять поле во время набора нельзя —
+        # теряется курсор, а на телефоне закрывается клавиатура.
+        return JsonResponse({"saved": True})
     return render(
         request, "cabinet/teacher/partials/topic_cell.html", {"lesson": lesson, "saved": True}
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def lesson_homework_save(request, lesson_id):
+    """
+    Домашнее задание к занятию.
+
+    Пустой текст означает «задания нет»: убрать случайно заданное должно
+    быть так же просто, как задать.
+    """
+    from apps.journal.services import homework as homework_service
+
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    text = request.POST.get("text") or ""
+    due_date = homework_service.parse_date(request.POST.get("due_date"))
+    max_points = homework_service.parse_points(request.POST.get("max_points"))
+
+    error = ""
+    try:
+        homework = homework_service.save_homework(
+            lesson=lesson, text=text, due_date=due_date,
+            max_points=max_points, actor=request.user,
+        )
+    except ValidationError as exc:
+        # Сотня на модуль не резиновая. Показываем ровно то, что мешает,
+        # и оставляем введённое на экране — переписывать заново незачем.
+        homework = getattr(lesson, "homework", None)
+        error = "; ".join(m for messages in exc.message_dict.values() for m in messages)
+
+    log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=lesson,
+              change="homework_saved")
+    return render(
+        request,
+        "cabinet/teacher/partials/lesson_homework_form.html",
+        {
+            "lesson": lesson,
+            "homework": homework,
+            "saved": not error,
+            "error": error,
+            "draft": {"text": text, "due_date": request.POST.get("due_date"),
+                      "max_points": request.POST.get("max_points")},
+        },
     )
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -28,6 +29,7 @@ from apps.journal.models import (
     Student,
 )
 from apps.journal.services.grading import get_scale
+from apps.journal.services.homework import upcoming_homework
 from apps.journal.views.parent import current_module, week_lessons
 
 
@@ -62,16 +64,7 @@ def student_home(request):
         if module
         else ModuleResult.objects.none()
     )
-    homework = (
-        GradeItem.objects.filter(
-            kind=GradeItemKind.HOMEWORK,
-            group__memberships__student=student,
-            due_date__gte=timezone.localdate() - timedelta(days=7),
-        )
-        .select_related("subject")
-        .order_by("due_date")
-        .distinct()[:10]
-    )
+    homework = upcoming_homework(student)
     today_mood = MoodEntry.objects.filter(student=student, day=timezone.localdate()).first()
     yesterday = timezone.localdate() - timedelta(days=1)
     yesterday_mood = MoodEntry.objects.filter(student=student, day=yesterday).first()
