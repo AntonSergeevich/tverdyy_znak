@@ -151,7 +151,11 @@ def reset_password(user) -> Credentials:
     """
     password = generate_password()
     user.set_password(password)
-    user.save(update_fields=["password", "updated_at"])
+    # Заодно включаем учётную запись: педагоги, перенесённые с сайта,
+    # заведены выключенными — «выдать доступ» должно именно выдавать
+    # доступ, а не отдавать пароль от запертой двери.
+    user.is_active = True
+    user.save(update_fields=["password", "is_active", "updated_at"])
 
     membership = user.memberships.filter(is_active=True).first()
     return Credentials(

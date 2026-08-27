@@ -1,0 +1,26 @@
+{% extends "cabinet/base_cabinet.html" %}{% load public_extras %}
+{% block cabinet_title %}Предметы{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Предметы</h1>
+  <a class="btn" href="{% url 'cabinet:subject_create' %}">Добавить предмет</a>
+</div>
+
+<p class="muted" style="max-width:64ch">
+  Учебные предметы попадают в программу ФГОС на сайте и в 100-балльное
+  оценивание. Блоки дня — обед, утренний круг, профориентация — стоят
+  в расписании, но баллов не приносят.
+</p>
+
+<h2 class="label" style="font-size:18px;margin:28px 0 10px">
+  Учебные предметы
+  <span class="muted" style="font-weight:400">
+    · {{ total_hours }} {{ total_hours|plural:"урок,урока,уроков" }} в неделю
+  </span>
+</h2>
+{% include "cabinet/manage/partials/subject_table.html" with rows=academic %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 10px">Блоки дня</h2>
+{% include "cabinet/manage/partials/subject_table.html" with rows=activities %}
+{% endblock %}

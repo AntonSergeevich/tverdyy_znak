@@ -1,0 +1,47 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Удалить предмет{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">Удалить «{{ subject.name }}»</h1>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if blocked %}
+    {% comment %}
+      Предмет, за который цепляются занятия или баллы, удалять нельзя:
+      вместе с ним ушла бы часть журнала. Убрать из расписания можно,
+      а запись о прошлом должна остаться.
+    {% endcomment %}
+    <p class="card__title">Удалить не получится</p>
+    <p>
+      К предмету привязано:
+      {% if lessons %}занятий — {{ lessons }}{% endif %}{% if lessons and items %}, {% endif %}
+      {% if items %}работ с баллами — {{ items }}{% endif %}.
+    </p>
+    <p class="muted">
+      Вместе с предметом ушла бы часть журнала. Уберите его из расписания —
+      прошлые занятия и баллы останутся на месте.
+    </p>
+    <div class="btn-row">
+      <a class="btn btn--quiet" href="{% url 'cabinet:subjects' %}">Назад</a>
+    </div>
+  {% else %}
+    <p class="muted">
+      Предмет ни за что не держит: занятий и баллов по нему нет.
+      После удаления он исчезнет из программы на сайте и из выбора у педагогов.
+    </p>
+    <form method="post" class="form" style="margin-top:16px">{% csrf_token %}
+      <label class="field{% if form.confirm.errors %} field--error{% endif %}">
+        <span class="field__label">Введите «{{ subject.name }}», чтобы подтвердить</span>
+        {{ form.confirm }}
+        {% if form.confirm.errors %}<span class="field__error">{{ form.confirm.errors.0 }}</span>{% endif %}
+      </label>
+      <div class="btn-row">
+        <button class="btn btn--danger" type="submit">Удалить</button>
+        <a class="btn btn--quiet" href="{% url 'cabinet:subjects' %}">Отмена</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

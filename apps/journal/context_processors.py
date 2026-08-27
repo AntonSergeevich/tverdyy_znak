@@ -36,6 +36,7 @@ def cabinet_menu(request) -> dict:
             _item("students", "Ученики", "student_card", "student_create", "student_edit",
                   "student_delete"),
             _item("teachers", "Педагоги", "teacher_create", "teacher_edit", "teacher_delete"),
+            _item("subjects", "Предметы", "subject_create", "subject_edit", "subject_delete"),
             _item("schedule_builder", "Расписание"),
             _item("payroll", "ФОТ"),
             _item("review_queue", "Отзывы"),

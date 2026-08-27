@@ -87,6 +87,7 @@ TEACHERS = [
     },
     {
         "slug": "manasyan",
+        "subjects": ["Алгебра", "Геометрия", "Вероятность и статистика", "Физика", "Информатика"],
         "full_name": "Манасян Сергей Керопович",
         "subject_line": "Математика, физика, информатика",
         "experience": "Стаж более 30 лет",
@@ -99,6 +100,7 @@ TEACHERS = [
     },
     {
         "slug": "polskaya",
+        "subjects": ["Химия", "Биология"],
         "full_name": "Польская Юлия Евгеньевна",
         "subject_line": "Химия и биология",
         "experience": "Более 5 лет практики",
@@ -110,6 +112,7 @@ TEACHERS = [
     },
     {
         "slug": "margarita",
+        "subjects": ["Английский язык"],
         "full_name": "Маргарита Андреевна",
         "subject_line": "Английский язык",
         "experience": "Уровень C2 по EF SET, сертификат TESOL",
@@ -122,6 +125,7 @@ TEACHERS = [
     },
     {
         "slug": "anna",
+        "subjects": ["Профориентация"],
         "full_name": "Анна Константиновна",
         "subject_line": "Профориентолог, наставник",
         "experience": "Индивидуальное сопровождение и групповые тренинги",
@@ -134,6 +138,7 @@ TEACHERS = [
     },
     {
         "slug": "katnikov",
+        "subjects": ["История", "Обществознание"],
         "full_name": "Катников Рустам Викторович",
         "subject_line": "История и обществознание",
         "experience": "Педагогический стаж 5 лет",
@@ -272,4 +277,16 @@ class Command(BaseCommand):
         teacher.is_featured = entry.get("is_featured", False)
         teacher.is_published = True
         teacher.save()
+
+        # Предметы проставляем только новым: у заведённого педагога их
+        # мог поправить администратор, и перетирать эту правку на каждом
+        # выкате — то же самое, что откатывать чужую работу.
+        wanted = entry.get("subjects") or []
+        if wanted and not teacher.subjects.exists():
+            from apps.journal.models import Subject
+
+            teacher.subjects.set(
+                Subject.objects.filter(academic_year__is_current=True, name__in=wanted)
+            )
+
         return teacher, created

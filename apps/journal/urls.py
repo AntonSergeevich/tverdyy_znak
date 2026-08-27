@@ -9,6 +9,7 @@ from apps.journal.views import (
     reviews,
     scheduler,
     student,
+    subjects as subjects_views,
     teacher,
 )
 
@@ -74,6 +75,12 @@ urlpatterns = [
     path("pedagogi/dobavit/", people.teacher_create, name="teacher_create"),
     path("pedagogi/<uuid:teacher_id>/izmenit/", people.teacher_edit, name="teacher_edit"),
     path("pedagogi/<uuid:teacher_id>/udalit/", people.teacher_delete, name="teacher_delete"),
+
+    # Справочник предметов: список не зашит в код
+    path("predmety/", subjects_views.subjects, name="subjects"),
+    path("predmety/dobavit/", subjects_views.subject_create, name="subject_create"),
+    path("predmety/<int:subject_id>/izmenit/", subjects_views.subject_edit, name="subject_edit"),
+    path("predmety/<int:subject_id>/udalit/", subjects_views.subject_delete, name="subject_delete"),
 
     path("sotrudniki/", people.staff, name="staff"),
     path("sotrudniki/dobavit/", people.staff_create, name="staff_create"),

@@ -130,6 +130,21 @@ class DeleteConfirmForm(forms.Form):
         return value
 
 
+def teachable_subjects():
+    """
+    Что можно закрепить за педагогом.
+
+    Не только учебные предметы: профориентацию, проектную деятельность
+    и рефлексию тоже кто-то ведёт. Из списка выпадает только обед —
+    единственный блок дня, за которым нет человека.
+    """
+    from apps.journal.models import Subject
+
+    return Subject.objects.filter(academic_year__is_current=True).exclude(
+        name__iexact="Обед"
+    ).order_by("kind", "position", "name")
+
+
 # Поля, которые решают, что о педагоге видно на сайте. Их набор один
 # и там, где педагога заводят, и там, где правят: раньше публичная
 # карточка жила отдельно, и половину данных приходилось вводить дважды.
@@ -164,11 +179,7 @@ class TeacherForm(PersonForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from apps.journal.models import SubjectKind
-
-        self.fields["subjects"].queryset = Subject.objects.filter(
-            academic_year__is_current=True, kind=SubjectKind.ACADEMIC
-        )
+        self.fields["subjects"].queryset = teachable_subjects()
 
 
 class TeacherEditForm(forms.ModelForm):
@@ -182,11 +193,7 @@ class TeacherEditForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from apps.journal.models import SubjectKind
-
-        self.fields["subjects"].queryset = Subject.objects.filter(
-            academic_year__is_current=True, kind=SubjectKind.ACADEMIC
-        )
+        self.fields["subjects"].queryset = teachable_subjects()
 
 
 class StaffForm(PersonForm):
@@ -234,3 +241,41 @@ class ParentInviteForm(PersonForm):
     is_primary_contact = forms.BooleanField(
         label="Основной контакт", required=False, initial=False
     )
+
+
+class SubjectForm(forms.ModelForm):
+    """
+    Предмет учебного года.
+
+    Список не зашит в код: появится робототехника — её заводят здесь,
+    а не ждут выката. Нагрузка в часах нужна для таблицы на сайте,
+    у блоков дня она нулевая.
+    """
+
+    class Meta:
+        model = Subject
+        fields = ["name", "short_name", "kind", "weekly_hours", "position"]
+        labels = {
+            "name": "Название",
+            "short_name": "Сокращение",
+            "kind": "Тип",
+            "weekly_hours": "Уроков в неделю",
+            "position": "Порядок",
+        }
+        help_texts = {
+            "kind": "Учебный предмет попадает в программу ФГОС и в оценивание. "
+                    "Блок дня — только в расписание.",
+            "short_name": "Для узких мест: «Инф.» вместо «Информатика».",
+        }
+
+    def clean_name(self):
+        name = (self.cleaned_data["name"] or "").strip()
+        year = self.instance.academic_year_id
+        duplicates = Subject.objects.filter(name__iexact=name)
+        if year:
+            duplicates = duplicates.filter(academic_year_id=year)
+        if self.instance.pk:
+            duplicates = duplicates.exclude(pk=self.instance.pk)
+        if duplicates.exists():
+            raise forms.ValidationError("Такой предмет в этом году уже есть.")
+        return name
