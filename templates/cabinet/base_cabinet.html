@@ -28,6 +28,7 @@
       а boost подменил бы только содержимое и оставил шапку кабинета
       на публичной странице. Выглядело бы как «кнопка не работает».
     {% endcomment %}
+    <a class="btn btn--quiet" href="{% url 'accounts:profile' %}">Профиль</a>
     <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}
       <button class="btn btn--quiet" type="submit">Выйти</button>
     </form>

@@ -167,6 +167,55 @@
     });
   }
 
+  // ── Очистка недели ────────────────────────────────────────────────────────
+
+  var clearWeekButton = document.querySelector('[data-clear-week]');
+  if (clearWeekButton) {
+    clearWeekButton.addEventListener('click', function () {
+      if (!window.confirm('Убрать все занятия этой недели у выбранной группы?')) return;
+      clearWeek(false);
+    });
+  }
+
+  function clearWeek(force) {
+    var body = new FormData();
+    body.append('group', clearWeekButton.getAttribute('data-group'));
+    if (force) body.append('force', '1');
+
+    clearWeekButton.disabled = true;
+    say('Очищаю…');
+    fetch(clearWeekButton.getAttribute('data-url') + '?week=' + clearWeekButton.getAttribute('data-week'), {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf() },
+      body: body,
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        return { ok: response.ok, data: data };
+      });
+    }).then(function (result) {
+      clearWeekButton.disabled = false;
+      if (result.ok) {
+        if (!result.data.removed) {
+          say('На этой неделе занятий и не было.');
+          return;
+        }
+        // Перезагружаем страницу: клеток десятки, подменять каждую
+        // по отдельности дольше, чем перерисовать сетку целиком.
+        window.location.reload();
+        return;
+      }
+      // За часть занятий уже выставлены баллы — спрашиваем второй раз.
+      if (result.data.needs_force && window.confirm(result.data.error + '\n\nОчистить вместе с баллами?')) {
+        clearWeek(true);
+        return;
+      }
+      say(result.data.error || 'Не получилось очистить.', 'error');
+    }).catch(function () {
+      clearWeekButton.disabled = false;
+      say('Не удалось очистить — проверьте связь и попробуйте ещё раз.', 'error');
+    });
+  }
+
   // ── Повтор недели ─────────────────────────────────────────────────────────
 
   var copyButton = document.querySelector('[data-copy-week]');

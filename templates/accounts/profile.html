@@ -1,0 +1,72 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Профиль{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">Профиль</h1>
+</div>
+
+{% comment %}
+  Одна страница на все роли: чем входить, как сменить пароль, что со
+  вторым фактором. Пароли в центре раздаёт администратор, и без этой
+  страницы человек навсегда остался бы с придуманным за него паролем.
+{% endcomment %}
+<div class="card" style="margin-bottom:20px">
+  <p class="card__title">Кто вы в системе</p>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr><th>Имя</th><td>{{ request.user.full_name|default:"—" }}</td></tr>
+        <tr><th>Логин</th><td><code>{{ request.user.login }}</code></td></tr>
+        {% if request.user.email %}<tr><th>Почта</th><td>{{ request.user.email }}</td></tr>{% endif %}
+        {% if request.user.phone %}<tr><th>Телефон</th><td>{{ request.user.phone }}</td></tr>{% endif %}
+        {% if roles %}<tr><th>Роль</th><td>{{ roles|join:", " }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted" style="margin-top:12px">
+    Имя, почту и телефон меняет администратор центра — так в журнале и в
+    договоре остаётся один и тот же человек.
+  </p>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+  <p class="card__title">Смена пароля</p>
+  <form method="post" class="form">{% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="message message--error">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div class="field-grid">
+      {% for field in form %}
+        <label class="field{% if field.errors %} field--error{% endif %}">
+          <span class="field__label">{{ field.label }}</span>
+          {{ field }}
+          {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+          {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+        </label>
+      {% endfor %}
+    </div>
+    <div class="btn-row"><button class="btn" type="submit">Сменить пароль</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <p class="card__title">Вход по коду из приложения</p>
+  {% if device and device.is_confirmed %}
+    <p>Подключён. При входе, кроме пароля, спрашивается код из приложения.</p>
+    <p class="small muted">
+      Сменили телефон или потеряли доступ к приложению — обратитесь к администратору
+      центра, он сбросит привязку и её можно будет настроить заново.
+    </p>
+  {% else %}
+    {% if two_factor_required %}
+      <p>Ваша роль даёт доступ к персональным данным учеников — второй фактор обязателен.</p>
+    {% else %}
+      <p>Необязательно, но делает вход заметно надёжнее: одного пароля станет мало.</p>
+    {% endif %}
+    <p style="margin-top:12px">
+      <a class="btn" href="{% url 'accounts:two_factor_setup' %}">Настроить</a>
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

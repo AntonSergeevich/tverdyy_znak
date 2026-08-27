@@ -185,7 +185,7 @@ class TeacherForm(PersonForm):
 class TeacherEditForm(forms.ModelForm):
     class Meta:
         model = Teacher
-        fields = ["hourly_rate", "public_title", "subjects", *PUBLIC_TEACHER_FIELDS]
+        fields = ["hourly_rate", "subjects", *PUBLIC_TEACHER_FIELDS]
         widgets = {
             "subjects": forms.CheckboxSelectMultiple,
             "bio": forms.Textarea(attrs={"rows": 4}),

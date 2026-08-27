@@ -1,7 +1,25 @@
 {% load journal_extras %}
+{% comment %}
+  Строка начисления в карточке ученика. Отдаётся целиком при отметке об
+  оплате, поэтому колонки здесь и в таблице карточки — одни и те же.
+{% endcomment %}
 <tr id="payment-{{ payment.pk }}">
-  <td>{{ payment.student.short_name }}</td>
+  <td class="numeral">{{ payment.period_start|date:"d.m.y" }} — {{ payment.period_end|date:"d.m.y" }}</td>
   <td>{{ payment.title }}</td>
-  <td>{{ payment.amount|money }} ₽</td>
-  <td>{{ payment.get_status_display }}{% if payment.paid_on %} · {{ payment.paid_on|date:"d.m.Y" }}{% endif %}</td>
+  <td class="numeral">{{ payment.amount|money }} ₽</td>
+  <td>
+    {{ payment.get_status_display }}{% if payment.paid_on %} · {{ payment.paid_on|date:"d.m.Y" }}{% endif %}
+  </td>
+  <td>
+    {% if payment.status == 'planned' %}
+      {% comment %}
+        Без этой кнопки начисление невозможно было закрыть: у родителя
+        оплата так и висела бы «предстоит» после того, как деньги пришли.
+      {% endcomment %}
+      <button class="btn btn--quiet" type="button"
+              hx-post="{% url 'cabinet:payment_mark_paid' payment.pk %}"
+              hx-target="#payment-{{ payment.pk }}"
+              hx-swap="outerHTML">Отметить оплаченной</button>
+    {% endif %}
+  </td>
 </tr>

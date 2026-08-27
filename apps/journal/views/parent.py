@@ -28,6 +28,7 @@ from apps.journal.models import (
     Teacher,
 )
 from apps.journal.services.grading import get_scale
+from apps.site_public.models import TeacherReview
 
 
 def current_module(organization, day=None) -> Module | None:
@@ -170,8 +171,12 @@ def parent_teachers(request):
         .distinct()
         .order_by("user__last_name")
     )
+    # О ком отзыв уже написан — чтобы кнопка не звала писать второй.
+    reviewed = set(
+        TeacherReview.objects.filter(author=request.user).values_list("teacher_id", flat=True)
+    )
     return render(
         request,
         "cabinet/parent/teachers.html",
-        {"teachers": list(teachers), "children": children},
+        {"teachers": list(teachers), "children": children, "reviewed": reviewed},
     )

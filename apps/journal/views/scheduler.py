@@ -24,6 +24,7 @@ from django.views.decorators.http import require_http_methods
 
 from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
+from apps.site_public.templatetags.public_extras import plural
 from apps.journal.models import (
     Group,
     Lesson,
@@ -149,6 +150,63 @@ def _nearest_module(day: dt.date) -> Module | None:
     ).order_by("-starts_on").first()
 
 
+def _slot_html(request, lesson, group):
+    """Клетка после изменения — ровно то, что теперь лежит в базе."""
+    local = timezone.localtime(lesson.starts_at)
+    return render(
+        request,
+        "cabinet/manage/partials/slot.html",
+        {
+            "cell": {
+                "day": local.date(),
+                "time": f"{local:%H:%M}",
+                "duration": lesson.duration_minutes,
+                "key": f"{local.date().isoformat()}-{local:%H%M}",
+                "lesson": lesson,
+            },
+            "group": group,
+        },
+    )
+
+
+def _busy_elsewhere(teacher, starts_at, group):
+    """Тот же педагог, то же время, другая группа — раздвоиться он не может."""
+    return (
+        Lesson.objects.filter(teacher=teacher, starts_at=starts_at)
+        .exclude(group=group)
+        .select_related("group", "subject")
+        .first()
+    )
+
+
+def _assign_teacher(request, lesson, teacher, group):
+    """
+    Поставить педагога к уже назначенному занятию, не трогая предмет.
+
+    Так наставник встаёт на утренний круг и рефлексию: за этими блоками
+    не закреплён «свой» предмет, но человек, который их ведёт, есть.
+    Так же назначается педагог занятиям, перенесённым из файла с
+    расписанием — там колонка педагога пустая.
+    """
+    conflict = _busy_elsewhere(teacher, lesson.starts_at, group)
+    if conflict is not None:
+        return JsonResponse(
+            {
+                "error": (
+                    f"{teacher.short_name} в это время уже ведёт "
+                    f"{conflict.subject.name} у группы «{conflict.group.name}»."
+                )
+            },
+            status=409,
+        )
+
+    lesson.teacher = teacher
+    lesson.save(update_fields=["teacher", "updated_at"])
+    log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=lesson,
+              change="lesson_teacher_assigned")
+    return _slot_html(request, lesson, group)
+
+
 @login_required
 @role_required(*MANAGER_ROLES)
 @require_http_methods(["POST"])
@@ -156,8 +214,9 @@ def slot_set(request):
     """
     Поставить занятие в клетку.
 
-    Клетка занята — занятие заменяется, а не дублируется: перетаскивание
-    поверх существующего означает «пусть тут будет вот это».
+    Пустая клетка — заводится занятие по предмету педагога. Занятая —
+    педагог назначается тому, что там уже стоит, а предмет не трогается:
+    расписание чаще всего уже набрано, не хватает только людей.
     """
     organization = request.organization
     group = get_object_or_404(Group.objects.all(), pk=request.POST.get("group"))
@@ -176,6 +235,18 @@ def slot_set(request):
             {"error": f"{day:%d.%m.%Y} не входит ни в один учебный модуль."}, status=400
         )
 
+    duration = int(request.POST.get("duration") or 40)
+    starts_at = timezone.make_aware(dt.datetime.combine(day, start), organization.tzinfo)
+    existing = Lesson.objects.filter(group=group, starts_at=starts_at).first()
+
+    # Клетка занята — значит, педагога ставят к уже назначенному занятию,
+    # а не заводят новое. Предмет остаётся: так наставник встаёт на
+    # утренний круг и рефлексию, за которыми не закреплён «свой» предмет,
+    # и так же получают педагога занятия, перенесённые из файла Алины.
+    # Сменить предмет в клетке можно, убрав занятие крестиком.
+    if existing is not None:
+        return _assign_teacher(request, existing, teacher, group)
+
     # Предмет: явно выбранный или единственный у этого педагога. Угадывать
     # из нескольких нельзя — получится «химия» вместо «биологии».
     subject = None
@@ -185,21 +256,25 @@ def slot_set(request):
         options = list(teacher.subjects.all())
         if len(options) == 1:
             subject = options[0]
+
     if subject is None:
+        if not teacher.subjects.exists():
+            return JsonResponse(
+                {
+                    "error": (
+                        f"У {teacher.short_name} не заданы предметы. Откройте карточку "
+                        "педагога и укажите, что он ведёт, — либо перетащите его "
+                        "на уже стоящее занятие, чтобы назначить педагогом."
+                    )
+                },
+                status=400,
+            )
         return JsonResponse(
             {"error": "У педагога несколько предметов — выберите, какой ставим."},
             status=400,
         )
 
-    duration = int(request.POST.get("duration") or 40)
-    starts_at = timezone.make_aware(dt.datetime.combine(day, start), organization.tzinfo)
-
-    conflict = (
-        Lesson.objects.filter(teacher=teacher, starts_at=starts_at)
-        .exclude(group=group)
-        .select_related("group")
-        .first()
-    )
+    conflict = _busy_elsewhere(teacher, starts_at, group)
     if conflict is not None:
         return JsonResponse(
             {
@@ -212,7 +287,6 @@ def slot_set(request):
         )
 
     with transaction.atomic():
-        Lesson.objects.filter(group=group, starts_at=starts_at).delete()
         lesson = Lesson.objects.create(
             organization=organization, module=module, subject=subject,
             group=group, teacher=teacher, starts_at=starts_at,
@@ -221,20 +295,7 @@ def slot_set(request):
 
     log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=lesson,
               change="lesson_scheduled")
-    return render(
-        request,
-        "cabinet/manage/partials/slot.html",
-        {
-            "cell": {
-                "day": day,
-                "time": f"{start:%H:%M}",
-                "duration": duration,
-                "key": f"{day.isoformat()}-{start:%H%M}",
-                "lesson": lesson,
-            },
-            "group": group,
-        },
-    )
+    return _slot_html(request, lesson, group)
 
 
 @login_required
@@ -327,3 +388,48 @@ def week_copy(request):
                 created += 1
 
     return JsonResponse({"created": created, "skipped": skipped})
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def week_clear(request):
+    """
+    Убрать все занятия недели у группы — для полной перестройки.
+
+    Спрашиваем дважды, если за какие-то занятия уже выставлены баллы:
+    расписание переставить не жалко, а работу учеников — жалко.
+    """
+    group = get_object_or_404(Group.objects.all(), pk=request.POST.get("group"))
+    monday = _week_start(request)
+    lessons = Lesson.objects.filter(
+        group=group,
+        starts_at__date__gte=monday,
+        starts_at__date__lte=monday + dt.timedelta(days=6),
+    )
+
+    total = lessons.count()
+    if not total:
+        return JsonResponse({"removed": 0, "graded": 0})
+
+    graded = lessons.filter(grade_item__isnull=False).count()
+    if graded and request.POST.get("force") != "1":
+        return JsonResponse(
+            {
+                "error": (
+                    f"На этой неделе {graded} "
+                    f"{plural(graded, 'занятие,занятия,занятий')}, "
+                    "за которые уже выставлены баллы. "
+                    "Очистка уберёт и их — подтвердите ещё раз."
+                ),
+                "needs_force": True,
+            },
+            status=409,
+        )
+
+    with transaction.atomic():
+        lessons.delete()
+
+    log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=group,
+              change="week_cleared")
+    return JsonResponse({"removed": total, "graded": graded})

@@ -54,10 +54,12 @@ urlpatterns = [
     path("zhurnal/", manage.journal, name="journal"),
 
     # Конструктор расписания: карточки педагогов перетаскиваются в сетку
+    path("moi-chasy/", teacher.my_hours, name="teacher_hours"),
     path("raspisanie/konstruktor/", scheduler.builder, name="schedule_builder"),
     path("raspisanie/konstruktor/postavit/", scheduler.slot_set, name="slot_set"),
     path("raspisanie/konstruktor/<uuid:lesson_id>/ubrat/", scheduler.slot_clear, name="slot_clear"),
     path("raspisanie/konstruktor/kopirovat/", scheduler.week_copy, name="week_copy"),
+    path("raspisanie/konstruktor/ochistit/", scheduler.week_clear, name="week_clear"),
     path("zayavki/", manage.leads, name="leads"),
     path("zayavki/<uuid:lead_id>/status/", manage.lead_status, name="lead_status"),
     path("zayavki/<uuid:lead_id>/udalit/", manage.lead_delete, name="lead_delete"),

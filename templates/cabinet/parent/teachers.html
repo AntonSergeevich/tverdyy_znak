@@ -1,4 +1,4 @@
-{% extends "cabinet/base_cabinet.html" %}
+{% extends "cabinet/base_cabinet.html" %}{% load public_extras %}
 {% block cabinet_title %}Педагоги{% endblock %}
 
 {% block content %}
@@ -17,17 +17,27 @@
           <div class="photo-placeholder" aria-hidden="true">Ъ</div>
         {% endif %}
         <p class="card__title" style="margin-top:14px">{{ teacher.user.full_name }}</p>
-        <p style="color:var(--accent-2);font-weight:600">
-          {% for subject in teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
-        </p>
-        {% if teacher.public_title %}<p class="small muted">{{ teacher.public_title }}</p>{% endif %}
+        <p style="color:var(--accent-2);font-weight:600">{{ teacher.public_subjects|default:"—" }}</p>
+        {% if teacher.experience %}<p class="small muted">{{ teacher.experience }}</p>{% endif %}
+
+        {% if teacher.rating %}
+          <p class="small" style="margin-top:8px">
+            <span aria-hidden="true">{{ teacher.rating|stars }}</span>
+            <span class="muted">{{ teacher.rating }} · {{ teacher.reviews_count }}
+              {{ teacher.reviews_count|plural:"отзыв,отзыва,отзывов" }}</span>
+          </p>
+        {% endif %}
 
         {% comment %}
-          Отзыв оставляют отсюда, из кабинета: только родитель, чей ребёнок
-          у этого педагога учится. Анонимных отзывов на сайте не будет.
+          Отзыв оставляют отсюда, из кабинета: только тот, у кого этот
+          педагог реально ведёт занятия. Анонимных отзывов на сайте не будет.
+          Если отзыв уже есть, кнопка так и говорит — иначе человек решит,
+          что первый не сохранился, и напишет второй.
         {% endcomment %}
         <p style="margin-top:12px">
-          <a class="btn btn--quiet" href="{% url 'cabinet:review_create' teacher.pk %}">Оставить отзыв</a>
+          <a class="btn btn--quiet" href="{% url 'cabinet:review_create' teacher.pk %}">
+            {% if teacher.pk in reviewed %}Изменить отзыв{% else %}Оставить отзыв{% endif %}
+          </a>
         </p>
       </div>
     {% endfor %}

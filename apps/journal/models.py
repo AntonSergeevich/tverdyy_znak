@@ -317,7 +317,6 @@ class Teacher(SoftDeleteTenantModel):
     # одном человеке — гарантия, что однажды они разойдутся: на сайте один
     # предмет, в журнале другой. Теперь педагог один, а поля ниже решают,
     # что из него показывать.
-    public_title = models.CharField("подпись для сайта", max_length=200, blank=True)
     photo = models.ImageField("фотография", upload_to="teachers/", blank=True)
     subject_line = models.CharField(
         "предметы для сайта", max_length=120, blank=True,

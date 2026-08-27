@@ -250,6 +250,7 @@ class AuditAction(models.TextChoices):
     CONSENT_REVOKED = "consent_revoked", "согласие отозвано"
     DATA_PURGED = "data_purged", "удаление по истечении срока хранения"
     TWO_FACTOR_RESET = "two_factor_reset", "сброс второго фактора"
+    PASSWORD_CHANGED = "password_changed", "смена пароля"
 
 
 class AuditLog(models.Model):

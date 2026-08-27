@@ -1,0 +1,90 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras public_extras %}
+{% block cabinet_title %}Мои часы{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">Мои часы</h1>
+  <form class="btn-row" method="get">
+    <input class="input" type="date" name="from" value="{{ start|date:'Y-m-d' }}" aria-label="Период с" style="width:auto">
+    <input class="input" type="date" name="to" value="{{ end|date:'Y-m-d' }}" aria-label="Период по" style="width:auto">
+    <button class="btn btn--quiet" type="submit">Показать</button>
+  </form>
+</div>
+
+{% if not teacher %}
+  <div class="empty-state">
+    <p class="empty-state__title">Карточка педагога не заведена</p>
+    <p>Часы считаются по занятиям из расписания. Обратитесь к администратору центра.</p>
+  </div>
+{% else %}
+
+{% comment %}
+  Свои часы и свою оплату педагог видит сам: раньше эти цифры были
+  только в разделе ФОТ у владельца, и сойтись они могли лишь в день
+  выплаты.
+{% endcomment %}
+<div class="stat-row">
+  <div class="stat">
+    <div class="stat__label">Часов за период</div>
+    <div class="stat__value">{{ hours }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Ставка за час</div>
+    <div class="stat__value">{{ rate|money }} ₽</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Начислено</div>
+    <div class="stat__value">{{ amount|money }} ₽</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Занятий</div>
+    <div class="stat__value">{{ lessons|length }}</div>
+  </div>
+</div>
+<p class="small muted" style="margin-top:10px">
+  Считается по занятиям из расписания за выбранный период. Выплаты
+  проводит администрация центра — эта страница показывает начисление.
+</p>
+
+<h2 class="label" style="font-size:18px;margin:32px 0 12px">Занятия</h2>
+{% if lessons %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Когда</th><th>Предмет</th><th>Группа</th><th>Минут</th></tr></thead>
+      <tbody>
+      {% for lesson in lessons %}
+        <tr>
+          <td>{{ lesson.starts_at|date:"d.m.Y, H:i" }}</td>
+          <td>{{ lesson.subject.name }}</td>
+          <td>{{ lesson.group.name }}</td>
+          <td class="numeral">{{ lesson.duration_minutes }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">За этот период занятий не было.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 12px">Отзывы обо мне</h2>
+{% if reviews %}
+  <p class="small muted" style="margin-bottom:12px">
+    <span aria-hidden="true">{{ teacher.rating|stars }}</span>
+    {{ teacher.rating }} · {{ teacher.reviews_count }}
+    {{ teacher.reviews_count|plural:"отзыв,отзыва,отзывов" }} на сайте
+  </p>
+  <div class="stack">
+    {% for review in reviews %}
+      <div class="card">
+        <p class="small muted">{{ review.author_label }} · {{ review.created_at|date:"d.m.Y" }}</p>
+        <p><span aria-hidden="true">{{ review.rating|stars }}</span></p>
+        <p>{{ review.text }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">Опубликованных отзывов пока нет.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

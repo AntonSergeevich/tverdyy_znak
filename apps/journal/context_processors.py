@@ -50,6 +50,7 @@ def cabinet_menu(request) -> dict:
             "cabinet_menu": [
                 _item("teacher_today", "Сегодня", "lesson_journal", "module_plan"),
                 _item("schedule", "Расписание"),
+                _item("teacher_hours", "Мои часы"),
             ]
         }
     if user.has_role(organization, Role.PARENT):

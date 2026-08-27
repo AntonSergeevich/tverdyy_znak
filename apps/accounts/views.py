@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -12,8 +13,13 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts import totp
-from apps.accounts.forms import LoginForm, TwoFactorForm, TwoFactorSetupForm
-from apps.accounts.models import TwoFactorDevice
+from apps.accounts.forms import (
+    LoginForm,
+    PasswordChangeForm,
+    TwoFactorForm,
+    TwoFactorSetupForm,
+)
+from apps.accounts.models import Role, TwoFactorDevice
 from apps.core.audit import AuditAction, log_audit
 
 PENDING_USER_KEY = "_2fa_pending_user"
@@ -167,6 +173,45 @@ def two_factor_setup_view(request):
             # если камера не работает.
             "secret_groups": [device.secret[i:i + 4] for i in range(0, len(device.secret), 4)],
             "confirmed": device.is_confirmed,
+        },
+    )
+
+
+@never_cache
+@csrf_protect
+@login_required
+@require_http_methods(["GET", "POST"])
+def profile_view(request):
+    """
+    Свой профиль: чем входить, как сменить пароль, что со вторым фактором.
+
+    Пароли в центре раздаёт администратор — без этой страницы человек
+    навсегда оставался бы с придуманным за него паролем, а найти
+    настройку двухфакторки было бы вовсе неоткуда.
+    """
+    user = request.user
+    form = PasswordChangeForm(user, request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        # Смена пароля выкидывает из всех сессий, включая текущую.
+        # Без этого человек меняет пароль и тут же оказывается на входе.
+        update_session_auth_hash(request, user)
+        log_audit(action=AuditAction.PASSWORD_CHANGED, request=request, actor=user)
+        messages.success(request, "Пароль изменён. На других устройствах придётся войти заново.")
+        return redirect("accounts:profile")
+
+    device = TwoFactorDevice.objects.filter(user=user).first()
+    organization = getattr(request, "organization", None)
+    return render(
+        request,
+        "accounts/profile.html",
+        {
+            "form": form,
+            "device": device,
+            "two_factor_required": user.requires_two_factor,
+            "roles": sorted(
+                Role(role).label for role in user.roles_in(organization)
+            ) if organization else [],
         },
     )
 

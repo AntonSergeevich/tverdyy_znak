@@ -413,3 +413,52 @@ def grade_bulk(request, lesson_id):
             "bulk_changed": changed,
         },
     )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+def my_hours(request):
+    """
+    Свои часы и оплата за период.
+
+    Педагог в центре получает за час, но видел эти цифры только владелец
+    в разделе ФОТ. Свои — человек имеет право видеть сам, не спрашивая:
+    сойтись они должны заранее, а не в день выплаты.
+    """
+    from apps.journal.views.manage import _period
+
+    organization = request.organization
+    profile = teacher_profile(request.user, organization)
+    start, end = _period(request)
+
+    if profile is None:
+        return render(
+            request,
+            "cabinet/teacher/hours.html",
+            {"start": start, "end": end, "teacher": None},
+        )
+
+    lessons = list(
+        Lesson.objects.filter(
+            teacher=profile, starts_at__date__gte=start, starts_at__date__lte=end
+        )
+        .select_related("subject", "group")
+        .order_by("starts_at")
+    )
+    minutes = sum(lesson.duration_minutes for lesson in lessons)
+    hours = (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
+
+    return render(
+        request,
+        "cabinet/teacher/hours.html",
+        {
+            "teacher": profile,
+            "start": start,
+            "end": end,
+            "lessons": lessons,
+            "hours": hours,
+            "rate": profile.hourly_rate,
+            "amount": (hours * profile.hourly_rate).quantize(Decimal("0.01")),
+            "reviews": profile.published_reviews,
+        },
+    )
