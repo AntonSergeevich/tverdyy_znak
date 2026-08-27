@@ -21,6 +21,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
+from dataclasses import asdict
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
@@ -66,26 +68,56 @@ def _login_url(request) -> str:
     return request.build_absolute_uri(reverse("accounts:login"))
 
 
-def _credentials_response(request, credentials, *, back_url: str, **extra):
-    """
-    Страница с доступами.
+CREDENTIALS_KEY = "_issued_credentials"
 
-    Фрагмент вынесен отдельно: через HTMX сюда же приходит сброс пароля,
-    и дублировать разметку ради одной обёртки не нужно.
+
+def _credentials_response(request, credentials, *, back_url: str,
+                          extra_credentials=None, student=None):
     """
-    template = (
-        "cabinet/manage/partials/credentials.html"
-        if request.headers.get("HX-Request")
-        else "cabinet/manage/credentials.html"
-    )
+    Показать выданные доступы — отдельной страницей, после перехода.
+
+    Раньше страница отдавалась прямо в ответ на POST, и это ломалось
+    дважды. Кабинет перехватывает обычные формы и подменяет только
+    середину страницы — а в ответ приходил кусок без неё, и экран
+    оставался пустым. Обновление же повторяло POST по адресу, который
+    GET не принимает, и браузер показывал 405.
+
+    Поэтому пароль кладём в сессию (она на сервере) и уводим человека
+    на страницу, которая его показывает и тут же забывает. Обновить её
+    можно сколько угодно — второй раз пароль просто не покажется.
+    """
+    request.session[CREDENTIALS_KEY] = {
+        "credentials": asdict(credentials),
+        "extra_credentials": asdict(extra_credentials) if extra_credentials else None,
+        "back_url": back_url,
+        "student_id": str(student.pk) if student is not None else "",
+    }
+    return redirect("cabinet:credentials")
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+def credentials(request):
+    """
+    Логин и пароль, выданные только что.
+
+    Показываются один раз: в базе пароль лежит хэшем, восстановить его
+    нельзя — можно только выдать новый.
+    """
+    issued = request.session.pop(CREDENTIALS_KEY, None)
+    if not issued:
+        messages.info(request, "Пароль показывается один раз. Выдайте новый, если он потерян.")
+        return redirect("cabinet:staff")
+
     return render(
         request,
-        template,
+        "cabinet/manage/credentials.html",
         {
-            "credentials": credentials,
+            "credentials": issued["credentials"],
+            "extra_credentials": issued["extra_credentials"],
             "login_url": _login_url(request),
-            "back_url": back_url,
-            **extra,
+            "back_url": issued["back_url"],
+            "student_id": issued["student_id"],
         },
     )
 
@@ -585,8 +617,6 @@ def password_reset(request, user_id):
     Администратор не может сбросить пароль тому, кто главнее его:
     иначе роль администратора превращается в способ захватить владельца.
     """
-    from django.contrib.auth import get_user_model
-
     User = get_user_model()
     user = get_object_or_404(
         User.objects.filter(memberships__organization=request.organization).distinct(), pk=user_id
@@ -621,8 +651,6 @@ def two_factor_reset(request, user_id):
     Владельцу второй фактор сбрасывает только владелец — иначе роль
     администратора превращается в способ подобраться к владельцу.
     """
-    from django.contrib.auth import get_user_model
-
     from apps.accounts.models import TwoFactorDevice
 
     User = get_user_model()

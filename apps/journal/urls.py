@@ -88,6 +88,9 @@ urlpatterns = [
     path("sotrudniki/<uuid:user_id>/", people.staff_card, name="staff_card"),
     path("sotrudniki/<uuid:user_id>/ubrat/", people.staff_remove, name="staff_remove"),
 
+    # Пароль показывается отдельной страницей после перехода: ответом
+    # на саму отправку формы он ломался и в кабинете, и при обновлении.
+    path("dostup/vydan/", people.credentials, name="credentials"),
     path("dostup/<uuid:user_id>/novyy-parol/", people.password_reset, name="password_reset"),
     path("lyudi/<uuid:user_id>/vtoroy-faktor/", people.two_factor_reset, name="two_factor_reset"),
     path("ucheniki/<uuid:student_id>/nachislit/", people.payment_create, name="payment_create"),

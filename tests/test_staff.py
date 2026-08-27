@@ -333,3 +333,90 @@ def test_an_owner_card_saves_without_the_teacher_block(owner_client, tenant_a):
     person.refresh_from_db()
     assert person.first_name == "Ольга"
     assert not Teacher.all_objects.filter(user=person).exists()
+
+
+# ─── Выдача доступа из кабинета ─────────────────────────────────────────────
+#
+# Кабинет перехватывает обычные формы и подменяет только середину страницы.
+# Раньше в ответ на «выдать доступ» приходил кусок без этой середины —
+# экран становился пустым, а обновление повторяло отправку по адресу,
+# который GET не принимает, и браузер показывал 405. Тесты этого не ловили:
+# обычный клиент не притворялся кабинетом.
+
+BOOSTED = {"HTTP_HX_REQUEST": "true", "HTTP_HX_BOOSTED": "true"}
+
+
+def test_issuing_access_from_the_cabinet_does_not_blank_the_screen(owner_client, tenant_a):
+    person = tenant_a.teacher_user
+
+    response = owner_client.post(
+        reverse("cabinet:password_reset", args=[person.pk]), **BOOSTED
+    )
+
+    # Ответ — переход, а не кусок страницы: иначе кабинету нечего показать.
+    assert response.status_code == 302
+    assert response["Location"] == reverse("cabinet:credentials")
+
+    page = owner_client.get(response["Location"], **BOOSTED)
+    body = page.content.decode()
+    assert page.status_code == 200
+    # Середина страницы на месте — именно её кабинет и подменяет.
+    assert 'id="main"' in body
+    assert "Пароль" in body
+    assert person.login in body
+
+
+def test_the_credentials_page_survives_a_reload(owner_client, tenant_a):
+    """
+    Обновление страницы больше не повторяет отправку.
+
+    Второй раз пароль не покажется — он и не хранится, но экран будет
+    целым, а не «страница недоступна».
+    """
+    owner_client.post(reverse("cabinet:password_reset", args=[tenant_a.teacher_user.pk]))
+    owner_client.get(reverse("cabinet:credentials"))
+
+    again = owner_client.get(reverse("cabinet:credentials"), follow=True)
+
+    assert again.status_code == 200
+    assert "показывается один раз" in again.content.decode()
+
+
+def test_the_password_is_shown_once(owner_client, tenant_a):
+    """В базе пароль лежит хэшем: показать его повторно неоткуда."""
+    owner_client.post(reverse("cabinet:password_reset", args=[tenant_a.teacher_user.pk]))
+    first = owner_client.get(reverse("cabinet:credentials")).content.decode()
+
+    password = first.split("<dt>Пароль</dt><dd><code>")[1].split("</code>")[0]
+    second = owner_client.get(reverse("cabinet:credentials"), follow=True).content.decode()
+
+    assert password
+    assert password not in second
+
+
+def test_a_new_staff_member_lands_on_the_credentials_page(owner_client, tenant_a):
+    response = owner_client.post(
+        reverse("cabinet:staff_create"),
+        {
+            "last_name": "Зотова", "first_name": "Инна", "middle_name": "",
+            "phone": "", "email": "", "role": "admin",
+        },
+        **BOOSTED,
+    )
+
+    assert response.status_code == 302
+    body = owner_client.get(response["Location"]).content.decode()
+    assert "zotova" in body
+    assert 'id="main"' in body
+
+
+def test_credentials_page_is_closed_for_teachers(client, tenant_a):
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.defaults["HTTP_HOST"] = tenant_a.host
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.teacher_user.email, "password": PASSWORD},
+        )
+        response = client.get(reverse("cabinet:credentials"))
+
+    assert response.status_code in (302, 403)

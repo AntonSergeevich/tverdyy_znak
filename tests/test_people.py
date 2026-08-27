@@ -109,6 +109,7 @@ def test_admin_creates_student_and_sees_credentials_once(admin_client, tenant_a)
             "parent_last_name": "", "parent_first_name": "",
             "parent_phone": "", "parent_email": "",
         },
+        follow=True,
     )
     body = response.content.decode()
 
@@ -244,6 +245,7 @@ def test_admin_creates_teacher_with_rate(admin_client, tenant_a):
             "teacher-hourly_rate": "1200", "teacher-public_position": "100",
             "teacher-subjects": [str(tenant_a.subject.pk)],
         },
+        follow=True,
     )
 
     teacher = Teacher.all_objects.get(
@@ -447,6 +449,7 @@ def test_parent_can_be_added_to_an_existing_child(admin_client, tenant_a):
             "last_name": "Второв", "first_name": "Пётр", "middle_name": "",
             "phone": "", "email": "", "relation": "папа", "is_primary_contact": "",
         },
+        follow=True,
     )
 
     assert response.status_code == 200

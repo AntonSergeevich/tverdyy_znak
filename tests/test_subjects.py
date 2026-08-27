@@ -117,7 +117,9 @@ def test_teacher_without_access_gets_it_from_the_card(admin_client, tenant_a):
     user.set_unusable_password()
     user.save()
 
-    response = admin_client.post(reverse("cabinet:password_reset", args=[user.pk]))
+    response = admin_client.post(
+        reverse("cabinet:password_reset", args=[user.pk]), follow=True
+    )
     user.refresh_from_db()
 
     assert response.status_code == 200
