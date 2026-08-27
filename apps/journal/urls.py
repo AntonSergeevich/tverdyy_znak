@@ -88,6 +88,7 @@ urlpatterns = [
     path("sotrudniki/dobavit/", people.staff_create, name="staff_create"),
 
     path("dostup/<uuid:user_id>/novyy-parol/", people.password_reset, name="password_reset"),
+    path("lyudi/<uuid:user_id>/vtoroy-faktor/", people.two_factor_reset, name="two_factor_reset"),
     path("ucheniki/<uuid:student_id>/nachislit/", people.payment_create, name="payment_create"),
     path("ucheniki/<uuid:student_id>/roditel/", people.parent_invite, name="parent_invite"),
     path("fot/", manage.payroll, name="payroll"),

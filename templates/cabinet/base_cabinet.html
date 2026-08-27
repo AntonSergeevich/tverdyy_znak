@@ -14,6 +14,25 @@
 {% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#site-nav"{% endblock %}
 
 {% block body %}
+{% if request.impersonator %}
+  {% comment %}
+    Полоса видна на каждом экране и не сворачивается: забыть, что смотришь
+    чужими глазами, здесь стоило бы слишком дорого. Формы внутри неё —
+    без hx-boost: они уводят из кабинета целиком.
+  {% endcomment %}
+  <div class="impersonation-bar">
+    <span>
+      Вы смотрите кабинет: <strong>{{ request.user.full_name|default:request.user.login }}</strong>.
+      Только просмотр — изменить ничего нельзя.
+    </span>
+    <span class="btn-row">
+      <a class="btn btn--quiet" href="{% url 'accounts:impersonate_list' %}">Другой кабинет</a>
+      <form method="post" action="{% url 'accounts:impersonate_stop' %}" hx-boost="false">{% csrf_token %}
+        <button class="btn" type="submit">Вернуться к себе</button>
+      </form>
+    </span>
+  </div>
+{% endif %}
 {# В кабинетах нет никакой сторонней аналитики: здесь персональные данные детей (ТЗ 7). #}
 <header class="site-header">
   <a class="logo" href="{% url 'cabinet:home' %}">
@@ -28,10 +47,16 @@
       а boost подменил бы только содержимое и оставил шапку кабинета
       на публичной странице. Выглядело бы как «кнопка не работает».
     {% endcomment %}
-    <a class="btn btn--quiet" href="{% url 'accounts:profile' %}">Профиль</a>
-    <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}
-      <button class="btn btn--quiet" type="submit">Выйти</button>
-    </form>
+    {% if request.impersonator %}
+      <form method="post" action="{% url 'accounts:impersonate_stop' %}" hx-boost="false">{% csrf_token %}
+        <button class="btn btn--quiet" type="submit">Вернуться к себе</button>
+      </form>
+    {% else %}
+      <a class="btn btn--quiet" href="{% url 'accounts:profile' %}">Профиль</a>
+      <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}
+        <button class="btn btn--quiet" type="submit">Выйти</button>
+      </form>
+    {% endif %}
     <button class="nav-toggle" type="button" data-nav-toggle
             aria-expanded="false" aria-controls="site-nav" aria-label="Меню">
       <span class="nav-toggle__bars" aria-hidden="true"></span>

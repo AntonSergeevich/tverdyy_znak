@@ -897,3 +897,29 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
   .stat { flex: 1 1 140px; padding: 12px 14px; }
   .stat__value { font-size: 26px; }
 }
+
+/* Полоса «вы смотрите чужой кабинет».
+   Липкая и в цвете предупреждения: забыть, что смотришь чужими глазами,
+   стоило бы слишком дорого — за этими экранами данные детей. */
+.impersonation-bar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px clamp(16px, 4vw, 40px);
+  background: var(--warn);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.impersonation-bar strong { font-weight: 700; }
+.impersonation-bar .btn {
+  background: rgba(255, 255, 255, .16);
+  border-color: rgba(255, 255, 255, .5);
+  color: #fff;
+}
+.impersonation-bar .btn:hover { background: rgba(255, 255, 255, .28); }

@@ -387,7 +387,13 @@ def teacher_delete(request, teacher_id):
 @role_required(*OWNER_ROLES)
 @require_http_methods(["GET", "POST"])
 def staff_create(request):
-    form = StaffForm(request.POST or None)
+    form = StaffForm(
+        request.POST or None,
+        with_platform_admin=(
+            request.user.is_superuser
+            or request.user.has_role(request.organization, Role.PLATFORM_ADMIN)
+        ),
+    )
 
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
@@ -452,6 +458,49 @@ def password_reset(request, user_id):
     return _credentials_response(
         request, credentials, back_url=request.META.get("HTTP_REFERER") or reverse("cabinet:home")
     )
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def two_factor_reset(request, user_id):
+    """
+    Отвязать приложение с одноразовыми кодами.
+
+    Телефон меняют и теряют, а без этого привилегированный аккаунт
+    остаётся запертым навсегда — раньше отвязать можно было только
+    командой на сервере. Пароль при этом не меняется: следующий вход
+    просто снова предложит отсканировать QR.
+
+    Владельцу второй фактор сбрасывает только владелец — иначе роль
+    администратора превращается в способ подобраться к владельцу.
+    """
+    from django.contrib.auth import get_user_model
+
+    from apps.accounts.models import TwoFactorDevice
+
+    User = get_user_model()
+    user = get_object_or_404(
+        User.objects.filter(memberships__organization=request.organization).distinct(), pk=user_id
+    )
+    is_owner = request.user.has_role(request.organization, Role.OWNER) or request.user.is_superuser
+    target_is_privileged = user.memberships.filter(
+        organization=request.organization, role__in=(Role.OWNER, Role.PLATFORM_ADMIN)
+    ).exists()
+    if target_is_privileged and not is_owner:
+        raise PermissionDenied("Сбросить второй фактор владельцу может только владелец.")
+
+    deleted, _ = TwoFactorDevice.objects.filter(user=user).delete()
+    if deleted:
+        log_audit(action=AuditAction.TWO_FACTOR_RESET, request=request, obj=user)
+        messages.success(
+            request,
+            f"{user.full_name}: приложение отвязано. При следующем входе "
+            "откроется страница с новым QR-кодом.",
+        )
+    else:
+        messages.info(request, f"У {user.full_name} приложение и не было привязано.")
+    return redirect(request.META.get("HTTP_REFERER") or reverse("cabinet:staff"))
 
 
 # ─── Оплаты ─────────────────────────────────────────────────────────────────

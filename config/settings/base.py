@@ -60,6 +60,9 @@ MIDDLEWARE = [
     "apps.core.middleware.OrganizationMiddleware",
     # Ограничение сессии по неактивности (ТЗ 8.2).
     "apps.accounts.middleware.SessionIdleTimeoutMiddleware",
+    # Просмотр кабинета от чужого лица. После определения организации:
+    # право проверяется по роли в ней.
+    "apps.accounts.middleware.ImpersonationMiddleware",
     # django-axes должен быть последним из аутентификационных.
     "axes.middleware.AxesMiddleware",
 ]

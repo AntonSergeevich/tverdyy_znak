@@ -23,10 +23,24 @@
           <td class="muted"><code>{{ membership.user.login }}</code></td>
           <td class="muted">{{ membership.user.last_activity_at|date:"d.m.Y H:i"|default:"—" }}</td>
           <td>
-            <form method="post" action="{% url 'cabinet:password_reset' membership.user.pk %}">
-              {% csrf_token %}
-              <button class="btn btn--quiet" type="submit">Новый пароль</button>
-            </form>
+            <span class="btn-row">
+              <form method="post" action="{% url 'cabinet:password_reset' membership.user.pk %}">
+                {% csrf_token %}
+                <button class="btn btn--quiet" type="submit">Новый пароль</button>
+              </form>
+              {% comment %}
+                Телефон меняют и теряют. Без этой кнопки отвязать приложение
+                с кодами можно было только командой на сервере, а аккаунт до
+                тех пор оставался запертым.
+              {% endcomment %}
+              <form method="post" action="{% url 'cabinet:two_factor_reset' membership.user.pk %}">
+                {% csrf_token %}
+                <button class="btn btn--quiet" type="submit"
+                        {% if not membership.user.totp_device.is_confirmed %}disabled title="Приложение не привязано"{% endif %}>
+                  Отвязать приложение
+                </button>
+              </form>
+            </span>
           </td>
         </tr>
       {% endfor %}

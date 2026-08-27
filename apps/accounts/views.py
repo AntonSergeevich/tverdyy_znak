@@ -5,7 +5,8 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
@@ -19,7 +20,12 @@ from apps.accounts.forms import (
     TwoFactorForm,
     TwoFactorSetupForm,
 )
-from apps.accounts.models import Role, TwoFactorDevice
+from apps.accounts.impersonation import (
+    SESSION_KEY as IMPERSONATE_KEY,
+    can_impersonate,
+    may_be_impersonated,
+)
+from apps.accounts.models import Membership, Role, TwoFactorDevice
 from apps.core.audit import AuditAction, log_audit
 
 PENDING_USER_KEY = "_2fa_pending_user"
@@ -214,6 +220,99 @@ def profile_view(request):
             ) if organization else [],
         },
     )
+
+
+# ── Просмотр от чужого лица ─────────────────────────────────────────────────
+
+def _real_user(request):
+    """
+    Кто на самом деле нажимает кнопку.
+
+    Пока просмотр включён, request.user — это тот, чей кабинет смотрят.
+    Право проверяем по настоящему человеку, иначе переключиться на другой
+    кабинет было бы нельзя: маска сама себе прав не даёт.
+    """
+    return getattr(request, "impersonator", None) or request.user
+
+
+def _impersonation_guard(request):
+    """Право на просмотр — у администратора платформы, и только у него."""
+    if not can_impersonate(_real_user(request), getattr(request, "organization", None)):
+        raise PermissionDenied("Просмотр чужого кабинета доступен администратору платформы.")
+
+
+@never_cache
+@login_required
+def impersonate_list(request):
+    """
+    Кого можно посмотреть.
+
+    Список — по ролям, потому что смотрят обычно не человека, а роль:
+    «что видит родитель», «что видит ученик».
+    """
+    _impersonation_guard(request)
+    organization = request.organization
+
+    memberships = (
+        Membership.objects.filter(organization=organization, is_active=True)
+        .select_related("user")
+        .order_by("role", "user__last_name", "user__first_name")
+    )
+    groups: dict[str, list] = {}
+    for membership in memberships:
+        if not may_be_impersonated(membership.user, organization):
+            continue
+        groups.setdefault(Role(membership.role).label, []).append(membership.user)
+
+    return render(
+        request,
+        "accounts/impersonate.html",
+        {"groups": sorted(groups.items()), "viewing": getattr(request, "impersonator", None)},
+    )
+
+
+@never_cache
+@csrf_protect
+@login_required
+@require_http_methods(["POST"])
+def impersonate_start(request, user_id):
+    """Включить просмотр кабинета этого человека."""
+    _impersonation_guard(request)
+    organization = request.organization
+
+    target = get_object_or_404(
+        get_user_model().objects.filter(
+            memberships__organization=organization, memberships__is_active=True
+        ).distinct(),
+        pk=user_id,
+    )
+    if not may_be_impersonated(target, organization):
+        raise PermissionDenied(
+            "Так можно смотреть только тех, у кого нет прав администратора."
+        )
+
+    request.session[IMPERSONATE_KEY] = str(target.pk)
+    log_audit(
+        action=AuditAction.PERMISSION_CHANGED, request=request, actor=_real_user(request),
+        obj=target, change="impersonation_started",
+    )
+    return redirect("cabinet:home")
+
+
+@never_cache
+@csrf_protect
+@login_required
+@require_http_methods(["POST"])
+def impersonate_stop(request):
+    """Вернуться к себе."""
+    target_id = request.session.pop(IMPERSONATE_KEY, None)
+    actor = _real_user(request)
+    if target_id:
+        log_audit(
+            action=AuditAction.PERMISSION_CHANGED, request=request, actor=actor,
+            change="impersonation_stopped", target=str(target_id),
+        )
+    return redirect("cabinet:home")
 
 
 @require_http_methods(["POST", "GET"])

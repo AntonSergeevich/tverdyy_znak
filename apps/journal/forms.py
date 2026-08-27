@@ -205,6 +205,19 @@ class StaffForm(PersonForm):
         initial="admin",
     )
 
+    def __init__(self, *args, with_platform_admin: bool = False, **kwargs):
+        """
+        Администратора платформы заводит только администратор платформы.
+
+        Это роль сопровождения, а не центра: у неё есть просмотр чужого
+        кабинета, и раздавать её из кабинета владельца незачем.
+        """
+        super().__init__(*args, **kwargs)
+        if with_platform_admin:
+            self.fields["role"].choices = list(self.fields["role"].choices) + [
+                ("platform_admin", "администратор платформы")
+            ]
+
 
 class PaymentForm(forms.ModelForm):
     class Meta:

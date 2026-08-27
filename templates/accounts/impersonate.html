@@ -1,0 +1,54 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Просмотр кабинета{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <h1 class="h-display" style="font-size:clamp(22px,3vw,32px)">Посмотреть чужой кабинет</h1>
+</div>
+
+{% comment %}
+  Список по ролям: смотрят обычно не человека, а роль — «что видит
+  родитель», «что видит ученик».
+{% endcomment %}
+<p class="muted" style="max-width:64ch">
+  Открывает кабинет так, как его видит выбранный человек. Пока просмотр
+  включён, ничего изменить нельзя: ни выставить балл, ни отправить форму.
+  Скрытые цели ученика остаются скрытыми и здесь. Вход и выход
+  записываются в журнал действий.
+</p>
+
+{% if viewing %}
+  <div class="message message--warning" style="margin-top:16px">
+    Сейчас открыт кабинет: <strong>{{ request.user.full_name|default:request.user.login }}</strong>.
+    Выберите другого человека ниже или вернитесь к себе полосой наверху.
+  </div>
+{% endif %}
+
+{% for role_label, people in groups %}
+  <h2 class="label" style="font-size:18px;margin:32px 0 12px">{{ role_label }}</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Человек</th><th>Логин</th><th></th></tr></thead>
+      <tbody>
+        {% for person in people %}
+          <tr>
+            <td>{{ person.full_name|default:person.login }}</td>
+            <td class="muted"><code>{{ person.login }}</code></td>
+            <td>
+              <form method="post" action="{% url 'accounts:impersonate_start' person.pk %}" hx-boost="false">
+                {% csrf_token %}
+                <button class="btn btn--quiet" type="submit">Смотреть его кабинет</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% empty %}
+  <div class="empty-state">
+    <p class="empty-state__title">Смотреть пока некого</p>
+    <p>Здесь появятся ученики, родители и педагоги, когда их заведут.</p>
+  </div>
+{% endfor %}
+{% endblock %}

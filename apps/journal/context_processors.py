@@ -43,6 +43,16 @@ def cabinet_menu(request) -> dict:
         ]
         if user.is_superuser or user.has_role(organization, Role.OWNER, Role.PLATFORM_ADMIN):
             menu.append(_item("staff", "Сотрудники", "staff_create"))
+        # Просмотр чужого кабинета — сопровождению платформы, не центру.
+        if user.is_superuser or user.has_role(organization, Role.PLATFORM_ADMIN):
+            menu.append(
+                {
+                    "name": "impersonate_list",
+                    "label": "Просмотр",
+                    "url": reverse("accounts:impersonate_list"),
+                    "also": (),
+                }
+            )
         return {"cabinet_menu": menu}
 
     if user.has_role(organization, Role.TEACHER):

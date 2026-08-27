@@ -38,6 +38,16 @@ def _own_student(request) -> Student:
     return student
 
 
+def _goals_for(request, student):
+    """Цели ученика — с оглядкой на то, кто на них смотрит."""
+    goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE)
+    if getattr(request, "impersonator", None) is not None:
+        goals = Goal.objects.visible_to_others().filter(
+            student=student, status=GoalStatus.ACTIVE
+        )
+    return goals.select_related("subject", "module")
+
+
 @login_required
 @role_required("student")
 def student_home(request):
@@ -76,12 +86,11 @@ def student_home(request):
             "homework": list(homework),
             "week": list(week_lessons(student)),
             "scale": get_scale(organization),
-            # Свои цели ученик видит целиком, включая скрытые.
-            "goals": list(
-                Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related(
-                    "subject", "module"
-                )
-            ),
+            # Свои цели ученик видит целиком, включая скрытые. Но если
+            # кабинет смотрят чужими глазами — только открытые: ребёнку
+            # обещано, что скрытые не видит никто, и «проверка» не повод
+            # это обещание нарушить.
+            "goals": list(_goals_for(request, student)),
             "today_mood": today_mood,
             "yesterday_mood": yesterday_mood,
             "yesterday": yesterday,

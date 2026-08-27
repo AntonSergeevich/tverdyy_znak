@@ -236,3 +236,50 @@ def test_admin_can_mark_a_payment_paid(logged_in, tenant_a):
     assert response.status_code == 200
     payment.refresh_from_db()
     assert payment.status == Payment.Status.PAID
+
+
+def test_owner_can_unbind_a_lost_authenticator(logged_in, tenant_a):
+    """
+    Телефон меняют и теряют.
+
+    Раньше отвязать приложение можно было только командой на сервере, а
+    до тех пор аккаунт оставался запертым.
+    """
+    from apps.accounts.models import TwoFactorDevice
+
+    TwoFactorDevice.objects.create(
+        user=tenant_a.teacher_user, secret="ABCDEFGHIJKLMNOP", is_confirmed=True
+    )
+    client = logged_in(tenant_a.owner_user)
+
+    staff = client.get(reverse("cabinet:staff")).content.decode()
+    assert reverse("cabinet:two_factor_reset", args=[tenant_a.teacher_user.pk]) in staff
+
+    response = client.post(
+        reverse("cabinet:two_factor_reset", args=[tenant_a.teacher_user.pk])
+    )
+
+    assert response.status_code == 302
+    assert not TwoFactorDevice.objects.filter(user=tenant_a.teacher_user).exists()
+
+
+def test_unbinding_is_written_to_the_audit_log(logged_in, tenant_a):
+    from apps.accounts.models import TwoFactorDevice
+    from apps.core.models import AuditAction, AuditLog
+
+    TwoFactorDevice.objects.create(
+        user=tenant_a.teacher_user, secret="ABCDEFGHIJKLMNOP", is_confirmed=True
+    )
+    logged_in(tenant_a.owner_user).post(
+        reverse("cabinet:two_factor_reset", args=[tenant_a.teacher_user.pk])
+    )
+
+    assert AuditLog.objects.filter(action=AuditAction.TWO_FACTOR_RESET).exists()
+
+
+def test_unbinding_is_closed_for_teachers(logged_in, tenant_a):
+    response = logged_in(tenant_a.teacher_user).post(
+        reverse("cabinet:two_factor_reset", args=[tenant_a.owner_user.pk])
+    )
+
+    assert response.status_code in (302, 403)
