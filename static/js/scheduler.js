@@ -1,5 +1,5 @@
 /**
- * Конструктор расписания: карточки педагогов перетаскиваются в сетку.
+ * Конструктор расписания: карточки педагогов и блоков дня — в сетку.
  *
  * Карточка остаётся на месте после перетаскивания — одного педагога
  * ставят на несколько уроков подряд, и «взял и потерял» здесь было бы
@@ -7,9 +7,147 @@
  *
  * Всё сохраняется сразу: составление расписания — это десятки мелких
  * действий, и забытая кнопка «сохранить» стоила бы часа работы.
+ *
+ * Перетаскивание сделано на pointer-событиях, а не на встроенном в
+ * браузер draggable. Встроенное на телефонах не работает вовсе: Android
+ * его не знает, а десктопный браузер, если включить в нём режим
+ * телефона, перестаёт его выдавать. Свои указатели ведут себя одинаково
+ * и под мышью, и под пальцем.
  */
 (function () {
   'use strict';
+
+  var HOLD_MS = 200;   // сколько держать пальцем, чтобы взять карточку
+  var SLIP_PX = 10;    // сдвиг, после которого это уже прокрутка, а не взятие
+  var EDGE_PX = 90;    // у края экрана страница подкручивается сама
+
+  // Состояние перетаскивания живёт снаружи init: кабинет ходит по
+  // ссылкам без перезагрузки, init поднимается заново на каждой странице,
+  // и слушатели на документе иначе копились бы с каждым переходом.
+  var page = null;     // {say, place} текущего конструктора
+  var drag = null;     // {card, ghost} пока карточка в руке
+  var armed = null;    // карточка, выбранная нажатием и ждущая клетки
+  var press = null;    // {card, x, y, timer} между нажатием и взятием
+
+  function buzz() {
+    // Отклик на взятие: без него на телефоне непонятно, поднялась
+    // карточка или ты просто держишь палец на экране.
+    if (!navigator.vibrate) return;
+    try { navigator.vibrate(12); } catch (e) { /* не всякий браузер умеет */ }
+  }
+
+  function slotAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el ? el.closest('[data-slot]') : null;
+  }
+
+  function clearHover(except) {
+    document.querySelectorAll('.slot--over').forEach(function (el) {
+      if (el !== except) el.classList.remove('slot--over');
+    });
+  }
+
+  function disarm() {
+    if (armed) armed.classList.remove('deck-card--armed');
+    armed = null;
+  }
+
+  function arm(card) {
+    // Нажатие без перетаскивания — тоже способ поставить: сначала
+    // карточка, потом клетка. На телефоне это часто быстрее, чем нести
+    // палец через пол-экрана.
+    if (armed === card) {
+      disarm();
+      if (page) page.say('');
+      return;
+    }
+    disarm();
+    armed = card;
+    card.classList.add('deck-card--armed');
+    if (page) {
+      page.say('Выбрано: ' + (card.getAttribute('data-name') || '') +
+               '. Теперь нажмите клетку.');
+    }
+  }
+
+  function cancelPress() {
+    if (press && press.timer) clearTimeout(press.timer);
+    press = null;
+  }
+
+  function beginDrag(card, x, y) {
+    cancelPress();
+    disarm();
+    var ghost = document.createElement('div');
+    ghost.className = 'deck-ghost';
+    ghost.textContent = card.getAttribute('data-name') || '';
+    document.body.appendChild(ghost);
+    card.classList.add('deck-card--dragging');
+    drag = { card: card, ghost: ghost };
+    moveGhost(x, y);
+    buzz();
+  }
+
+  function moveGhost(x, y) {
+    if (!drag) return;
+    drag.ghost.style.left = x + 'px';
+    drag.ghost.style.top = y + 'px';
+
+    var slot = slotAt(x, y);
+    clearHover(slot);
+    if (slot) slot.classList.add('slot--over');
+
+    // Сетка ниже колоды, и на телефоне до неё надо доехать. Пока палец
+    // у края — страница подкручивается сама, иначе карточку не донести.
+    if (y < EDGE_PX) window.scrollBy(0, -14);
+    else if (y > window.innerHeight - EDGE_PX) window.scrollBy(0, 14);
+  }
+
+  function dropDrag(x, y) {
+    if (!drag) return;
+    var card = drag.card;
+    drag.ghost.remove();
+    card.classList.remove('deck-card--dragging');
+    drag = null;
+
+    var slot = slotAt(x, y);
+    clearHover(null);
+    if (slot && page) page.place(slot, card, false);
+  }
+
+  function abortDrag() {
+    if (!drag) return;
+    drag.ghost.remove();
+    drag.card.classList.remove('deck-card--dragging');
+    drag = null;
+    clearHover(null);
+  }
+
+  document.addEventListener('pointermove', function (event) {
+    if (drag) {
+      moveGhost(event.clientX, event.clientY);
+      return;
+    }
+    if (!press) return;
+    var slipped = Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y);
+    if (slipped < SLIP_PX) return;
+    if (event.pointerType === 'mouse') {
+      beginDrag(press.card, event.clientX, event.clientY);
+    } else {
+      // Палец поехал раньше, чем карточка поднялась, — это прокрутка.
+      cancelPress();
+    }
+  });
+
+  document.addEventListener('pointerup', function (event) {
+    if (drag) dropDrag(event.clientX, event.clientY);
+    cancelPress();
+  });
+
+  document.addEventListener('pointercancel', function () {
+    abortDrag();
+    cancelPress();
+  });
 
   function init() {
   var grid = document.querySelector('[data-grid]');
@@ -17,7 +155,6 @@
   grid.dataset.ready = '1';
 
   var status = document.querySelector('[data-builder-status]');
-  var dragged = null;
 
   function csrf() {
     var input = document.querySelector('input[name=csrfmiddlewaretoken]');
@@ -37,53 +174,42 @@
     }
   }
 
-  // ── Перетаскивание ────────────────────────────────────────────────────────
+  // ── Карточки ──────────────────────────────────────────────────────────────
 
-  // Карточки двух видов: педагог отвечает на вопрос «кто», блок дня —
-  // «что». Перетаскиваются одинаково, а вот в клетку уходят по-разному.
   document.querySelectorAll('[data-teacher], [data-block]').forEach(function (card) {
-    card.addEventListener('dragstart', function (event) {
-      dragged = card;
-      card.classList.add('deck-card--dragging');
-      // Данные кладём и в dataTransfer: без этого Firefox не начинает
-      // перетаскивание вообще.
-      event.dataTransfer.setData('text/plain', cardId(card));
-      event.dataTransfer.effectAllowed = 'copy';
+    // Встроенное перетаскивание отключаем явно: иначе мышью запускались
+    // бы сразу два механизма и картинка дёргалась.
+    card.setAttribute('draggable', 'false');
+
+    card.addEventListener('pointerdown', function (event) {
+      if (event.button) return;
+      press = {
+        card: card, x: event.clientX, y: event.clientY, timer: null,
+      };
+      if (event.pointerType === 'mouse') return;   // мышью берём с первого движения
+      // Палец поднимает карточку не сразу, а после короткого удержания:
+      // иначе любая попытка прокрутить страницу уносила бы её с собой.
+      press.timer = setTimeout(function () {
+        if (press && press.card === card) beginDrag(card, press.x, press.y);
+      }, HOLD_MS);
     });
-    card.addEventListener('dragend', function () {
-      card.classList.remove('deck-card--dragging');
-      dragged = null;
+
+    // Пока карточка в руке, палец не должен листать страницу. Слушатель
+    // не пассивный — иначе браузер не даст отменить прокрутку.
+    card.addEventListener('touchmove', function (event) {
+      if (drag) event.preventDefault();
+    }, { passive: false });
+
+    card.addEventListener('click', function () { arm(card); });
+
+    card.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      arm(card);
     });
   });
 
-  grid.addEventListener('dragover', function (event) {
-    var slot = event.target.closest('[data-slot]');
-    if (!slot) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-    slot.classList.add('slot--over');
-  });
-
-  grid.addEventListener('dragleave', function (event) {
-    var slot = event.target.closest('[data-slot]');
-    if (slot) slot.classList.remove('slot--over');
-  });
-
-  grid.addEventListener('drop', function (event) {
-    var slot = event.target.closest('[data-slot]');
-    if (!slot) return;
-    event.preventDefault();
-    slot.classList.remove('slot--over');
-
-    // dragged надёжнее, чем dataTransfer: по нему видно, карточка это
-    // педагога или блока. Через текст приходит только номер.
-    if (!dragged) return;
-    place(slot, dragged, false);
-  });
-
-  function cardId(card) {
-    return card.getAttribute('data-teacher') || card.getAttribute('data-block');
-  }
+  // ── Постановка в клетку ───────────────────────────────────────────────────
 
   function place(slot, card, force) {
     var teacherId = card.getAttribute('data-teacher');
@@ -122,9 +248,9 @@
       }
       // За то, что стояло в клетке, уже ставили баллы. Спрашиваем один
       // раз — молча стирать чужую работу нельзя.
-      var payload = {};
-      try { payload = JSON.parse(result.text); } catch (e) { /* ниже */ }
-      if (payload.needs_force && window.confirm(payload.error + '\n\nЗаменить вместе с баллами?')) {
+      var payload = readPayload(result.text);
+      if (payload.needs_force &&
+          window.confirm(payload.error + '\n\nЗаменить вместе с баллами?')) {
         place(slot, card, true);
         return;
       }
@@ -135,12 +261,10 @@
     });
   }
 
-  function readError(text) {
-    try {
-      return JSON.parse(text).error || 'Не получилось.';
-    } catch (e) {
-      return 'Не получилось.';
-    }
+  page = { say: say, place: place };
+
+  function readPayload(text) {
+    try { return JSON.parse(text); } catch (e) { return {}; }
   }
 
   function replaceSlot(slot, html) {
@@ -150,12 +274,21 @@
     if (fresh) slot.replaceWith(fresh);
   }
 
-  // ── Очистка клетки ────────────────────────────────────────────────────────
+  // ── Клик по клетке ────────────────────────────────────────────────────────
 
   grid.addEventListener('click', function (event) {
     var button = event.target.closest('[data-clear-url]');
-    if (!button) return;
-    clear(button, false);
+    if (button) {
+      clear(button, false);
+      return;
+    }
+    // Клетка принимает карточку, выбранную нажатием.
+    if (!armed) return;
+    var slot = event.target.closest('[data-slot]');
+    if (!slot) return;
+    var card = armed;
+    disarm();
+    place(slot, card, false);
   });
 
   function clear(button, force) {
@@ -179,9 +312,9 @@
       }
       // 409 с needs_force: за занятие уже ставили баллы. Спрашиваем один
       // раз — молча стирать чужую работу нельзя.
-      var payload = {};
-      try { payload = JSON.parse(result.text); } catch (e) { /* ниже */ }
-      if (payload.needs_force && window.confirm(payload.error + '\n\nУдалить вместе с баллами?')) {
+      var payload = readPayload(result.text);
+      if (payload.needs_force &&
+          window.confirm(payload.error + '\n\nУдалить вместе с баллами?')) {
         clear(button, true);
         return;
       }
@@ -227,7 +360,8 @@
         return;
       }
       // За часть занятий уже выставлены баллы — спрашиваем второй раз.
-      if (result.data.needs_force && window.confirm(result.data.error + '\n\nОчистить вместе с баллами?')) {
+      if (result.data.needs_force &&
+          window.confirm(result.data.error + '\n\nОчистить вместе с баллами?')) {
         clearWeek(true);
         return;
       }

@@ -111,3 +111,113 @@ def test_a_destructive_button_is_not_the_loudest_one():
 
     assert "var(--surface)" in rule
     assert "var(--accent-2)" in rule
+
+
+# ─── Колода конструктора ────────────────────────────────────────────────────
+#
+# Всё, что здесь проверяется, уже один раз мешало работать: карточки
+# уезжали за нижний край экрана, переключение недель пряталось наверху
+# страницы, а пальцем карточка не бралась вовсе.
+
+BUILDER = pathlib.Path(
+    "templates/cabinet/manage/schedule_builder.html"
+).read_text(encoding="utf-8")
+SCHEDULER_JS = pathlib.Path("static/js/scheduler.js").read_text(encoding="utf-8")
+
+
+def test_week_switch_sits_next_to_the_grid(owner_client):
+    """
+    Чтобы перелистнуть неделю, приходилось прокручивать наверх.
+
+    И на телефоне, и на большом экране: переключатель жил в заголовке
+    страницы, а работают с сеткой.
+    """
+    body = owner_client.get(reverse("cabinet:schedule_builder")).content.decode()
+
+    weeks = body.index('class="builder__weeks"')
+    grid = body.index("data-grid")
+    title = body.index('class="page-title"')
+
+    assert title < weeks < grid
+
+
+def test_the_deck_shows_only_the_name_and_the_subject():
+    """
+    Из колоды таскают, её не рассматривают.
+
+    Фотография и стаж делали карточку вдвое выше — восемь блоков дня
+    уезжали за нижний край экрана.
+    """
+    deck = BUILDER.split('class="teacher-deck"')[1].split("</ul>")[0]
+
+    assert "deck-card__name" in deck
+    assert "deck-card__subjects" in deck
+    assert "card_photo" not in deck
+    assert "deck-card__photo" not in deck
+
+
+def test_the_deck_is_two_columns_everywhere():
+    """Один ряд на всю ширину колонки — это лишняя прокрутка на ровном месте."""
+    rule = CSS.split(".teacher-deck {")[1].split("}")[0]
+
+    assert "repeat(2, minmax(0, 1fr))" in rule
+
+
+def test_day_blocks_live_under_the_grid():
+    """
+    Блоков восемь и больше, и в узкой колонке они уходили под экран.
+
+    Под сеткой они лежат строкой ровно там, куда их и роняют.
+    """
+    grid = BUILDER.index("data-grid")
+    blocks = BUILDER.index('class="builder__blocks"')
+    side = BUILDER.index('class="builder__side"')
+
+    assert side < grid < blocks
+
+
+def test_dragging_does_not_rely_on_the_browsers_own_mechanism():
+    """
+    Встроенное перетаскивание на телефонах не работает.
+
+    Android его не знает, а десктопный браузер в режиме телефона
+    перестаёт его выдавать — карточка просто не бралась.
+    """
+    assert 'draggable="true"' not in BUILDER
+    assert "dragstart" not in SCHEDULER_JS
+    assert "pointerdown" in SCHEDULER_JS
+    assert "pointermove" in SCHEDULER_JS
+
+
+def test_taking_a_card_buzzes_the_phone():
+    """Без отклика непонятно, взялась карточка или ты просто держишь палец."""
+    assert "navigator.vibrate" in SCHEDULER_JS
+
+
+def test_a_held_card_stops_the_page_from_scrolling():
+    """
+    Пока карточка в руке, палец не должен листать страницу.
+
+    Слушатель обязан быть непассивным — иначе браузер не даст отменить
+    прокрутку, и карточка не доедет до сетки.
+    """
+    handler = SCHEDULER_JS.split("card.addEventListener('touchmove'")[1].split("});")[0]
+
+    assert "preventDefault" in handler
+    assert "passive: false" in SCHEDULER_JS.split(
+        "card.addEventListener('touchmove'"
+    )[1][:400]
+
+
+def test_document_listeners_are_registered_once():
+    """
+    Кабинет ходит по ссылкам без перезагрузки.
+
+    Слушатели на документе внутри init копились бы с каждым переходом и
+    ссылались на давно заменённую сетку.
+    """
+    init_at = SCHEDULER_JS.index("function init()")
+    tail = SCHEDULER_JS[init_at:]
+
+    assert "document.addEventListener('pointermove'" not in tail
+    assert "document.addEventListener('pointerup'" not in tail
