@@ -149,6 +149,30 @@
     cancelPress();
   });
 
+  // ── Смена недели без рывка ────────────────────────────────────────────────
+  //
+  // htmx уводит страницу наверх, когда меняет адрес в строке браузера, —
+  // он считает это переходом. Здесь переход мнимый: меняется половина
+  // экрана, а человек смотрит в ту же клетку. Запоминаем, где он был,
+  // и возвращаем туда же.
+
+  var keepScroll = null;
+
+  document.body.addEventListener('htmx:beforeRequest', function (event) {
+    var el = event.target;
+    if (el && el.closest && el.closest('.builder__weeks')) keepScroll = window.scrollY;
+  });
+
+  document.body.addEventListener('htmx:afterSettle', function () {
+    if (keepScroll === null) return;
+    var y = keepScroll;
+    keepScroll = null;
+    window.scrollTo(0, y);
+    // htmx подкручивает и после разбора ответа — возвращаем ещё раз,
+    // когда он точно закончил.
+    setTimeout(function () { window.scrollTo(0, y); }, 0);
+  });
+
   function init() {
   var grid = document.querySelector('[data-grid]');
   if (!grid || grid.dataset.ready === '1') return;
@@ -177,6 +201,12 @@
   // ── Карточки ──────────────────────────────────────────────────────────────
 
   document.querySelectorAll('[data-teacher], [data-block]').forEach(function (card) {
+    // Колода при смене недели не подменяется — подменяется только правая
+    // половина. Без этой отметки init вешал бы на те же карточки новый
+    // набор слушателей на каждое переключение.
+    if (card.dataset.wired === '1') return;
+    card.dataset.wired = '1';
+
     // Встроенное перетаскивание отключаем явно: иначе мышью запускались
     // бы сразу два механизма и картинка дёргалась.
     card.setAttribute('draggable', 'false');
@@ -325,7 +355,8 @@
   // ── Очистка недели ────────────────────────────────────────────────────────
 
   var clearWeekButton = document.querySelector('[data-clear-week]');
-  if (clearWeekButton) {
+  if (clearWeekButton && clearWeekButton.dataset.wired !== '1') {
+    clearWeekButton.dataset.wired = '1';
     clearWeekButton.addEventListener('click', function () {
       if (!window.confirm('Убрать все занятия этой недели у выбранной группы?')) return;
       clearWeek(false);
@@ -375,7 +406,8 @@
   // ── Повтор недели ─────────────────────────────────────────────────────────
 
   var copyButton = document.querySelector('[data-copy-week]');
-  if (copyButton) {
+  if (copyButton && copyButton.dataset.wired !== '1') {
+    copyButton.dataset.wired = '1';
     copyButton.addEventListener('click', function () {
       var weeks = document.getElementById('copy-weeks');
       var body = new FormData();

@@ -141,19 +141,35 @@ def test_week_switch_sits_next_to_the_grid(owner_client):
     assert title < weeks < grid
 
 
-def test_the_deck_shows_only_the_name_and_the_subject():
+def test_the_deck_card_is_short_but_keeps_the_face():
     """
-    Из колоды таскают, её не рассматривают.
+    Из колоды таскают, её не рассматривают, — но по лицу человека узнают
+    быстрее, чем по фамилии.
 
-    Фотография и стаж делали карточку вдвое выше — восемь блоков дня
-    уезжали за нижний край экрана.
+    Поэтому фотография осталась, а всё остальное ушло: раньше карточка
+    была вдвое выше, и до нижних педагогов приходилось прокручивать.
     """
     deck = BUILDER.split('class="teacher-deck"')[1].split("</ul>")[0]
 
+    assert "card_photo" in deck
     assert "deck-card__name" in deck
     assert "deck-card__subjects" in deck
-    assert "card_photo" not in deck
-    assert "deck-card__photo" not in deck
+    # Ни опыта, ни текста для сайта — им место на карточке в «Сотрудниках».
+    assert "experience" not in deck
+    assert "teacher.bio" not in deck
+
+
+def test_long_names_are_cut_with_an_ellipsis():
+    """
+    Перенос в узкой колонке рвал слова посреди: «Бабаджанов а А. А.».
+
+    Одна строка с многоточием читается честнее, а карточки в ряду
+    перестают разъезжаться по высоте.
+    """
+    rule = CSS.split(".deck-card__name,\n.deck-card__subjects {")[1].split("}")[0]
+
+    assert "text-overflow: ellipsis" in rule
+    assert "nowrap" in rule
 
 
 def test_the_deck_is_two_columns_everywhere():
@@ -163,17 +179,19 @@ def test_the_deck_is_two_columns_everywhere():
     assert "repeat(2, minmax(0, 1fr))" in rule
 
 
-def test_day_blocks_live_under_the_grid():
+def test_day_blocks_live_next_to_the_teachers():
     """
-    Блоков восемь и больше, и в узкой колонке они уходили под экран.
+    Блоки дня — в той же колонке, что и педагоги.
 
-    Под сеткой они лежат строкой ровно там, куда их и роняют.
+    Карточки стали вдвое ниже, и место там нашлось; отдельная полоса под
+    сеткой разводила по разным углам вещи, которые кладут в одни клетки.
     """
-    grid = BUILDER.index("data-grid")
-    blocks = BUILDER.index('class="builder__blocks"')
     side = BUILDER.index('class="builder__side"')
+    blocks = BUILDER.index("teacher-deck--blocks")
+    aside_end = BUILDER.index("</aside>")
+    grid = BUILDER.index("data-grid")
 
-    assert side < grid < blocks
+    assert side < blocks < aside_end < grid
 
 
 def test_dragging_does_not_rely_on_the_browsers_own_mechanism():
@@ -221,3 +239,43 @@ def test_document_listeners_are_registered_once():
 
     assert "document.addEventListener('pointermove'" not in tail
     assert "document.addEventListener('pointerup'" not in tail
+
+
+def test_switching_weeks_changes_only_half_the_screen():
+    """
+    Смена недели — не переход на другую страницу.
+
+    Меняется правая половина, колода слева остаётся на месте, и вместе с
+    ней остаётся прокрутка: страница не прыгает наверх.
+    """
+    nav = BUILDER.split('class="builder__weeks"')[1].split("</div>")[0]
+
+    assert 'hx-target="#builder-main"' in nav
+    assert 'hx-select="#builder-main"' in nav
+    assert 'hx-select-oob="#builder-bar"' in nav
+    # hx-get обязателен: без него htmx считает переход «ускоренной
+    # ссылкой» и сам подводит цель к верху экрана.
+    assert "hx-get=" in nav
+    # И ссылка остаётся ссылкой — без скриптов неделя всё равно листается.
+    assert "href=" in nav
+
+
+def test_the_week_swap_targets_exist():
+    assert 'id="builder-main"' in BUILDER
+    assert 'id="builder-bar"' in BUILDER
+
+
+def test_the_scroll_is_put_back_after_a_week_swap():
+    """htmx уводит страницу наверх, когда меняет адрес в строке браузера."""
+    assert "keepScroll" in SCHEDULER_JS
+    assert "htmx:beforeRequest" in SCHEDULER_JS
+
+
+def test_cards_are_wired_once():
+    """
+    Колода при смене недели не подменяется.
+
+    Без отметки init вешал бы на те же карточки новый набор слушателей на
+    каждое переключение — и одно перетаскивание слало бы два запроса.
+    """
+    assert "dataset.wired" in SCHEDULER_JS

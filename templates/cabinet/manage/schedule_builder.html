@@ -13,7 +13,7 @@
   </div>
 {% else %}
 
-<div class="builder-bar">
+<div class="builder-bar" id="builder-bar">
   <form method="get" class="btn-row">
     <input type="hidden" name="week" value="{{ monday|date:'Y-m-d' }}">
     <label class="field" style="margin:0">
@@ -67,26 +67,6 @@
   </details>
 </div>
 
-{% if not module %}
-  {% comment %}
-    Сообщение без технических слов: этот экран открывает администратор
-    центра, а не разработчик. Вместо названия команды — что именно
-    сделать и куда нажать.
-  {% endcomment %}
-  <div class="message message--warning">
-    <strong>На эту неделю занятия не ставятся.</strong>
-    Она не входит ни в один учебный модуль — скорее всего, это каникулы
-    или время до начала года.
-    {% if nearest_module %}
-      Ближайший модуль: {{ nearest_module }},
-      с {{ nearest_module.starts_on|date:"d.m.Y" }} по {{ nearest_module.ends_on|date:"d.m.Y" }}.
-      <a href="?week={{ nearest_module.starts_on|date:'Y-m-d' }}&group={{ group.pk }}">Перейти к нему</a>.
-    {% else %}
-      Учебный год ещё не заведён — обратитесь к тому, кто настраивал систему.
-    {% endif %}
-  </div>
-{% endif %}
-
 <div class="builder">
   <aside class="builder__side">
     <p class="label" style="font-size:15px">Педагоги</p>
@@ -109,13 +89,26 @@
                title="{{ teacher.user.full_name }}"
                aria-label="Поставить {{ teacher.short_name }}">
             {% comment %}
-              Фамилия и инициалы: полное имя в узкой карточке уезжает на
-              три строки, и колода перестаёт быть колодой. Целиком оно
-              есть в подсказке при наведении.
+              По лицу человека узнают быстрее, чем по фамилии, — поэтому
+              фотография в карточке есть. Маленькая: колода должна
+              оставаться колодой, а не галереей портретов.
             {% endcomment %}
-            <span class="deck-card__name">{{ teacher.user.last_name }}&nbsp;{{ teacher.user.first_name|slice:":1" }}.{% if teacher.user.middle_name %}&nbsp;{{ teacher.user.middle_name|slice:":1" }}.{% endif %}</span>
-            <span class="deck-card__subjects">
-              {% for subject in teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не заданы{% endfor %}
+            {% if teacher.card_photo %}
+              <img class="deck-card__photo" src="{{ teacher.card_photo }}" alt=""
+                   width="72" height="72" loading="lazy">
+            {% else %}
+              <span class="deck-card__photo photo-placeholder" aria-hidden="true">Ъ</span>
+            {% endif %}
+            <span class="deck-card__body">
+              {% comment %}
+                Фамилия и инициалы: полное имя в узкой карточке уезжает на
+                три строки. Целиком оно есть в подсказке при наведении.
+              {% endcomment %}
+              <span class="deck-card__name">{{ teacher.user.last_name }} {{ teacher.user.first_name|slice:":1" }}.{% if teacher.user.middle_name %}&nbsp;{{ teacher.user.middle_name|slice:":1" }}.{% endif %}</span>
+              <span class="deck-card__subjects"
+                    title="{% for subject in teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не заданы{% endfor %}">
+                {% for subject in teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не заданы{% endfor %}
+              </span>
             </span>
           </div>
           {% comment %}
@@ -136,20 +129,97 @@
       {% endfor %}
     </ul>
 
+
+    {% comment %}
+      Блоки дня — здесь же, под педагогами: карточки стали вдвое ниже, и
+      место в колонке нашлось. Педагога у блоков нет, поэтому они идут
+      отдельной колодой и пунктиром.
+    {% endcomment %}
+    <p class="label" style="font-size:15px;margin-top:22px">Блоки дня</p>
+    <p class="muted small">Занимают время, но уроком не считаются — баллов за них нет.</p>
+    <ul class="teacher-deck teacher-deck--blocks">
+      {% for block in day_blocks %}
+        <li>
+          {% comment %}
+            Без подписи «без педагога»: это сообщение о нехватке там, где
+            нехватки нет. Обед никто не ведёт, а на утренний круг педагога
+            ставят той же карточкой сверху.
+          {% endcomment %}
+          <div class="deck-card deck-card--block" data-block="{{ block.pk }}"
+               data-name="{{ block.name }}" tabindex="0" role="button"
+               aria-label="Поставить {{ block.name }}">
+            <span class="deck-card__name">{{ block.name }}</span>
+          </div>
+        </li>
+      {% empty %}
+        <li class="muted small">Блоков пока нет — заведите первый ниже.</li>
+      {% endfor %}
+    </ul>
+
+    {% comment %}
+      Новая карточка заводится здесь же: за экскурсией или встречей с
+      родителями уходить в справочник предметов — потерять место в сетке
+      и вернуться не туда.
+    {% endcomment %}
+    <form method="post" action="{% url 'cabinet:block_create' %}" class="deck-add">
+      {% csrf_token %}
+      <input type="hidden" name="week" value="{{ monday|date:'Y-m-d' }}">
+      <input type="hidden" name="group" value="{{ group.pk }}">
+      <input class="input" type="text" name="name" maxlength="120"
+             aria-label="Название новой карточки" placeholder="Например: экскурсия">
+      <button class="btn btn--quiet" type="submit">Добавить карточку</button>
+    </form>
   </aside>
 
-  <div class="builder__main">
+  {% comment %}
+    Правая половина меняется целиком при переходе на другую неделю:
+    предупреждение, подпись недели и сама сетка. Колода слева остаётся
+    на месте — её перерисовывать незачем, а вместе с ней остаётся и
+    прокрутка: страница не прыгает наверх.
+  {% endcomment %}
+  <div class="builder__main" id="builder-main">
+    {% if not module %}
+      {% comment %}
+        Сообщение без технических слов: этот экран открывает администратор
+        центра, а не разработчик. Вместо названия команды — что именно
+        сделать и куда нажать.
+      {% endcomment %}
+      <div class="message message--warning">
+        <strong>На эту неделю занятия не ставятся.</strong>
+        Она не входит ни в один учебный модуль — скорее всего, это каникулы
+        или время до начала года.
+        {% if nearest_module %}
+          Ближайший модуль: {{ nearest_module }},
+          с {{ nearest_module.starts_on|date:"d.m.Y" }} по {{ nearest_module.ends_on|date:"d.m.Y" }}.
+          <a href="?week={{ nearest_module.starts_on|date:'Y-m-d' }}&group={{ group.pk }}">Перейти к нему</a>.
+        {% else %}
+          Учебный год ещё не заведён — обратитесь к тому, кто настраивал систему.
+        {% endif %}
+      </div>
+    {% endif %}
+
     {% comment %}
       Переключение недель стоит вплотную к сетке, а не в заголовке
       страницы: чтобы перелистнуть неделю, приходилось прокручивать
       наверх — и на телефоне, и на большом экране.
+
+      Ссылки обычные и работают без скриптов; htmx подменяет только эту
+      половину, поэтому переход выходит без перезагрузки и без рывка.
+
+      hx-get у ссылок стоит не для красоты: без него htmx считает переход
+      «ускоренной ссылкой» и сам подводит цель к верху экрана — страница
+      прыгала ровно так, как её просили не заставлять прыгать.
     {% endcomment %}
-    <div class="builder__weeks">
+    <div class="builder__weeks"
+         hx-target="#builder-main" hx-select="#builder-main"
+         hx-swap="outerHTML show:none" hx-select-oob="#builder-bar" hx-push-url="true">
       <a class="btn btn--quiet" aria-label="Предыдущая неделя"
-         href="?week={{ prev_week|date:'Y-m-d' }}&group={{ group.pk }}">←</a>
+         href="?week={{ prev_week|date:'Y-m-d' }}&group={{ group.pk }}"
+         hx-get="?week={{ prev_week|date:'Y-m-d' }}&group={{ group.pk }}">←</a>
       <span class="numeral">{{ monday|date:"d.m" }} — {{ sunday|date:"d.m.Y" }}</span>
       <a class="btn btn--quiet" aria-label="Следующая неделя"
-         href="?week={{ next_week|date:'Y-m-d' }}&group={{ group.pk }}">→</a>
+         href="?week={{ next_week|date:'Y-m-d' }}&group={{ group.pk }}"
+         hx-get="?week={{ next_week|date:'Y-m-d' }}&group={{ group.pk }}">→</a>
     </div>
 
     <div class="builder__grid-wrap">
@@ -176,48 +246,6 @@
     </table>
     </div>
 
-    {% comment %}
-      Блоки дня — под сеткой, а не в колонке слева. Их восемь и больше,
-      и в колонке они уезжали за нижний край экрана: тянуться до карточки
-      приходилось прокруткой. Здесь они лежат в строку под тем местом,
-      куда их и роняют.
-    {% endcomment %}
-    <div class="builder__blocks">
-      <p class="label" style="font-size:15px">Блоки дня</p>
-      <p class="muted small">Занимают время, но уроком не считаются — баллов за них нет.</p>
-      <ul class="block-deck">
-        {% for block in day_blocks %}
-          <li>
-            {% comment %}
-              Без подписи «без педагога»: это сообщение о нехватке там,
-              где нехватки нет. Обед никто не ведёт, а на утренний круг
-              педагога ставят той же карточкой сверху.
-            {% endcomment %}
-            <div class="deck-card deck-card--block" data-block="{{ block.pk }}"
-                 data-name="{{ block.name }}" tabindex="0" role="button"
-                 aria-label="Поставить {{ block.name }}">
-              <span class="deck-card__name">{{ block.name }}</span>
-            </div>
-          </li>
-        {% empty %}
-          <li class="muted small">Блоков пока нет — заведите первый ниже.</li>
-        {% endfor %}
-      </ul>
-
-      {% comment %}
-        Новая карточка заводится здесь же: за экскурсией или встречей с
-        родителями уходить в справочник предметов — потерять место в
-        сетке и вернуться не туда.
-      {% endcomment %}
-      <form method="post" action="{% url 'cabinet:block_create' %}" class="deck-add">
-        {% csrf_token %}
-        <input type="hidden" name="week" value="{{ monday|date:'Y-m-d' }}">
-        <input type="hidden" name="group" value="{{ group.pk }}">
-        <input class="input" type="text" name="name" maxlength="120"
-               aria-label="Название новой карточки" placeholder="Например: экскурсия">
-        <button class="btn btn--quiet" type="submit">Добавить карточку</button>
-      </form>
-    </div>
   </div>
 </div>
 
