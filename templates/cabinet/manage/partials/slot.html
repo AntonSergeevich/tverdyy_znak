@@ -2,7 +2,7 @@
   Клетка расписания. Отдаётся при каждом изменении целиком, чтобы
   состояние на экране всегда совпадало с тем, что в базе.
 {% endcomment %}
-<div class="slot{% if cell.lesson %} slot--filled{% endif %}"
+<div class="slot{% if cell.lesson %} slot--filled{% endif %}{% if cell.lesson.subject.kind == 'activity' %} slot--block{% endif %}"
      id="slot-{{ cell.key }}"
      data-slot
      data-day="{{ cell.day|date:'Y-m-d' }}"
@@ -10,7 +10,16 @@
      data-duration="{{ cell.duration }}">
   {% if cell.lesson %}
     <span class="slot__subject">{{ cell.lesson.subject.name }}</span>
-    <span class="slot__teacher">{{ cell.lesson.teacher.short_name|default:"без педагога" }}</span>
+    {% comment %}
+      У блока дня педагога может и не быть — обед никто не ведёт. Писать
+      под ним «без педагога» значило бы сообщать о нехватке там, где
+      нехватки нет.
+    {% endcomment %}
+    <span class="slot__teacher">
+      {% if cell.lesson.teacher %}{{ cell.lesson.teacher.short_name }}
+      {% elif cell.lesson.subject.kind == 'activity' %}&nbsp;
+      {% else %}без педагога{% endif %}
+    </span>
     <button class="slot__clear" type="button"
             data-clear-url="{% url 'cabinet:slot_clear' cell.lesson.pk %}"
             aria-label="Убрать {{ cell.lesson.subject.name }}">×</button>

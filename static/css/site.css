@@ -956,3 +956,14 @@ details.fieldset[open] > summary::after { content: ' −'; }
 .builder-help > summary::after { content: ' +'; color: var(--accent); }
 .builder-help[open] > summary::after { content: ' −'; }
 .builder-help p { margin: 8px 0 0; max-width: 78ch; line-height: 1.5; }
+
+/* Блок дня в сетке: то же место, другой вес. Обед и утренний круг
+   занимают время, но уроком не являются — и не должны выглядеть как он. */
+.deck-card--block { border-style: dashed; }
+.deck-card--block .photo-placeholder { opacity: .5; }
+.slot--block { background: color-mix(in srgb, var(--ink-3) 8%, transparent); }
+.slot--block .slot__subject { font-weight: 500; color: var(--ink-2); }
+
+/* Заведение карточки прямо в колонке: поле и кнопка в одну колонку,
+   чтобы не растягивать узкую боковину. */
+.deck-add { display: grid; gap: 10px; margin-top: 14px; }

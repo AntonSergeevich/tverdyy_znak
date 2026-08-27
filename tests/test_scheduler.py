@@ -587,3 +587,231 @@ def test_week_clear_is_closed_for_teachers(client, tenant_a):
     )
 
     assert response.status_code in (302, 403)
+
+
+# ─── Блоки дня ──────────────────────────────────────────────────────────────
+#
+# Обед, утренний круг, экскурсия. Занимают время, но уроком не являются и
+# педагога у них нет. Без них в сетке оставались необъяснённые дыры: по
+# расписанию нельзя было понять, свободен час или про него забыли.
+
+def _block(tenant, name="Обед"):
+    from apps.journal.models import Subject, SubjectKind
+
+    return Subject.all_objects.create(
+        organization=tenant.organization, academic_year=tenant.year,
+        name=name, kind=SubjectKind.ACTIVITY, weekly_hours=0, position=500,
+    )
+
+
+def test_a_day_block_can_be_placed_without_a_teacher(admin_client, tenant_a):
+    """Обед никто не ведёт — карточка ставится в клетку без педагога."""
+    monday = _monday_inside_module(tenant_a)
+    lunch = _block(tenant_a)
+
+    response = admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(tenant_a.group.pk), "subject": str(lunch.pk),
+            "day": monday.isoformat(), "time": "13:30", "duration": "30",
+        },
+    )
+
+    assert response.status_code == 200
+    lesson = Lesson.all_objects.filter(
+        organization=tenant_a.organization, group=tenant_a.group, subject=lunch
+    ).first()
+    assert lesson is not None
+    assert lesson.teacher_id is None
+
+
+def test_an_empty_drop_is_refused(admin_client, tenant_a):
+    """Ни педагога, ни блока — ставить нечего."""
+    monday = _monday_inside_module(tenant_a)
+
+    response = admin_client.post(
+        reverse("cabinet:slot_set"),
+        {"group": str(tenant_a.group.pk), "day": monday.isoformat(), "time": "09:30"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_a_block_replaces_what_stood_in_the_cell(admin_client, tenant_a):
+    """Карточка блока отвечает на вопрос «что»: клетка теперь обед."""
+    monday = _monday_inside_module(tenant_a)
+    _put_lesson(admin_client, tenant_a, monday, "13:30")
+    lunch = _block(tenant_a)
+
+    admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(tenant_a.group.pk), "subject": str(lunch.pk),
+            "day": monday.isoformat(), "time": "13:30",
+        },
+    )
+
+    lessons = Lesson.all_objects.filter(
+        organization=tenant_a.organization, group=tenant_a.group, starts_at__date=monday
+    )
+    assert lessons.count() == 1
+    assert lessons.first().subject_id == lunch.pk
+
+
+def test_replacing_a_graded_lesson_asks_first(admin_client, tenant_a):
+    """
+    Расписание переставить не жалко, работу учеников — жалко.
+
+    Уронить обед поверх контрольной, за которую уже стоят баллы, можно
+    только с подтверждением.
+    """
+    from apps.journal.models import GradeItem, GradeItemKind
+
+    monday = _monday_inside_module(tenant_a)
+    lesson = _put_lesson(admin_client, tenant_a, monday, "12:00")
+    GradeItem.all_objects.create(
+        organization=tenant_a.organization, module=lesson.module,
+        subject=lesson.subject, group=lesson.group, lesson=lesson,
+        kind=GradeItemKind.LESSON, title="Занятие", max_points=5,
+    )
+    lunch = _block(tenant_a)
+    payload = {
+        "group": str(tenant_a.group.pk), "subject": str(lunch.pk),
+        "day": monday.isoformat(), "time": "12:00",
+    }
+
+    asked = admin_client.post(reverse("cabinet:slot_set"), payload)
+    assert asked.status_code == 409
+    assert asked.json()["needs_force"] is True
+    assert Lesson.all_objects.filter(pk=lesson.pk).exists()
+
+    confirmed = admin_client.post(reverse("cabinet:slot_set"), {**payload, "force": "1"})
+    assert confirmed.status_code == 200
+    assert not Lesson.all_objects.filter(pk=lesson.pk).exists()
+
+
+def test_a_teacher_can_be_put_on_a_block(admin_client, tenant_a):
+    """
+    Блок и педагог не спорят друг с другом.
+
+    Обед никто не ведёт, а утренний круг — ведёт. Карточка педагога
+    поверх блока назначает его, не трогая сам блок.
+    """
+    monday = _monday_inside_module(tenant_a)
+    circle = _block(tenant_a, "Утренний круг")
+    admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(tenant_a.group.pk), "subject": str(circle.pk),
+            "day": monday.isoformat(), "time": "09:00",
+        },
+    )
+
+    admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(tenant_a.group.pk), "teacher": str(tenant_a.teacher.pk),
+            "day": monday.isoformat(), "time": "09:00",
+        },
+    )
+
+    lesson = Lesson.all_objects.get(
+        organization=tenant_a.organization, group=tenant_a.group, subject=circle
+    )
+    assert lesson.teacher_id == tenant_a.teacher.pk
+    assert lesson.subject_id == circle.pk
+
+
+def test_the_builder_offers_block_cards(admin_client, tenant_a):
+    _block(tenant_a)
+    body = admin_client.get(reverse("cabinet:schedule_builder")).content.decode()
+
+    assert "Блоки дня" in body
+    assert "data-block=" in body
+    assert "Обед" in body
+
+
+def test_a_new_card_can_be_made_from_the_builder(admin_client, tenant_a):
+    """
+    Экскурсия и встреча с родителями — не уроки, но место в сетке занимают.
+
+    Уходить за ними в справочник предметов значило потерять место в
+    расписании и вернуться не туда.
+    """
+    from apps.journal.models import Subject, SubjectKind
+
+    monday = _monday_inside_module(tenant_a)
+    response = admin_client.post(
+        reverse("cabinet:block_create"),
+        {"name": "Экскурсия", "week": monday.isoformat(), "group": str(tenant_a.group.pk)},
+    )
+
+    assert response.status_code == 302
+    assert reverse("cabinet:schedule_builder") in response["Location"]
+    created = Subject.all_objects.get(
+        organization=tenant_a.organization, name="Экскурсия"
+    )
+    assert created.kind == SubjectKind.ACTIVITY
+    assert created.weekly_hours == 0
+
+
+def test_a_duplicate_card_is_refused(admin_client, tenant_a):
+    """Два «Обеда» в колонке — верный способ поставить не тот."""
+    from apps.journal.models import Subject
+
+    _block(tenant_a)
+    monday = _monday_inside_module(tenant_a)
+
+    admin_client.post(
+        reverse("cabinet:block_create"),
+        {"name": "обед", "week": monday.isoformat(), "group": str(tenant_a.group.pk)},
+    )
+
+    assert Subject.all_objects.filter(
+        organization=tenant_a.organization, name__iexact="обед"
+    ).count() == 1
+
+
+def test_a_nameless_card_is_refused(admin_client, tenant_a):
+    from apps.journal.models import Subject
+
+    before = Subject.all_objects.filter(organization=tenant_a.organization).count()
+    admin_client.post(reverse("cabinet:block_create"), {"name": "   "})
+
+    assert Subject.all_objects.filter(organization=tenant_a.organization).count() == before
+
+
+def test_making_cards_is_closed_for_teachers(client, tenant_a):
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    client.post(
+        reverse("accounts:login"),
+        {"username": tenant_a.teacher_user.email, "password": PASSWORD},
+    )
+    response = client.post(reverse("cabinet:block_create"), {"name": "Своё"})
+
+    assert response.status_code in (302, 403)
+    from apps.journal.models import Subject
+
+    assert not Subject.all_objects.filter(name="Своё").exists()
+
+
+def test_a_block_cell_does_not_complain_about_a_missing_teacher(admin_client, tenant_a):
+    """
+    Под обедом не пишем «без педагога».
+
+    Это сообщение о нехватке там, где нехватки нет: обед никто и не ведёт.
+    """
+    monday = _monday_inside_module(tenant_a)
+    lunch = _block(tenant_a)
+    response = admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(tenant_a.group.pk), "subject": str(lunch.pk),
+            "day": monday.isoformat(), "time": "13:30",
+        },
+    )
+
+    body = response.content.decode()
+    assert "Обед" in body
+    assert "без педагога" not in body
+    assert "slot--block" in body

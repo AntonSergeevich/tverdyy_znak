@@ -39,13 +39,15 @@
 
   // ── Перетаскивание ────────────────────────────────────────────────────────
 
-  document.querySelectorAll('[data-teacher]').forEach(function (card) {
+  // Карточки двух видов: педагог отвечает на вопрос «кто», блок дня —
+  // «что». Перетаскиваются одинаково, а вот в клетку уходят по-разному.
+  document.querySelectorAll('[data-teacher], [data-block]').forEach(function (card) {
     card.addEventListener('dragstart', function (event) {
       dragged = card;
       card.classList.add('deck-card--dragging');
       // Данные кладём и в dataTransfer: без этого Firefox не начинает
       // перетаскивание вообще.
-      event.dataTransfer.setData('text/plain', card.getAttribute('data-teacher'));
+      event.dataTransfer.setData('text/plain', cardId(card));
       event.dataTransfer.effectAllowed = 'copy';
     });
     card.addEventListener('dragend', function () {
@@ -73,22 +75,34 @@
     event.preventDefault();
     slot.classList.remove('slot--over');
 
-    var teacherId = (dragged && dragged.getAttribute('data-teacher'))
-      || event.dataTransfer.getData('text/plain');
-    if (!teacherId) return;
-
-    place(slot, teacherId);
+    // dragged надёжнее, чем dataTransfer: по нему видно, карточка это
+    // педагога или блока. Через текст приходит только номер.
+    if (!dragged) return;
+    place(slot, dragged, false);
   });
 
-  function place(slot, teacherId) {
-    var picker = document.querySelector('[data-subject-for="' + teacherId + '"]');
+  function cardId(card) {
+    return card.getAttribute('data-teacher') || card.getAttribute('data-block');
+  }
+
+  function place(slot, card, force) {
+    var teacherId = card.getAttribute('data-teacher');
+    var blockId = card.getAttribute('data-block');
     var body = new FormData();
     body.append('group', grid.getAttribute('data-group'));
-    body.append('teacher', teacherId);
     body.append('day', slot.getAttribute('data-day'));
     body.append('time', slot.getAttribute('data-time'));
     body.append('duration', slot.getAttribute('data-duration') || '40');
-    if (picker) body.append('subject', picker.value);
+    if (force) body.append('force', '1');
+
+    if (blockId) {
+      // Блок дня — это «что»: педагога у него нет и не должно быть.
+      body.append('subject', blockId);
+    } else {
+      body.append('teacher', teacherId);
+      var picker = document.querySelector('[data-subject-for="' + teacherId + '"]');
+      if (picker) body.append('subject', picker.value);
+    }
 
     slot.classList.add('slot--busy');
     fetch(grid.getAttribute('data-set-url'), {
@@ -106,7 +120,15 @@
         say('Поставлено');
         return;
       }
-      say(readError(result.text), 'error');
+      // За то, что стояло в клетке, уже ставили баллы. Спрашиваем один
+      // раз — молча стирать чужую работу нельзя.
+      var payload = {};
+      try { payload = JSON.parse(result.text); } catch (e) { /* ниже */ }
+      if (payload.needs_force && window.confirm(payload.error + '\n\nЗаменить вместе с баллами?')) {
+        place(slot, card, true);
+        return;
+      }
+      say(payload.error || 'Не получилось.', 'error');
     }).catch(function () {
       slot.classList.remove('slot--busy');
       say('Не удалось сохранить — проверьте связь и попробуйте ещё раз.', 'error');

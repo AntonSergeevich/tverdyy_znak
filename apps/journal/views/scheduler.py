@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import datetime as dt
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
@@ -126,6 +128,14 @@ def builder(request):
                     academic_year__is_current=True, kind=SubjectKind.ACADEMIC
                 ).order_by("position", "name")
             ),
+            # Блоки дня — обед, утренний круг, всё, что занимает время, но
+            # уроком не является. Без них в сетке оставались необъяснённые
+            # дыры: непонятно, свободен час или про него просто забыли.
+            "day_blocks": list(
+                Subject.objects.filter(
+                    academic_year__is_current=True, kind=SubjectKind.ACTIVITY
+                ).order_by("position", "name")
+            ),
             "prev_week": monday - dt.timedelta(days=7),
             "next_week": monday + dt.timedelta(days=7),
             "module": _module_for(organization, monday),
@@ -214,14 +224,21 @@ def slot_set(request):
     """
     Поставить занятие в клетку.
 
-    Пустая клетка — заводится занятие по предмету педагога. Занятая —
-    педагог назначается тому, что там уже стоит, а предмет не трогается:
-    расписание чаще всего уже набрано, не хватает только людей.
+    В клетку перетаскивают карточку двух видов, и они отвечают на разные
+    вопросы. Карточка педагога — «кто»: на пустой клетке заводит занятие
+    по его предмету, на занятой назначает его тому, что там уже стоит, не
+    трогая предмет. Карточка блока дня — «что»: обед, утренний круг,
+    самоподготовка. Педагога у неё нет и не должно быть.
     """
     organization = request.organization
     group = get_object_or_404(Group.objects.all(), pk=request.POST.get("group"))
-    teacher = get_object_or_404(Teacher.objects.all(), pk=request.POST.get("teacher"))
+    teacher_id = request.POST.get("teacher")
+    teacher = (
+        get_object_or_404(Teacher.objects.all(), pk=teacher_id) if teacher_id else None
+    )
     subject_id = request.POST.get("subject")
+    if teacher is None and not subject_id:
+        return JsonResponse({"error": "Нечего ставить в клетку."}, status=400)
 
     try:
         day = dt.date.fromisoformat(request.POST.get("day", ""))
@@ -239,12 +256,12 @@ def slot_set(request):
     starts_at = timezone.make_aware(dt.datetime.combine(day, start), organization.tzinfo)
     existing = Lesson.objects.filter(group=group, starts_at=starts_at).first()
 
-    # Клетка занята — значит, педагога ставят к уже назначенному занятию,
-    # а не заводят новое. Предмет остаётся: так наставник встаёт на
-    # утренний круг и рефлексию, за которыми не закреплён «свой» предмет,
-    # и так же получают педагога занятия, перенесённые из файла Алины.
-    # Сменить предмет в клетке можно, убрав занятие крестиком.
-    if existing is not None:
+    # Карточка педагога на занятую клетку — значит, его ставят к уже
+    # назначенному занятию, а не заводят новое. Предмет остаётся: так
+    # наставник встаёт на утренний круг и рефлексию, за которыми не
+    # закреплён «свой» предмет, и так же получают педагога занятия,
+    # перенесённые из файла Алины. Сменить предмет — крестиком и заново.
+    if existing is not None and teacher is not None:
         return _assign_teacher(request, existing, teacher, group)
 
     # Предмет: явно выбранный или единственный у этого педагога. Угадывать
@@ -252,7 +269,7 @@ def slot_set(request):
     subject = None
     if subject_id:
         subject = get_object_or_404(Subject.objects.all(), pk=subject_id)
-    else:
+    elif teacher is not None:
         options = list(teacher.subjects.all())
         if len(options) == 1:
             subject = options[0]
@@ -274,7 +291,7 @@ def slot_set(request):
             status=400,
         )
 
-    conflict = _busy_elsewhere(teacher, starts_at, group)
+    conflict = _busy_elsewhere(teacher, starts_at, group) if teacher else None
     if conflict is not None:
         return JsonResponse(
             {
@@ -285,6 +302,22 @@ def slot_set(request):
             },
             status=409,
         )
+
+    # Блок дня поверх занятия — замена: клетка теперь обед, а не химия.
+    # Но если за химию уже ставили баллы, молча стереть их нельзя.
+    if existing is not None:
+        if hasattr(existing, "grade_item") and request.POST.get("force") != "1":
+            return JsonResponse(
+                {
+                    "error": (
+                        f"За «{existing.subject.name}» в этой клетке уже выставлялись "
+                        "баллы. Замена уберёт и их — подтвердите ещё раз."
+                    ),
+                    "needs_force": True,
+                },
+                status=409,
+            )
+        existing.delete()
 
     with transaction.atomic():
         lesson = Lesson.objects.create(
@@ -433,3 +466,53 @@ def week_clear(request):
     log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=group,
               change="week_cleared")
     return JsonResponse({"removed": total, "graded": graded})
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def block_create(request):
+    """
+    Завести новый блок дня прямо из конструктора.
+
+    В расписании случается то, что уроком не назовёшь: экскурсия, встреча
+    с родителями, репетиция. Уходить за этим в справочник предметов —
+    потерять место в сетке и вернуться не туда, поэтому карточка заводится
+    здесь же и сразу появляется в колонке.
+    """
+    from apps.journal.models import AcademicYear
+
+    name = (request.POST.get("name") or "").strip()
+    back = (
+        f"{reverse('cabinet:schedule_builder')}"
+        f"?week={request.POST.get('week', '')}&group={request.POST.get('group', '')}"
+    )
+
+    if not name:
+        messages.error(request, "У карточки должно быть название.")
+        return redirect(back)
+
+    year = AcademicYear.objects.filter(is_current=True).first()
+    if year is None:
+        messages.error(request, "Учебный год не заведён — обратитесь к тому, кто настраивал систему.")
+        return redirect(back)
+
+    if Subject.objects.filter(academic_year=year, name__iexact=name).exists():
+        messages.error(request, f"«{name}» уже есть в списке.")
+        return redirect(back)
+
+    last = (
+        Subject.objects.filter(academic_year=year, kind=SubjectKind.ACTIVITY)
+        .order_by("-position")
+        .first()
+    )
+    Subject.objects.create(
+        organization=request.organization,
+        academic_year=year,
+        name=name[:120],
+        kind=SubjectKind.ACTIVITY,
+        weekly_hours=0,
+        position=(last.position if last else 500) + 10,
+    )
+    messages.success(request, f"Карточка «{name}» добавлена.")
+    return redirect(back)

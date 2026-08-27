@@ -128,6 +128,52 @@
         <li class="muted">Педагогов нет. <a href="{% url 'cabinet:staff_create' %}">Добавьте первого</a>.</li>
       {% endfor %}
     </ul>
+
+    {% comment %}
+      Блоки дня — обед, утренний круг, самоподготовка. Педагога у них нет,
+      поэтому они отдельной колодой: без них в сетке оставались
+      необъяснённые дыры, и по расписанию нельзя было понять, свободен час
+      или про него просто забыли.
+    {% endcomment %}
+    <p class="label" style="font-size:15px;margin-top:24px">Блоки дня</p>
+    <p class="muted small">Занимают время, но уроком не считаются — баллов за них нет.</p>
+    <ul class="teacher-deck">
+      {% for block in day_blocks %}
+        <li>
+          <div class="deck-card deck-card--block" draggable="true"
+               data-block="{{ block.pk }}" data-name="{{ block.name }}">
+            <span class="deck-card__photo photo-placeholder" aria-hidden="true">Ъ</span>
+            <span class="deck-card__body">
+              {% comment %}
+                Без подписи «без педагога»: это сообщение о нехватке там,
+                где нехватки нет. Обед никто не ведёт, а на утренний круг
+                педагога ставят той же карточкой сверху.
+              {% endcomment %}
+              <span class="deck-card__name">{{ block.name }}</span>
+            </span>
+          </div>
+        </li>
+      {% empty %}
+        <li class="muted small">Блоков пока нет — заведите первый ниже.</li>
+      {% endfor %}
+    </ul>
+
+    {% comment %}
+      Новая карточка заводится здесь же: за экскурсией или встречей с
+      родителями уходить в справочник предметов — потерять место в сетке
+      и вернуться не туда.
+    {% endcomment %}
+    <form method="post" action="{% url 'cabinet:block_create' %}" class="deck-add">
+      {% csrf_token %}
+      <input type="hidden" name="week" value="{{ monday|date:'Y-m-d' }}">
+      <input type="hidden" name="group" value="{{ group.pk }}">
+      <label class="field" style="margin:0">
+        <span class="field__label">Новая карточка</span>
+        <input class="input" type="text" name="name" maxlength="120"
+               placeholder="Например: экскурсия">
+      </label>
+      <button class="btn btn--quiet" type="submit">Добавить</button>
+    </form>
   </aside>
 
   <div class="builder__grid-wrap">

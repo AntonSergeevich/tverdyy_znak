@@ -60,6 +60,7 @@ urlpatterns = [
     path("raspisanie/konstruktor/<uuid:lesson_id>/ubrat/", scheduler.slot_clear, name="slot_clear"),
     path("raspisanie/konstruktor/kopirovat/", scheduler.week_copy, name="week_copy"),
     path("raspisanie/konstruktor/ochistit/", scheduler.week_clear, name="week_clear"),
+    path("raspisanie/konstruktor/blok/", scheduler.block_create, name="block_create"),
     path("zayavki/", manage.leads, name="leads"),
     path("zayavki/<uuid:lead_id>/status/", manage.lead_status, name="lead_status"),
     path("zayavki/<uuid:lead_id>/udalit/", manage.lead_delete, name="lead_delete"),
