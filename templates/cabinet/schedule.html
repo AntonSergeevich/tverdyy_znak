@@ -44,6 +44,14 @@
                     </span>
                     {% if lesson.topic %}<span class="muted">{{ lesson.topic }}</span>{% endif %}
                   </span>
+                  {% if lesson.subject.is_graded %}
+                    {# Видно сразу, за какое из двух занятий подряд идёт балл. #}
+                    {% if lesson.is_graded %}
+                      <span class="level level--elevated week__mark">с баллами</span>
+                    {% else %}
+                      <span class="level level--base week__mark">без баллов</span>
+                    {% endif %}
+                  {% endif %}
                   {% if lesson.can_open %}<span class="week__go" aria-hidden="true">›</span>{% endif %}
                 </{% if lesson.can_open %}a{% else %}div{% endif %}>
               </li>

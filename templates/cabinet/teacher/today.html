@@ -34,7 +34,7 @@
   <h2 class="label" style="font-size:18px;margin:32px 0 12px">Ближайшие занятия</h2>
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>Когда</th><th>Предмет</th><th>Группа</th><th>Тема</th><th>Планирование</th></tr></thead>
+      <thead><tr><th>Когда</th><th>Предмет</th><th>Группа</th><th>Тема</th><th>Оценивание</th><th>Планирование</th></tr></thead>
       <tbody>
       {% for lesson in upcoming %}
         <tr>
@@ -42,6 +42,10 @@
           <td>{{ lesson.subject.name }}</td>
           <td>{{ lesson.group.name }}</td>
           <td>{{ lesson.topic|default:"—" }}</td>
+          <td>
+            {% if lesson.is_graded %}<span class="level level--elevated">с баллами</span>
+            {% else %}<span class="level level--base">без баллов</span>{% endif %}
+          </td>
           <td><a href="{% url 'cabinet:module_plan' lesson.module_id lesson.subject_id lesson.group_id %}">План модуля</a></td>
         </tr>
       {% endfor %}

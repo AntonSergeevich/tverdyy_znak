@@ -102,9 +102,16 @@
 
     nameOut.textContent = holder.getAttribute('data-name') || '';
     var index = rows().indexOf(holder);
-    subOut.textContent = index >= 0
+    // Под фамилией — не порядковый номер, а то, ради чего сюда и смотрят:
+    // сколько у ученика уже набрано в модуле и сколько можно дать сейчас.
+    var total = holder.getAttribute('data-module-total');
+    var limit = holder.getAttribute('data-module-limit');
+    var where = index >= 0
       ? 'ученик ' + (index + 1) + ' из ' + rows().length
       : 'балл получат все, у кого его ещё нет';
+    subOut.textContent = total && limit
+      ? 'в модуле ' + total + ' из ' + limit + ' · за это занятие до ' + human(max) + ' · ' + where
+      : where;
     maxOut.textContent = human(max);
     commentField.value = comment ? comment.value : '';
     commentField.closest('.dial__comment').hidden = !comment;

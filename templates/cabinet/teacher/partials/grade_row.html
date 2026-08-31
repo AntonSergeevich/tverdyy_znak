@@ -13,8 +13,13 @@
 {% endcomment %}
 <div class="journal-row" data-student="{{ row.student.pk }}" id="row-{{ row.student.pk }}"
      data-name="{{ row.student.short_name }}"
-     data-max="{{ grade_item.max_points|machine_number }}">
-  <span class="journal-row__name">{{ row.student.short_name }}</span>
+     data-max="{{ grade_item.max_points|machine_number }}"
+     data-module-total="{{ row.module_total|points }}"
+     data-module-limit="{{ budget.limit|points }}">
+  <span class="journal-row__name">
+    {{ row.student.short_name }}
+    <span class="small muted">в модуле {{ row.module_total|points }} из {{ budget.limit|points }}</span>
+  </span>
 
   <button class="grade-chip{% if row.grade and row.grade.points is not None %} grade-chip--set{% endif %}"
           type="button" data-dial-open

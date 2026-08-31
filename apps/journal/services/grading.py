@@ -170,6 +170,187 @@ def _default_title(kind, index: int, count: int) -> str:
     return base if count == 1 else f"{base} {index + 1}"
 
 
+# ─── Занятие с оцениванием: место в плане модуля ────────────────────────────
+
+@dataclass(frozen=True)
+class GradingSwitch:
+    """Что вышло из переключения оценивания и откуда взялись баллы."""
+
+    item: GradeItem | None
+    note: str = ""
+    released: str = ""
+
+
+def free_lesson_slots(module, subject, group):
+    """
+    Свободные места «Занятие с оцениванием» в плане модуля.
+
+    План заранее откладывает часть сотни на занятия — по умолчанию сорок
+    баллов на восемь занятий. Это и есть места: отметить занятие
+    оцениваемым значит занять одно из них, а не добавить сверх плана.
+    """
+    return (
+        GradeItem.objects.filter(
+            module=module, subject=subject, group=group,
+            kind=GradeItemKind.LESSON, lesson__isnull=True,
+        )
+        .order_by("position", "created_at")
+    )
+
+
+def _borrowable(lesson):
+    """
+    У каких занятий можно занять баллы: у тех, что ещё впереди и без оценок.
+
+    Занятие, которое уже прошло и по которому баллы стоят, не трогаем ни
+    при каких условиях: выставленное — это чужая работа, а не резерв.
+    """
+    return (
+        GradeItem.objects.filter(
+            module=lesson.module, subject=lesson.subject, group=lesson.group,
+            kind=GradeItemKind.LESSON, lesson__isnull=False,
+            lesson__starts_at__gt=lesson.starts_at,
+        )
+        .exclude(lesson=lesson)
+        .exclude(grades__isnull=False)
+        .select_related("lesson")
+        .order_by("-lesson__starts_at")
+    )
+
+
+@transaction.atomic
+def enable_lesson_grading(lesson, *, actor=None) -> GradingSwitch:
+    """
+    Сделать занятие оцениваемым.
+
+    Порядок такой:
+
+    1. Есть свободное место в плане — занимаем его. Ничего не прибавляется:
+       баллы на занятия отложены заранее, место просто перестаёт пустовать.
+    2. Мест нет, но в сотне есть остаток — заводим новую работу.
+    3. Ни того ни другого — занимаем баллы у занятия, которое ещё впереди и
+       по которому баллов никто не ставил. Оно становится без оценивания, а
+       его баллы переходят сюда. Так «сделать с оцениванием» работает даже
+       тогда, когда сотня разобрана целиком: педагог решает не «можно ли»,
+       а «за счёт чего».
+    4. Остался хвостик меньше обычного максимума — заводим работу на него:
+       занятие на три балла честнее, чем отказ.
+
+    Выставленные баллы неприкосновенны: у занятия, по которому уже стоят
+    оценки, не занимают ничего.
+    """
+    existing = GradeItem.objects.filter(lesson=lesson).first()
+    if existing is not None:
+        if not lesson.is_graded:
+            lesson.is_graded = True
+            lesson.save(update_fields=["is_graded", "updated_at"])
+        return GradingSwitch(item=existing)
+
+    if not lesson.subject.is_graded:
+        raise ValidationError(
+            f"«{lesson.subject.name}» — блок дня, а не учебный предмет: "
+            "баллы по нему не выставляются."
+        )
+
+    organization = lesson.organization
+    default_points = organization.lesson_max_points
+    note = ""
+    released = ""
+
+    slot = free_lesson_slots(lesson.module, lesson.subject, lesson.group).first()
+    if slot is not None:
+        item = slot
+        note = f"Занято место «{slot.title}» из плана модуля."
+    else:
+        budget = points_budget(lesson.module, lesson.subject, lesson.group)
+        points = min(default_points, budget.remaining)
+        if points <= ZERO:
+            donor = _borrowable(lesson).first()
+            if donor is None:
+                raise ValidationError(
+                    {
+                        "max_points": (
+                            "Сотня баллов модуля разобрана целиком, и занять их не у кого: "
+                            "все занятия впереди либо без оценивания, либо по ним уже "
+                            "выставлены баллы. Освободите баллы в плане модуля."
+                        )
+                    }
+                )
+            points = min(default_points, donor.max_points)
+            released = (
+                f"Баллы взяты у занятия {timezone.localtime(donor.lesson.starts_at):%d.%m} "
+                f"— оно стало без оценивания."
+            )
+            donor_lesson = donor.lesson
+            donor.delete()
+            donor_lesson.is_graded = False
+            donor_lesson.save(update_fields=["is_graded", "updated_at"])
+            note = released
+        else:
+            if points < default_points:
+                note = f"В модуле оставалось {_fmt(points)} — занятие заведено на них."
+        item = GradeItem(
+            organization=organization, module=lesson.module, subject=lesson.subject,
+            group=lesson.group, kind=GradeItemKind.LESSON,
+            title="Занятие с оцениванием", max_points=points,
+        )
+
+    item.lesson = lesson
+    item.due_date = lesson.local_date
+    lesson.is_graded = True
+
+    validate_grade_item(item)
+    item.save()
+    lesson.save(update_fields=["is_graded", "updated_at"])
+    logger.info("Занятие %s стало оцениваемым на %s баллов", lesson.pk, _fmt(item.max_points))
+    return GradingSwitch(item=item, note=note, released=released)
+
+
+@transaction.atomic
+def disable_lesson_grading(lesson) -> GradingSwitch:
+    """
+    Снять оценивание с занятия.
+
+    Баллы не пропадают, а возвращаются в план модуля свободным местом:
+    сотня разложена один раз, и снятое оценивание не должно её обеднять.
+    Занятие с выставленными баллами не снимается — сначала уберите баллы.
+    """
+    item = GradeItem.objects.filter(lesson=lesson).first()
+    if item is not None:
+        if Grade.objects.filter(grade_item=item).exists():
+            raise ValidationError(
+                {"lesson": "Сначала удалите выставленные баллы за это занятие."}
+            )
+        item.lesson = None
+        item.due_date = None
+        item.title = item.title or "Занятие с оцениванием"
+        item.save(update_fields=["lesson", "due_date", "title", "updated_at"])
+
+    lesson.is_graded = False
+    lesson.save(update_fields=["is_graded", "updated_at"])
+    return GradingSwitch(
+        item=None,
+        note="Баллы вернулись в план модуля свободным местом." if item else "",
+    )
+
+
+def student_module_points(*, students, module, subject) -> dict:
+    """
+    Сколько баллов у каждого ученика в модуле — одним запросом.
+
+    Нужно там, где ставят балл: «пять из пяти» без «а всего у него
+    тридцать семь из ста» — половина картинки.
+    """
+    rows = (
+        Grade.objects.filter(
+            student__in=students, grade_item__module=module, grade_item__subject=subject
+        )
+        .values("student_id")
+        .annotate(total=Sum("points"))
+    )
+    return {row["student_id"]: row["total"] or ZERO for row in rows}
+
+
 # ─── Выставление балла ──────────────────────────────────────────────────────
 def _can_backdate(user, organization) -> bool:
     return bool(user and (user.is_superuser or user.has_role(organization, Role.OWNER)))

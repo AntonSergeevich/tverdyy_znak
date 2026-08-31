@@ -28,6 +28,11 @@
   </div>
 {% endif %}
 
+{% if note %}
+  {# Откуда взялись баллы: занято место в плане или отобрано у занятия впереди. #}
+  <div class="message">{{ note }}</div>
+{% endif %}
+
 <div class="lesson-switch">
   <div class="lesson-switch__text">
     <p class="lesson-switch__state">
@@ -39,8 +44,12 @@
       {% endif %}
     </p>
     <p class="small muted">
+      {% if lesson.is_graded %}Сегодня каждому можно поставить до
+        {{ grade_item.max_points|points }}
+        {{ grade_item.max_points|plural:"балла,баллов,баллов" }}. {% endif %}
       В модуле распределено {{ budget.distributed|points }} из {{ budget.limit|points }} баллов,
-      осталось {{ budget.remaining|points }}.
+      осталось {{ budget.remaining|points }}{% if free_slots %}, свободных мест под занятия
+      {{ free_slots }}{% endif %}.
     </p>
   </div>
   <form hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}"

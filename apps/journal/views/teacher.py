@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import models
 from django.db.models import Prefetch
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -37,8 +38,12 @@ from apps.journal.models import (
 from apps.journal.services import ktp as ktp_service
 from apps.journal.services.grading import (
     create_default_structure,
+    disable_lesson_grading,
+    enable_lesson_grading,
+    free_lesson_slots,
     points_budget,
     set_grade,
+    student_module_points,
     validate_grade_item,
 )
 from apps.journal.services.suggestions import (
@@ -88,7 +93,13 @@ def today(request):
 
 
 def _lesson_rows(lesson: Lesson):
-    """Ученики группы и их баллы за занятие — один запрос вместо N."""
+    """
+    Ученики группы, их баллы за занятие и итог по модулю — без запроса на строку.
+
+    Итог здесь не для красоты: «пять из пяти» без «а всего у него тридцать
+    семь из ста» — половина картинки. Педагог ставит балл, глядя на оба
+    числа сразу.
+    """
     grade_item = getattr(lesson, "grade_item", None)
     grades = {}
     if grade_item is not None:
@@ -96,12 +107,22 @@ def _lesson_rows(lesson: Lesson):
             grade.student_id: grade
             for grade in Grade.objects.filter(grade_item=grade_item).select_related("student")
         }
-    students = (
+    students = list(
         Student.objects.filter(group_memberships__group=lesson.group)
         .order_by("last_name", "first_name")
         .distinct()
     )
-    return [{"student": student, "grade": grades.get(student.id)} for student in students]
+    totals = student_module_points(
+        students=students, module=lesson.module, subject=lesson.subject
+    )
+    return [
+        {
+            "student": student,
+            "grade": grades.get(student.id),
+            "module_total": totals.get(student.id, Decimal("0")),
+        }
+        for student in students
+    ]
 
 
 @login_required
@@ -132,6 +153,9 @@ def lesson_journal(request, lesson_id):
             # Подсказки «как в прошлый раз»: половина того, что педагог
             # печатает, уже была напечатана — тема идёт по учебнику подряд,
             # задание того же вида. Предлагаем, но не подставляем молча.
+            "free_slots": free_lesson_slots(
+                lesson.module, lesson.subject, lesson.group
+            ).count(),
             "recent_topics": recent_topics(
                 subject=lesson.subject, group=lesson.group, exclude_lesson=lesson
             ),
@@ -181,35 +205,16 @@ def lesson_toggle_graded(request, lesson_id):
 
     make_graded = request.POST.get("is_graded") == "1"
     error = ""
-    if make_graded and not hasattr(lesson, "grade_item"):
-        item = GradeItem(
-            organization=organization,
-            module=lesson.module,
-            subject=lesson.subject,
-            group=lesson.group,
-            lesson=lesson,
-            kind=GradeItemKind.LESSON,
-            title=lesson.topic or "Занятие с оцениванием",
-            max_points=organization.lesson_max_points,
-            due_date=lesson.local_date,
+    note = ""
+    try:
+        switch = (
+            enable_lesson_grading(lesson, actor=request.user)
+            if make_graded
+            else disable_lesson_grading(lesson)
         )
-        lesson.is_graded = True
-        try:
-            validate_grade_item(item)
-            item.save()
-            lesson.save(update_fields=["is_graded", "updated_at"])
-        except ValidationError as exc:
-            lesson.is_graded = False
-            error = "; ".join(m for msgs in exc.message_dict.values() for m in msgs)
-    elif not make_graded:
-        item = getattr(lesson, "grade_item", None)
-        if item is not None and Grade.objects.filter(grade_item=item).exists():
-            error = "Сначала удалите выставленные баллы за это занятие."
-        else:
-            if item is not None:
-                item.delete()
-            lesson.is_graded = False
-            lesson.save(update_fields=["is_graded", "updated_at"])
+        note = switch.note
+    except ValidationError as exc:
+        error = "; ".join(m for msgs in exc.message_dict.values() for m in msgs)
 
     lesson.refresh_from_db()
     # Вместе с шапкой возвращаем и список учеников: включили оценивание —
@@ -226,7 +231,11 @@ def lesson_toggle_graded(request, lesson_id):
             "budget": points_budget(lesson.module, lesson.subject, lesson.group),
             "rows": _lesson_rows(lesson),
             "can_manage": is_manager(request.user, organization),
+            "free_slots": free_lesson_slots(
+                lesson.module, lesson.subject, lesson.group
+            ).count(),
             "error": error,
+            "note": note,
         },
     )
 
@@ -273,13 +282,21 @@ def grade_save(request, lesson_id):
             error = _first_message(exc)
             grade = Grade.objects.filter(grade_item=grade_item, student=student).first()
 
+    totals = student_module_points(
+        students=[student], module=lesson.module, subject=lesson.subject
+    )
     return render(
         request,
         "cabinet/teacher/partials/grade_row.html",
         {
             "lesson": lesson,
             "grade_item": grade_item,
-            "row": {"student": student, "grade": grade},
+            "row": {
+                "student": student,
+                "grade": grade,
+                "module_total": totals.get(student.id, Decimal("0")),
+            },
+            "budget": points_budget(lesson.module, lesson.subject, lesson.group),
             "error": error,
             "saved": not error,
         },
@@ -371,6 +388,28 @@ def module_plan_action(request, module_id, subject_id, group_id):
             )
             item.full_clean(exclude=["lesson"])
             item.save()
+        elif action == "edit_item":
+            item = get_object_or_404(
+                GradeItem.objects.filter(module=module, subject=subject, group=group),
+                pk=request.POST.get("item"),
+            )
+            item.title = (request.POST.get("title") or "").strip()
+            item.kind = request.POST.get("kind") or item.kind
+            item.max_points = Decimal((request.POST.get("max_points") or "0").replace(",", "."))
+            item.due_date = request.POST.get("due_date") or None
+            # Работу можно урезать, но не ниже уже выставленного: иначе балл
+            # ученика окажется выше максимума, и итог модуля станет враньём.
+            highest = Grade.objects.filter(grade_item=item).aggregate(
+                top=models.Max("points")
+            )["top"]
+            if highest is not None and item.max_points < highest:
+                error = (
+                    f"По этой работе уже стоит балл {highest:.0f} — "
+                    "максимум ниже него поставить нельзя."
+                )
+            else:
+                item.full_clean(exclude=["lesson"])
+                item.save()
         elif action == "delete_item":
             item = get_object_or_404(
                 GradeItem.objects.filter(module=module, subject=subject, group=group),

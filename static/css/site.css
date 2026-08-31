@@ -995,7 +995,7 @@ a.week__lesson--open {
 }
 a.week__lesson--open:hover, a.week__lesson--open:focus-visible { background: var(--mark); }
 a.week__lesson--open .week__subject { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-.week__go { margin-left: auto; color: var(--ink-3); font-size: 20px; line-height: 1; }
+.week__go { color: var(--ink-3); font-size: 20px; line-height: 1; }
 
 @media (max-width: 760px) {
   :root { --header-h: 73px; }
@@ -1207,3 +1207,18 @@ details.fieldset[open] > summary::after { content: ' −'; }
 .lesson-switch form { flex: 0 0 auto; }
 .lesson-switch .btn { min-height: 44px; }
 .form-error a { margin-left: 8px; white-space: nowrap; }
+
+/* Под фамилией — сколько у ученика набрано в модуле. «Пять из пяти» без
+   «а всего тридцать семь из ста» — половина картинки. */
+.journal-row__name { display: grid; gap: 1px; }
+.journal-row__name .small { font-weight: 400; }
+
+/* Строка работы модуля правится на месте: раньше её можно было только
+   удалить и завести заново — то есть потерять название и дату. */
+.plan-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.plan-row__cell { display: grid; gap: 2px; flex: 0 1 130px; min-width: 0; }
+.plan-row__cell--wide { flex: 1 1 220px; }
+.plan-row__actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.plan-row__note { flex: 1 1 100%; margin: 0; }
+/* Метка оценивания в расписании стоит справа, у стрелки перехода. */
+.week__mark { margin-left: auto; flex: 0 0 auto; }

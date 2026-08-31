@@ -233,11 +233,10 @@ def test_turning_grading_on_brings_the_circles_at_once(tenant_a):
 
 def test_a_full_module_says_where_to_free_the_points(tenant_a):
     """
-    Сотня на модуль не резиновая: когда она разобрана, оценивание не
-    включить. Отказ должен говорить не только «нельзя», но и «вот где».
-
-    Раньше отказ приезжал в шапку, а нажимали кнопку внизу экрана — и связи
-    между ними не было видно вовсе.
+    Отказать можно только тогда, когда занять баллы действительно не у кого:
+    сотня разобрана, а все занятия впереди либо без оценивания, либо уже
+    с выставленными баллами. Тогда отказ говорит не только «нельзя», но и
+    «вот где освободить».
     """
     from apps.journal.models import GradeItem, GradeItemKind
 
@@ -254,7 +253,7 @@ def test_a_full_module_says_where_to_free_the_points(tenant_a):
         {"is_graded": "1"},
     ).content.decode()
 
-    assert "лимит модуля" in body
+    assert "занять их не у кого" in body
     assert reverse(
         "cabinet:module_plan",
         args=[tenant_a.module.pk, tenant_a.subject.pk, tenant_a.group.pk],
@@ -502,3 +501,90 @@ def test_someone_elses_lesson_is_shown_but_not_editable(tenant_a):
     assert "Чужая тема" in body
     assert reverse("cabinet:lesson_topic_save", args=[theirs.pk]) not in body
     assert reverse("cabinet:lesson_topic_save", args=[tenant_a.lesson.pk]) in body
+
+
+# ─── Правка работ модуля ────────────────────────────────────────────────────
+
+def test_a_work_of_the_module_can_be_edited_not_only_deleted(tenant_a):
+    """
+    Раньше строку можно было только удалить и завести заново — то есть
+    потерять и название, и дату.
+    """
+    from apps.journal.models import GradeItem, GradeItemKind
+
+    with organization_context(tenant_a.organization):
+        item = GradeItem.objects.create(
+            organization=tenant_a.organization, module=tenant_a.module,
+            subject=tenant_a.subject, group=tenant_a.group,
+            kind=GradeItemKind.QUIZ, title="Проверочная", max_points=Decimal("10.00"),
+        )
+
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse(
+            "cabinet:module_plan_action",
+            args=[tenant_a.module.pk, tenant_a.subject.pk, tenant_a.group.pk],
+        ),
+        {
+            "action": "edit_item", "item": str(item.pk),
+            "title": "Проверочная по причастиям", "kind": GradeItemKind.QUIZ,
+            "max_points": "12", "due_date": "2026-09-18",
+        },
+    )
+
+    item.refresh_from_db()
+    assert item.title == "Проверочная по причастиям"
+    assert item.max_points == Decimal("12.00")
+    assert str(item.due_date) == "2026-09-18"
+
+
+def test_a_work_cannot_be_cut_below_a_grade_already_given(tenant_a):
+    """
+    Иначе балл ученика окажется выше максимума, и итог модуля станет
+    враньём.
+    """
+    from apps.journal.models import GradeItem, GradeItemKind
+    from apps.journal.services.grading import set_grade
+
+    with organization_context(tenant_a.organization):
+        item = GradeItem.objects.create(
+            organization=tenant_a.organization, module=tenant_a.module,
+            subject=tenant_a.subject, group=tenant_a.group,
+            kind=GradeItemKind.QUIZ, title="Проверочная", max_points=Decimal("10.00"),
+        )
+        set_grade(
+            student=tenant_a.student, grade_item=item,
+            points=Decimal("9"), actor=tenant_a.owner_user,
+        )
+
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.post(
+        reverse(
+            "cabinet:module_plan_action",
+            args=[tenant_a.module.pk, tenant_a.subject.pk, tenant_a.group.pk],
+        ),
+        {
+            "action": "edit_item", "item": str(item.pk), "title": "Проверочная",
+            "kind": GradeItemKind.QUIZ, "max_points": "5",
+        },
+    ).content.decode()
+
+    assert "уже стоит балл" in body
+    item.refresh_from_db()
+    assert item.max_points == Decimal("10.00")
+
+
+def test_the_schedule_shows_which_lesson_carries_points(tenant_a):
+    """
+    Два урока подряд по одному предмету выглядели одинаково, и понять, за
+    какой из них идёт балл, было неоткуда.
+    """
+    from apps.journal.services.grading import enable_lesson_grading
+
+    with organization_context(tenant_a.organization):
+        enable_lesson_grading(tenant_a.lesson)
+
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.get(reverse("cabinet:schedule")).content.decode()
+
+    assert "с баллами" in body
