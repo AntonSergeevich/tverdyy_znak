@@ -2,6 +2,7 @@
 {% block cabinet_title %}Мой кабинет{% endblock %}
 
 {% block content %}
+{% include "cabinet/partials/heroes.html" %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Привет, {{ student.first_name }}</h1>
   <span class="muted">{% if module %}{{ module }} · до конца {{ module.days_left }} дн.{% endif %}</span>
@@ -36,9 +37,32 @@
 <div id="mood-block">{% include "cabinet/student/partials/mood.html" %}</div>
 
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Мои цели</h2>
-<p class="small muted" style="margin-bottom:12px">
-  Открытые цели видят наставник и родитель. Скрытые — только вы: они не попадают ни в отчёты, ни в выгрузки.
+<p class="small muted" style="max-width:70ch;margin-bottom:12px">
+  Открытые цели видят наставник и родитель. Скрытые — только вы: они не попадают
+  ни в отчёты, ни в выгрузки. Цель — это не одно большое дело, а путь: разложите
+  её на шаги и отмечайте их по одному. Спутник пойдёт по дорожке вместе с вами.
 </p>
+
+{% comment %}
+  Выбор спутника. Мелочь, но выбранное своей рукой держится дольше
+  навязанного, а на пути к цели держаться — главное.
+{% endcomment %}
+<form class="hero-picker"
+      hx-post="{% url 'cabinet:hero_choose' %}"
+      hx-select="unset" hx-select-oob="unset"
+      hx-target="#goals-block" hx-swap="innerHTML">
+  {% csrf_token %}
+  <span class="small muted">Спутник:</span>
+  {% for value, label in heroes %}
+    <button class="hero-picker__item{% if student.hero == value %} is-current{% endif %}"
+            type="submit" name="hero" value="{{ value }}" title="{{ label }}"
+            aria-pressed="{% if student.hero == value %}true{% else %}false{% endif %}">
+      <svg viewBox="0 0 56 56" aria-hidden="true"><use href="#hero-{{ value }}"></use></svg>
+      <span class="small">{{ label }}</span>
+    </button>
+  {% endfor %}
+</form>
+
 <div id="goals-block">{% include "cabinet/student/partials/goals.html" %}</div>
 
 <form class="grid grid--tight" style="margin-top:16px;align-items:flex-end"
@@ -73,19 +97,31 @@
   <p class="muted">Ничего не задано.</p>
 {% endif %}
 
-<h2 class="label" style="font-size:18px;margin:32px 0 8px">Расписание на неделю</h2>
-{% if week %}
-  <div class="table-wrap">
-    <table class="data">
-      <thead><tr><th>Когда</th><th>Предмет</th><th>Тема</th></tr></thead>
-      <tbody>
-      {% for lesson in week %}
-        <tr><td>{{ lesson.starts_at|date:"d.m, H:i" }}</td><td>{{ lesson.subject.name }}</td><td class="muted">{{ lesson.topic|default:"—" }}</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+{% comment %}
+  Не вся неделя, а только сегодня.
+
+  Неделя целиком здесь дублировала раздел «Расписание», причём в худшем
+  виде: плоская таблица без разбивки по дням, без аудитории и педагога. То,
+  ради чего на главную заходят утром, — «что сегодня и во сколько», — умещается
+  в несколько строк. За остальным есть отдельный экран.
+{% endcomment %}
+<div class="page-head-row" style="margin:32px 0 8px">
+  <h2 class="label" style="font-size:18px;margin:0">Сегодня</h2>
+  <a class="small" href="{% url 'cabinet:schedule' %}">Всё расписание →</a>
+</div>
+{% if today_lessons %}
+  <ul class="today-strip">
+    {% for lesson in today_lessons %}
+      <li class="today-strip__item">
+        <span class="numeral today-strip__time">{{ lesson.starts_at|time:"H:i" }}</span>
+        <span class="today-strip__what">
+          <span class="today-strip__subject">{{ lesson.subject.name }}</span>
+          {% if lesson.topic %}<span class="small muted">{{ lesson.topic }}</span>{% endif %}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
 {% else %}
-  <p class="muted">На этой неделе занятий нет.</p>
+  <p class="muted">Сегодня занятий нет. Вся неделя — в разделе «Расписание».</p>
 {% endif %}
 {% endblock %}

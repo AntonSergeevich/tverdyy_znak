@@ -7,6 +7,7 @@ from apps.journal.views import (
     manage,
     parent,
     people,
+    progress,
     reviews,
     scheduler,
     student,
@@ -59,6 +60,9 @@ urlpatterns = [
     path("uchenik/", student.student_home, name="student_home"),
     path("uchenik/cel/", student.goal_create, name="goal_create"),
     path("uchenik/cel/<uuid:goal_id>/", student.goal_toggle, name="goal_toggle"),
+    path("uchenik/cel/<uuid:goal_id>/shagi/", student.goal_steps_save, name="goal_steps_save"),
+    path("uchenik/shag/<uuid:step_id>/", student.goal_step_toggle, name="goal_step_toggle"),
+    path("uchenik/sputnik/", student.hero_choose, name="hero_choose"),
     path("uchenik/sostoyanie/", student.mood_save, name="mood_save"),
     path("uchenik/domashnee/<uuid:homework_id>/", student.homework_mark, name="homework_mark"),
 
@@ -79,6 +83,8 @@ urlpatterns = [
     path("zayavki/<uuid:lead_id>/udalit/", manage.lead_delete, name="lead_delete"),
     path("zayavki/<uuid:lead_id>/vernut/", manage.lead_restore, name="lead_restore"),
     path("ucheniki/", manage.students, name="students"),
+    path("progress/", progress.progress_list, name="progress_list"),
+    path("progress/<uuid:student_id>/", progress.progress_student, name="progress_student"),
     path("ucheniki/<uuid:student_id>/vosstanovit/", manage.student_restore, name="student_restore"),
 
     # Люди: доступы выдаёт администратор, сами не регистрируются

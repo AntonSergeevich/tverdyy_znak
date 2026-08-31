@@ -1267,3 +1267,140 @@ details.fieldset[open] > summary::after { content: ' −'; }
 body.is-readonly .btn:not(.btn--quiet):not([data-allowed]),
 body.is-readonly .grade-chip { opacity: .72; }
 body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { position: relative; }
+
+/* «Сегодня» на главной ученика и родителя: несколько строк вместо
+   недельной таблицы, которая дублировала раздел «Расписание». */
+.page-head-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.today-strip { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; background: var(--line); border: 1px solid var(--line); }
+.today-strip__item { display: flex; gap: 12px; align-items: baseline; background: var(--surface); padding: 10px 14px; }
+.today-strip__time { flex: 0 0 auto; font-weight: 600; }
+.today-strip__what { display: grid; gap: 2px; min-width: 0; }
+.today-strip__subject { font-weight: 600; }
+
+/* ─── Путь к цели ────────────────────────────────────────────────────────── */
+
+/* Набор фигур для <use>: сам по себе не рисуется. */
+.hero-sprite { display: none; }
+
+.hero-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.hero-picker__item {
+  display: grid; justify-items: center; gap: 2px; cursor: pointer;
+  padding: 6px 10px; min-width: 76px; font: inherit; color: var(--ink-3);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+}
+.hero-picker__item svg { width: 34px; height: 34px; }
+.hero-picker__item.is-current { color: var(--ink); border-color: var(--accent); }
+.hero-picker__item:hover { border-color: var(--accent); }
+
+.goal {
+  display: block; background: var(--surface); border: 1px solid var(--line);
+  padding: clamp(12px, 2vw, 18px);
+}
+.goal__head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: flex-start; }
+.goal__title { margin: 0; font-size: 18px; }
+.goal__hint { max-width: 66ch; margin: 14px 0 0; }
+.goal__steps-editor { margin-top: 14px; }
+.goal__steps-editor summary { cursor: pointer; color: var(--ink-3); }
+
+/* Дорожка: пройденное позади и зелёное, спутник стоит там, докуда дошли. */
+.goal-path { position: relative; margin: 20px 0 10px; padding: 46px 0 0 4px; }
+.goal-path__track {
+  position: relative; height: 6px; border-radius: 3px;
+  background: var(--track); margin: 0 34px 0 0;
+}
+.goal-path__done {
+  position: absolute; inset: 0 auto 0 0; width: var(--goal-progress, 0%);
+  background: var(--ok); border-radius: 3px; transition: width .28s ease;
+}
+.goal-path__mark {
+  position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  border-radius: 50%; background: var(--surface);
+  border: 2px solid var(--line-strong);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.goal-path__mark.is-done { background: var(--ok); border-color: var(--ok); }
+.goal-path__hero {
+  position: absolute; top: 4px; left: calc(var(--goal-progress, 0%) - 20px);
+  width: 40px; height: 40px; color: var(--ink);
+  transition: left .28s ease;
+}
+.goal-path__flag { position: absolute; right: 0; top: 12px; font-size: 24px; color: var(--accent); }
+.goal-path__count { margin: 12px 0 0; }
+.goal-path__praise { color: var(--ok); margin-left: 8px; }
+
+.goal-steps { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 2px; }
+.goal-steps__button {
+  display: flex; gap: 10px; align-items: center; width: 100%;
+  padding: 10px 12px; min-height: 44px; cursor: pointer; text-align: left;
+  font: inherit; color: inherit; background: var(--paper);
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.goal-steps__button:hover { border-color: var(--accent); }
+.goal-steps__box {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px;
+  border: 2px solid var(--line-strong); display: grid; place-items: center;
+  font-size: 14px; line-height: 1; color: #fff;
+}
+.goal-steps__item.is-done .goal-steps__box { background: var(--ok); border-color: var(--ok); }
+.goal-steps__item.is-done .goal-steps__text { color: var(--ink-3); text-decoration: line-through; }
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-path__done, .goal-path__hero { transition: none; }
+}
+
+/* ─── Прогресс учеников ──────────────────────────────────────────────────── */
+
+.progress-list { display: grid; gap: 2px; background: var(--line); border: 1px solid var(--line); margin-top: 20px; }
+.progress-row {
+  display: grid; gap: 10px 20px; align-items: center;
+  grid-template-columns: minmax(150px, 200px) minmax(200px, 1fr) auto;
+  background: var(--surface); padding: 14px clamp(10px, 1.6vw, 16px);
+}
+.progress-row__name { font-weight: 600; color: inherit; }
+
+/* Путь по модулям: веха на модуль, заливка — доля набранного. В одну
+   строку с прокруткой, а не переносом: перенесённый путь читается как два
+   разных пути. Линия позади связывает вехи в дорогу. */
+.progress-track {
+  position: relative; display: flex; gap: 0 6px; align-items: flex-start;
+  overflow-x: auto; padding-bottom: 4px;
+}
+.progress-track::before {
+  content: ""; position: absolute; left: 22px; right: 22px; top: 13px;
+  height: 2px; background: var(--line-strong);
+}
+.progress-track__stop {
+  position: relative; display: grid; justify-items: center; gap: 2px;
+  min-width: 52px; flex: 0 0 auto;
+}
+.progress-track__dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid var(--line-strong); background: var(--surface);
+  /* Доля набранного — сектором. Проценты в conic-gradient задаются
+     напрямую: умножать процент на градус нельзя, и заливка молча пропадала. */
+  background-image: conic-gradient(var(--ok) var(--fill, 0%), transparent 0);
+}
+.progress-track__stop.is-current .progress-track__dot { border-color: var(--accent); }
+.progress-track__stop.is-future { opacity: .45; }
+.progress-track__points { font-weight: 600; font-size: 13px; }
+.progress-track--wide { gap: 10px 22px; margin-top: 12px; }
+.progress-track--wide .progress-track__stop { min-width: 120px; }
+
+/* Лента состояния: клетка на день, пропуск — пустая клетка. */
+.mood-ribbon { display: flex; gap: 2px; flex-wrap: wrap; }
+.mood-ribbon--wide .mood-cell { width: 18px; height: 18px; }
+.mood-cell {
+  width: 12px; height: 12px; border-radius: 3px;
+  background: var(--track); border: 1px solid var(--line-strong);
+}
+.mood-cell--1 { background: #C0492B; border-color: #C0492B; }
+.mood-cell--2 { background: #D98324; border-color: #D98324; }
+.mood-cell--3 { background: #C9AE5D; border-color: #C9AE5D; }
+.mood-cell--4 { background: #6FA86B; border-color: #6FA86B; }
+.mood-cell--5 { background: #2E7D53; border-color: #2E7D53; }
+.mood-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 16px 0 0; }
+.mood-legend__item { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (max-width: 860px) {
+  .progress-row { grid-template-columns: 1fr; }
+}

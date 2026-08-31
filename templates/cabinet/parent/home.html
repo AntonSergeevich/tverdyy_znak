@@ -132,25 +132,32 @@
   <p class="muted">Первый модуль ещё не закрыт — сравнивать пока не с чем.</p>
 {% endif %}
 
-<h2 class="label" style="font-size:18px;margin:32px 0 8px">Расписание на неделю</h2>
-{% if week %}
-  <div class="table-wrap">
-    <table class="data">
-      <thead><tr><th>Когда</th><th>Предмет</th><th>Тема</th><th>Педагог</th></tr></thead>
-      <tbody>
-      {% for lesson in week %}
-        <tr>
-          <td>{{ lesson.starts_at|date:"d.m, H:i" }}</td>
-          <td>{{ lesson.subject.name }}</td>
-          <td class="muted">{{ lesson.topic|default:"—" }}</td>
-          <td class="muted">{{ lesson.teacher.short_name|default:"—" }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+{% comment %}
+  Не вся неделя, а только сегодня.
+
+  Неделя целиком здесь дублировала раздел «Расписание», причём в худшем
+  виде: плоская таблица без разбивки по дням, без аудитории и педагога. То,
+  ради чего на главную заходят утром, — «что сегодня и во сколько», — умещается
+  в несколько строк. За остальным есть отдельный экран.
+{% endcomment %}
+<div class="page-head-row" style="margin:32px 0 8px">
+  <h2 class="label" style="font-size:18px;margin:0">Сегодня</h2>
+  <a class="small" href="{% url 'cabinet:schedule' %}">Всё расписание →</a>
+</div>
+{% if today_lessons %}
+  <ul class="today-strip">
+    {% for lesson in today_lessons %}
+      <li class="today-strip__item">
+        <span class="numeral today-strip__time">{{ lesson.starts_at|time:"H:i" }}</span>
+        <span class="today-strip__what">
+          <span class="today-strip__subject">{{ lesson.subject.name }}</span>
+          <span class="small muted">{% if lesson.topic %}{{ lesson.topic }}{% else %}—{% endif %}{% if lesson.teacher %} · {{ lesson.teacher.short_name }}{% endif %}</span>
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
 {% else %}
-  <p class="muted">На этой неделе занятий нет.</p>
+  <p class="muted">Сегодня занятий нет. Вся неделя — в разделе «Расписание».</p>
 {% endif %}
 
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Что задано</h2>

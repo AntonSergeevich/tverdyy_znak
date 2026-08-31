@@ -1,22 +1,13 @@
 {% if goals %}
-  {% for goal in goals %}
-    <div class="goal">
-      <span class="goal__badge {% if goal.is_hidden %}goal__badge--hidden{% endif %}">
-        {% if goal.is_hidden %}только я{% else %}открытая{% endif %}
-      </span>
-      <span style="flex:1 1 auto">
-        {{ goal.title }}
-        {% if goal.subject %}<span class="small muted"> · {{ goal.subject.name }}</span>{% endif %}
-      </span>
-      <form hx-post="{% url 'cabinet:goal_toggle' goal.pk %}" hx-select="unset" hx-select-oob="unset" hx-target="#goals-block" hx-swap="innerHTML">
-        {% csrf_token %}
-        <button class="btn btn--quiet" type="submit">Готово</button>
-      </form>
-    </div>
-  {% endfor %}
+  <div class="stack">
+    {% for goal in goals %}
+      {% include "cabinet/student/partials/goal_card.html" %}
+    {% endfor %}
+  </div>
 {% else %}
   <div class="empty-state">
     <p class="empty-state__title">Целей пока нет</p>
-    <p>Начните с одной — хоть открытой, хоть скрытой.</p>
+    <p>Начните с одной — хоть открытой, хоть скрытой. Потом разложите её на
+       шаги, и спутник пойдёт по пути вместе с вами.</p>
   </div>
 {% endif %}

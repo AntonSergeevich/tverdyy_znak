@@ -173,6 +173,21 @@ class Group(TenantModel):
         return self.name
 
 
+class Hero(models.TextChoices):
+    """
+    Спутник ученика на пути к цели.
+
+    Все четверо — одна и та же буква Ъ из брендбука, с одной отличающей
+    деталью. Это не аватар и не персонаж со своей историей: он нужен, чтобы
+    у движения к цели было лицо, а у прогресса — понятная метафора шага.
+    """
+
+    TRAVELLER = "traveller", "Путник"
+    STAR = "star", "Звёздочка"
+    COMPASS = "compass", "Компас"
+    ROCKET = "rocket", "Ракета"
+
+
 class StudentStatus(models.TextChoices):
     ENROLLED = "enrolled", "учится"
     ON_HOLD = "on_hold", "приостановлено"
@@ -209,6 +224,10 @@ class Student(SoftDeleteTenantModel):
         related_name="student_profile", verbose_name="учётная запись",
     )
     note = models.TextField("заметка", blank=True)
+    hero = models.CharField(
+        "спутник на пути к цели", max_length=20,
+        choices=Hero.choices, default=Hero.TRAVELLER,
+    )
 
     class Meta:
         verbose_name = "ученик"
@@ -908,6 +927,45 @@ class Goal(SoftDeleteTenantModel):
     @property
     def is_hidden(self) -> bool:
         return self.visibility == GoalVisibility.HIDDEN
+
+
+class GoalStep(TenantModel):
+    """
+    Шаг к цели.
+
+    Цель «разобраться с тригонометрией» невыполнима: за неё нельзя взяться
+    сегодня и нельзя отметить сделанной. Шаг — можно. Поэтому путь к цели
+    ученик раскладывает на шаги, а дальше отмечает их по одному, и видит,
+    насколько продвинулся.
+
+    Шаги живут внутри цели и наследуют её видимость: у скрытой цели скрыты
+    и шаги. Отдельного правила для них нет и быть не должно — иначе
+    обещание «скрытую цель не видит никто» пришлось бы повторять дважды.
+
+    Удаляются по-настоящему: вычеркнутый шаг — это передумали, а не
+    история, которую надо хранить.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    goal = models.ForeignKey(
+        Goal, on_delete=models.CASCADE, related_name="steps", verbose_name="цель"
+    )
+    title = models.CharField("шаг", max_length=200)
+    position = models.PositiveSmallIntegerField("порядок", default=0)
+    done_at = models.DateTimeField("сделан", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "шаг к цели"
+        verbose_name_plural = "шаги к цели"
+        ordering = ["position", "created_at"]
+        indexes = [models.Index(fields=["organization", "goal", "position"])]
+
+    def __str__(self) -> str:
+        return self.title
+
+    @property
+    def is_done(self) -> bool:
+        return self.done_at is not None
 
 
 class MoodEntry(TenantModel):

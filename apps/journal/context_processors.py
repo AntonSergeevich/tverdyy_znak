@@ -39,6 +39,7 @@ def cabinet_menu(request) -> dict:
             # администраторы и владельцы. Раньше их было два, и завести
             # педагога владельцем было попросту негде.
             _item("staff", "Сотрудники", "staff_create", "staff_card", "staff_remove"),
+            _item("progress_list", "Прогресс", "progress_student"),
             _item("subjects", "Предметы", "subject_create", "subject_edit", "subject_delete"),
             _item("schedule_builder", "Расписание"),
             _item("ktp_list", "КТП", "ktp_detail"),
@@ -63,6 +64,7 @@ def cabinet_menu(request) -> dict:
                 _item("teacher_today", "Сегодня", "lesson_journal", "module_plan"),
                 _item("schedule", "Расписание"),
                 _item("ktp_list", "КТП", "ktp_detail"),
+                _item("progress_list", "Прогресс", "progress_student"),
                 _item("teacher_hours", "Мои часы"),
             ]
         }

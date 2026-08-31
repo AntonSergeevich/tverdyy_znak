@@ -46,16 +46,18 @@ def current_module(organization, day=None) -> Module | None:
     )
 
 
-def week_lessons(student: Student, day=None):
+def day_lessons(student: Student, day=None):
+    """
+    Занятия одного дня.
+
+    Раньше на главную шла вся неделя таблицей — и дублировала раздел
+    «Расписание», причём в худшем виде: без разбивки по дням, без
+    аудитории и педагога. На главную заходят с вопросом «что сегодня»,
+    и ответ на него умещается в несколько строк.
+    """
     day = day or timezone.localdate()
-    start = day - timedelta(days=day.weekday())
-    end = start + timedelta(days=6)
     return (
-        Lesson.objects.filter(
-            group__memberships__student=student,
-            starts_at__date__gte=start,
-            starts_at__date__lte=end,
-        )
+        Lesson.objects.filter(group__memberships__student=student, starts_at__date=day)
         .select_related("subject", "group", "teacher", "teacher__user")
         .order_by("starts_at")
         .distinct()
@@ -119,7 +121,7 @@ def student_overview(request, student: Student) -> dict:
         "dynamics": dynamics,
         "comments": list(comments),
         "payments": list(payments),
-        "week": list(week_lessons(student)),
+        "today_lessons": list(day_lessons(student)),
         # Что задано ребёнку. Родитель спрашивает об этом чаще, чем о
         # баллах, — а раньше в кабинете этого не было вовсе.
         "homework": upcoming_homework(student),

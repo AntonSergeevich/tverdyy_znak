@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.db import models
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -20,18 +20,42 @@ from apps.journal.models import (
     Goal,
     GoalKind,
     GoalStatus,
+    GoalStep,
     GoalVisibility,
     GradeItemKind,
     Grade,
     GradeItem,
+    Hero,
     Homework,
     ModuleResult,
     MoodEntry,
     Student,
 )
+from apps.journal.services.goals import path_of, set_steps, toggle_step
 from apps.journal.services.grading import get_scale
 from apps.journal.services.homework import mark_done, upcoming_homework
-from apps.journal.views.parent import current_module, week_lessons
+from apps.journal.views.parent import current_module, day_lessons
+
+
+def _with_path(goals):
+    """
+    Цели вместе с их путём.
+
+    Шаги подтягиваем разом: у цели их единицы, но целей может быть
+    несколько, и запрос на каждую — тот самый N+1. Отметки на дорожке
+    расставляем здесь же: шаблон не должен считать проценты.
+    """
+    goals = list(goals.prefetch_related("steps"))
+    for goal in goals:
+        steps = list(goal.steps.all())
+        goal.step_list = steps
+        goal.path = path_of(goal)
+        for index, step in enumerate(steps, start=1):
+            # Целое число процентов, а не дробь: в русской локали шаблон
+            # печатает 33.3 как «33,3», и такой left в CSS не работает —
+            # все отметки слипались в начале дорожки.
+            step.offset = int(round(index * 100 / len(steps)))
+    return goals
 
 
 def _own_student(request) -> Student:
@@ -78,17 +102,18 @@ def student_home(request):
             "module": module,
             "results": list(results),
             "homework": list(homework),
-            "week": list(week_lessons(student)),
+            "today_lessons": list(day_lessons(student)),
             "scale": get_scale(organization),
             # Свои цели ученик видит целиком, включая скрытые. Но если
             # кабинет смотрят чужими глазами — только открытые: ребёнку
             # обещано, что скрытые не видит никто, и «проверка» не повод
             # это обещание нарушить.
-            "goals": list(_goals_for(request, student)),
+            "goals": _with_path(_goals_for(request, student)),
             "today_mood": today_mood,
             "yesterday_mood": yesterday_mood,
             "yesterday": yesterday,
             "mood_choices": MoodEntry.Scale.choices,
+            "heroes": Hero.choices,
         },
     )
 
@@ -115,7 +140,11 @@ def goal_create(request):
             created_by=request.user,
         )
     goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
-    return render(request, "cabinet/student/partials/goals.html", {"goals": list(goals)})
+    return render(
+        request,
+        "cabinet/student/partials/goals.html",
+        {"goals": _with_path(goals), "student": student},
+    )
 
 
 @login_required
@@ -127,7 +156,75 @@ def goal_toggle(request, goal_id):
     goal.status = GoalStatus.DONE if goal.status == GoalStatus.ACTIVE else GoalStatus.ACTIVE
     goal.save(update_fields=["status", "updated_at"])
     goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
-    return render(request, "cabinet/student/partials/goals.html", {"goals": list(goals)})
+    return render(
+        request,
+        "cabinet/student/partials/goals.html",
+        {"goals": _with_path(goals), "student": student},
+    )
+
+
+def _goals_block(request, student):
+    """Ответ на любое действие с целями: блок целей целиком."""
+    goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
+    return render(
+        request,
+        "cabinet/student/partials/goals.html",
+        {"goals": _with_path(goals), "student": student},
+    )
+
+
+@login_required
+@role_required("student")
+@require_http_methods(["POST"])
+def goal_steps_save(request, goal_id):
+    """
+    Разложить цель на шаги.
+
+    По шагу в строке — так быстрее всего записать то, что уже сложилось
+    в голове. Отметки о выполнении переживают правку: ученик уточняет
+    формулировку, а не начинает путь заново.
+    """
+    student = _own_student(request)
+    goal = get_object_or_404(Goal.objects.filter(student=student), pk=goal_id)
+    error = ""
+    try:
+        set_steps(goal=goal, titles=(request.POST.get("steps") or "").splitlines())
+    except ValidationError as exc:
+        error = "; ".join(exc.messages)
+
+    response = _goals_block(request, student)
+    if error:
+        response.status_code = 422
+    return response
+
+
+@login_required
+@role_required("student")
+@require_http_methods(["POST"])
+def goal_step_toggle(request, step_id):
+    """
+    Отметить шаг сделанным. И снять отметку — тоже сам.
+
+    Никто, кроме ученика, шаги не отмечает: путь его, и цена отметки в том,
+    что она правдива.
+    """
+    student = _own_student(request)
+    step = get_object_or_404(GoalStep.objects.filter(goal__student=student), pk=step_id)
+    toggle_step(step)
+    return _goals_block(request, student)
+
+
+@login_required
+@role_required("student")
+@require_http_methods(["POST"])
+def hero_choose(request):
+    """Сменить спутника. Мелочь, но выбранное своей рукой держится дольше."""
+    student = _own_student(request)
+    value = request.POST.get("hero")
+    if value in dict(Hero.choices):
+        student.hero = value
+        student.save(update_fields=["hero", "updated_at"])
+    return _goals_block(request, student)
 
 
 @login_required

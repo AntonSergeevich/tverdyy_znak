@@ -1,0 +1,48 @@
+{% comment %}
+  Спутники на пути к цели.
+
+  Все четверо — одна и та же буква Ъ из брендбука с одной отличающей
+  деталью. Это не персонажи со своей историей: они нужны, чтобы у движения
+  к цели было лицо, а у прогресса — понятная метафора шага. Рисуем один
+  набор на страницу и переиспользуем через <use>.
+{% endcomment %}
+<svg class="hero-sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="hero-body">
+      <path d="M8 12 H20 V46" fill="none" stroke="currentColor" stroke-width="5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 30 Q29 37 38 30 C46 30 49 33.4 49 38 C49 42.6 46 46 38 46 H20"
+            fill="none" stroke="currentColor" stroke-width="5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="28" cy="21" r="3.2" fill="currentColor"/>
+      <circle cx="39" cy="21" r="3.2" fill="currentColor"/>
+    </g>
+  </defs>
+
+  <symbol id="hero-traveller" viewBox="0 0 56 56">
+    <use href="#hero-body"/>
+    {# Путник: заплечный мешок. #}
+    <rect x="2" y="24" width="9" height="13" rx="3" fill="var(--accent)"/>
+  </symbol>
+
+  <symbol id="hero-star" viewBox="0 0 56 56">
+    <use href="#hero-body"/>
+    {# Звёздочка: искра над головой. #}
+    <path d="M45 8 l2.2 4.6 5 .7 -3.6 3.5 .9 5 -4.5-2.4 -4.5 2.4 .9-5 -3.6-3.5 5-.7z"
+          fill="var(--accent)"/>
+  </symbol>
+
+  <symbol id="hero-compass" viewBox="0 0 56 56">
+    <use href="#hero-body"/>
+    {# Компас: круг со стрелкой. #}
+    <circle cx="45" cy="13" r="8" fill="none" stroke="var(--accent)" stroke-width="3"/>
+    <path d="M41.5 16.5 L46.5 9.5 L48.5 14.5 Z" fill="var(--accent)"/>
+  </symbol>
+
+  <symbol id="hero-rocket" viewBox="0 0 56 56">
+    <use href="#hero-body"/>
+    {# Ракета: язык пламени снизу. #}
+    <path d="M12 47 q4 5 0 8 q-6-2 0-8z" fill="var(--accent)"/>
+    <path d="M20 47 q4 6 0 9 q-6-2 0-9z" fill="var(--accent)" opacity=".7"/>
+  </symbol>
+</svg>

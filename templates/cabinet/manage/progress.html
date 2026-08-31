@@ -1,0 +1,61 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}Прогресс учеников{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Прогресс учеников</h1>
+    <p class="muted">Путь по модулям и состояние за последние {{ mood_days }} дней</p>
+  </div>
+</div>
+
+<p class="small muted" style="max-width:74ch">
+  Слева — путь по модулям: сколько баллов набрано из возможного. Справа — лента
+  «как день»: по клетке на день, пропуски видны. Это не контроль, а повод для
+  разговора: две тяжёлые недели подряд у ровного по баллам ученика — вопрос
+  «что случилось», а не «почему оценки».
+</p>
+
+<p class="mood-legend small muted">
+  {% for value, label in mood_choices %}
+    <span class="mood-legend__item"><span class="mood-cell mood-cell--{{ value }}"></span> {{ label }}</span>
+  {% endfor %}
+  <span class="mood-legend__item"><span class="mood-cell"></span> не отмечено</span>
+</p>
+
+{% if rows %}
+  <div class="progress-list">
+    {% for row in rows %}
+      <article class="progress-row">
+        <a class="progress-row__name" href="{% url 'cabinet:progress_student' row.student.pk %}">
+          {{ row.student.short_name }}
+        </a>
+
+        <div class="progress-track">
+          {% for point in row.track %}
+            <div class="progress-track__stop{% if point.is_current %} is-current{% endif %}{% if point.is_future %} is-future{% endif %}">
+              <span class="progress-track__dot" style="--fill: {{ point.percent }}%"></span>
+              <span class="small muted">{{ point.module.number }}</span>
+              <span class="progress-track__points numeral">
+                {% if point.planned %}{{ point.percent }}%{% else %}—{% endif %}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="mood-ribbon" aria-label="Состояние по дням">
+          {% for cell in row.ribbon %}
+            <span class="mood-cell{% if cell.value %} mood-cell--{{ cell.value }}{% endif %}"
+                  title="{{ cell.day|date:'d.m' }} — {{ cell.label }}"></span>
+          {% endfor %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state" style="margin-top:20px">
+    <p class="empty-state__title">Учеников пока нет</p>
+    <p>Здесь появится путь каждого, кого вы ведёте.</p>
+  </div>
+{% endif %}
+{% endblock %}

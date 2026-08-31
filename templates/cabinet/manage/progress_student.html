@@ -1,0 +1,118 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras %}
+{% block cabinet_title %}{{ student.short_name }} — путь{% endblock %}
+
+{% block content %}
+{% include "cabinet/partials/heroes.html" %}
+
+<p class="small muted" style="margin-bottom:8px">
+  <a href="{% url 'cabinet:progress_list' %}">← Прогресс учеников</a>
+</p>
+
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ student.full_name }}</h1>
+    <p class="muted">{{ student.grade_level }} класс</p>
+  </div>
+  <a class="btn btn--quiet" href="{% url 'cabinet:student_card' student.pk %}">Карточка ученика</a>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:24px 0 8px">Путь по модулям</h2>
+<div class="progress-track progress-track--wide">
+  {% for point in track %}
+    <div class="progress-track__stop{% if point.is_current %} is-current{% endif %}{% if point.is_future %} is-future{% endif %}">
+      <span class="progress-track__dot" style="--fill: {{ point.percent }}%"></span>
+      <span class="small muted">{{ point.module }}</span>
+      <span class="progress-track__points numeral">
+        {% if point.planned %}{{ point.percent }}%{% else %}—{% endif %}
+      </span>
+    </div>
+  {% endfor %}
+</div>
+
+{% for point in track %}
+  {% if point.results %}
+    <h3 class="label" style="font-size:15px;margin:20px 0 6px">{{ point.module }}</h3>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Предмет</th><th>Баллы</th><th>Из</th><th>Уровень</th></tr></thead>
+        <tbody>
+        {% for result in point.results %}
+          <tr>
+            <td>{{ result.subject.name }}</td>
+            <td><strong>{{ result.total_points|points }}</strong></td>
+            <td class="muted">{{ result.planned_points|points }}</td>
+            <td><span class="level level--{{ result.level|level_class }}">{{ result.get_level_display }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endfor %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Как проходили дни</h2>
+<p class="small muted">
+  Отметку ставит сам ученик, штрафов за пропуск нет. Показываем как есть —
+  и пропуски тоже: полоса из пробелов говорит не меньше, чем полоса из «тяжело».
+</p>
+<div class="mood-ribbon mood-ribbon--wide" style="margin-top:10px">
+  {% for cell in ribbon %}
+    <span class="mood-cell{% if cell.value %} mood-cell--{{ cell.value }}{% endif %}"
+          title="{{ cell.day|date:'d.m' }} — {{ cell.label }}"></span>
+  {% endfor %}
+</div>
+
+{% if entries %}
+  <div class="table-wrap" style="margin-top:16px">
+    <table class="data">
+      <thead><tr><th>День</th><th>Как день</th><th>Что написал</th></tr></thead>
+      <tbody>
+      {% for entry in entries %}
+        <tr>
+          <td class="numeral">{{ entry.day|date:"d.m.Y" }}</td>
+          <td>{{ entry.get_value_display }}</td>
+          <td class="muted">{{ entry.note|default:"—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Открытые цели</h2>
+<p class="small muted">
+  Скрытые цели сюда не попадают — ни при каких обстоятельствах. Это обещание,
+  данное ребёнку, и режим наставника его не отменяет.
+</p>
+{% if goals %}
+  <div class="stack" style="margin-top:12px">
+    {% for goal in goals %}
+      <div class="card">
+        <p class="card__title">{{ goal.title }}</p>
+        {% if goal.path.total %}
+          <div class="goal-path" style="--goal-progress: {{ goal.path.percent }}%">
+            <div class="goal-path__track"><div class="goal-path__done"></div></div>
+            <svg class="goal-path__hero" viewBox="0 0 56 56" aria-hidden="true">
+              <use href="#hero-{{ student.hero }}"></use>
+            </svg>
+            <span class="goal-path__flag" aria-hidden="true">✦</span>
+            <p class="goal-path__count small muted">Пройдено {{ goal.path.done }} из {{ goal.path.total }}</p>
+          </div>
+          <ul class="small muted" style="margin:8px 0 0 18px">
+            {% for step in goal.step_list %}
+              <li{% if step.is_done %} style="text-decoration:line-through"{% endif %}>{{ step.title }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="small muted">
+            Шагов нет. Это тот случай, когда помощь наставника нужнее всего:
+            цель без шагов не двигается.
+          </p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">Открытых целей нет.</p>
+{% endif %}
+{% endblock %}

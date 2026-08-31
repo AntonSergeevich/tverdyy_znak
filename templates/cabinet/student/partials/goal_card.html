@@ -1,0 +1,93 @@
+{% load journal_extras %}
+{% comment %}
+  Цель как путь.
+
+  Наверху — дорожка от «здесь» до цели: пройденное зелёное и позади,
+  спутник стоит там, докуда дошли. Ниже — сами шаги, каждый отмечается
+  одним касанием.
+
+  Если шагов нет, показываем не пустоту, а подсказку: цель без шагов
+  невыполнима не потому, что ученик плох, а потому что «разобраться с
+  тригонометрией» нельзя сделать сегодня. И сказано, что шаги можно
+  придумать не в одиночку.
+{% endcomment %}
+<article class="goal" id="goal-{{ goal.pk }}">
+  <header class="goal__head">
+    <div>
+      <h3 class="goal__title">{{ goal.title }}</h3>
+      <p class="small muted">
+        {% if goal.is_hidden %}скрытая — видите только вы{% else %}открытая — видят наставник и родитель{% endif %}
+        {% if goal.target_date %} · до {{ goal.target_date|date:"d.m.Y" }}{% endif %}
+      </p>
+    </div>
+    <form hx-post="{% url 'cabinet:goal_toggle' goal.pk %}"
+          hx-select="unset" hx-select-oob="unset"
+          hx-target="#goals-block" hx-swap="innerHTML">
+      {% csrf_token %}
+      <button class="btn btn--quiet" type="submit">
+        {% if goal.status == "done" %}Вернуть в работу{% else %}Цель достигнута{% endif %}
+      </button>
+    </form>
+  </header>
+
+  {% if goal.path.total %}
+    <div class="goal-path" style="--goal-progress: {{ goal.path.percent }}%">
+      <div class="goal-path__track">
+        <div class="goal-path__done"></div>
+        {% for step in goal.step_list %}
+          <span class="goal-path__mark{% if step.is_done %} is-done{% endif %}"
+                style="left: {{ step.offset }}%" title="{{ step.title }}"></span>
+        {% endfor %}
+      </div>
+      <svg class="goal-path__hero" viewBox="0 0 56 56" aria-hidden="true">
+        <use href="#hero-{{ student.hero }}"></use>
+      </svg>
+      <span class="goal-path__flag" aria-hidden="true">✦</span>
+      <p class="goal-path__count small muted">
+        Пройдено {{ goal.path.done }} из {{ goal.path.total }}
+        {% if goal.path.praise %}<strong class="goal-path__praise">{{ goal.path.praise }}</strong>{% endif %}
+      </p>
+    </div>
+
+    <ul class="goal-steps">
+      {% for step in goal.step_list %}
+        <li class="goal-steps__item{% if step.is_done %} is-done{% endif %}">
+          <form hx-post="{% url 'cabinet:goal_step_toggle' step.pk %}"
+                hx-select="unset" hx-select-oob="unset"
+                hx-target="#goals-block" hx-swap="innerHTML">
+            {% csrf_token %}
+            <button class="goal-steps__button" type="submit"
+                    aria-pressed="{% if step.is_done %}true{% else %}false{% endif %}">
+              <span class="goal-steps__box" aria-hidden="true">{% if step.is_done %}✓{% endif %}</span>
+              <span class="goal-steps__text">{{ step.title }}</span>
+            </button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="small muted goal__hint">
+      Шагов пока нет, а без них цель не сдвинется: «{{ goal.title }}» нельзя
+      сделать сегодня — а один шаг к ней можно. Разложите путь на 3–5 шагов.
+      Не придумывается в одиночку — это нормально: попросите наставника или
+      педагога по предмету, вместе такое раскладывается за десять минут.
+    </p>
+  {% endif %}
+
+  <details class="goal__steps-editor"{% if not goal.path.total %} open{% endif %}>
+    <summary class="small">{% if goal.path.total %}Изменить шаги{% else %}Записать шаги{% endif %}</summary>
+    <form class="stack" style="margin-top:10px"
+          hx-post="{% url 'cabinet:goal_steps_save' goal.pk %}"
+          hx-select="unset" hx-select-oob="unset"
+          hx-target="#goals-block" hx-swap="innerHTML">
+      {% csrf_token %}
+      <label class="field" style="margin:0">
+        <span class="field__label">По шагу в строке</span>
+        <textarea class="input" name="steps" rows="5"
+                  placeholder="Разобрать синусы и косинусы&#10;Прорешать 10 задач&#10;Спросить у педагога, что осталось непонятным">{% for step in goal.step_list %}{{ step.title }}
+{% endfor %}</textarea>
+      </label>
+      <button class="btn" type="submit" style="justify-self:start">Сохранить шаги</button>
+    </form>
+  </details>
+</article>
