@@ -7,11 +7,19 @@
   <span class="muted numeral">{{ monday|date:"d.m" }} — {{ sunday|date:"d.m.Y" }}</span>
 </div>
 
-<div class="btn-row" style="margin-bottom:16px">
+<div class="btn-row" style="margin-bottom:12px">
   <a class="btn btn--quiet" href="?n={{ offset|add:'-1' }}">← Предыдущая неделя</a>
   {% if offset %}<a class="btn btn--quiet" href="{% url 'cabinet:schedule' %}">Текущая неделя</a>{% endif %}
   <a class="btn btn--quiet" href="?n={{ offset|add:'1' }}">Следующая неделя →</a>
 </div>
+
+{% if has_lessons %}
+  {# Расшифровка точек — один раз сверху, а не подписью у каждого занятия. #}
+  <p class="week__legend small muted">
+    <span class="week__legend__item"><span class="week__dot week__dot--graded"></span> с оцениванием</span>
+    <span class="week__legend__item"><span class="week__dot"></span> без оценивания</span>
+  </p>
+{% endif %}
 
 {% if has_lessons %}
   <div class="week">
@@ -45,12 +53,14 @@
                     {% if lesson.topic %}<span class="muted">{{ lesson.topic }}</span>{% endif %}
                   </span>
                   {% if lesson.subject.is_graded %}
-                    {# Видно сразу, за какое из двух занятий подряд идёт балл. #}
-                    {% if lesson.is_graded %}
-                      <span class="level level--elevated week__mark">с баллами</span>
-                    {% else %}
-                      <span class="level level--base week__mark">без баллов</span>
-                    {% endif %}
+                    {% comment %}
+                      Точка вместо надписи: в колонке дня надпись «без баллов»
+                      занимала больше места, чем само занятие, и вылезала за
+                      край. Что значит цвет, сказано один раз сверху.
+                    {% endcomment %}
+                    <span class="week__dot{% if lesson.is_graded %} week__dot--graded{% endif %}"
+                          title="{% if lesson.is_graded %}с оцениванием{% else %}без оценивания{% endif %}"
+                          aria-label="{% if lesson.is_graded %}с оцениванием{% else %}без оценивания{% endif %}"></span>
                   {% endif %}
                   {% if lesson.can_open %}<span class="week__go" aria-hidden="true">›</span>{% endif %}
                 </{% if lesson.can_open %}a{% else %}div{% endif %}>

@@ -17,70 +17,61 @@
 {% if error %}<div class="form-error" role="alert" style="margin-top:12px">{{ error }}</div>{% endif %}
 
 {% if items %}
-  <div class="table-wrap" style="margin-top:16px">
-    <table class="data">
-      <thead><tr><th>Работа</th><th>Тип</th><th>Дата</th><th>Максимум</th><th></th></tr></thead>
-      <tbody>
-      {% for item in items %}
-        <tr>
-          <td colspan="5">
-            <form class="plan-row"
-                  hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
-                  hx-select="unset" hx-select-oob="unset"
-                  hx-target="#plan-items" hx-swap="innerHTML">
-              {% csrf_token %}
-              <input type="hidden" name="item" value="{{ item.pk }}">
+  <div class="plan-list">
+    {% for item in items %}
+      <form class="plan-row"
+            hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+            hx-select="unset" hx-select-oob="unset"
+            hx-target="#plan-items" hx-swap="innerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="item" value="{{ item.pk }}">
 
-              <label class="plan-row__cell plan-row__cell--wide">
-                <span class="small muted">Работа</span>
-                <input class="input" type="text" name="title"
-                       value="{{ item.title|default:item.get_kind_display }}"
-                       aria-label="Название работы">
-              </label>
+        <label class="plan-row__cell plan-row__cell--wide">
+          <span class="small muted">Работа</span>
+          <input class="input" type="text" name="title"
+                 value="{{ item.title|default:item.get_kind_display }}"
+                 aria-label="Название работы">
+        </label>
 
-              <label class="plan-row__cell">
-                <span class="small muted">Тип</span>
-                <select class="input" name="kind" aria-label="Тип работы">
-                  {% for value, label in kinds %}
-                    <option value="{{ value }}"{% if value == item.kind %} selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
+        <label class="plan-row__cell">
+          <span class="small muted">Тип</span>
+          <select class="input" name="kind" aria-label="Тип работы">
+            {% for value, label in kinds %}
+              <option value="{{ value }}"{% if value == item.kind %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
 
-              <label class="plan-row__cell">
-                <span class="small muted">Баллы</span>
-                <input class="input" type="text" inputmode="decimal" name="max_points"
-                       value="{{ item.max_points|machine_number }}" aria-label="Максимум баллов">
-              </label>
+        <label class="plan-row__cell plan-row__cell--narrow">
+          <span class="small muted">Баллы</span>
+          <input class="input" type="text" inputmode="decimal" name="max_points"
+                 value="{{ item.max_points|machine_number }}" aria-label="Максимум баллов">
+        </label>
 
-              <label class="plan-row__cell">
-                <span class="small muted">Дата</span>
-                <input class="input" type="date" name="due_date"
-                       value="{{ item.due_date|date:'Y-m-d' }}" aria-label="Дата работы">
-              </label>
+        <label class="plan-row__cell">
+          <span class="small muted">Дата</span>
+          <input class="input" type="date" name="due_date"
+                 value="{{ item.due_date|date:'Y-m-d' }}" aria-label="Дата работы">
+        </label>
 
-              <div class="plan-row__actions">
-                <button class="btn btn--quiet" type="submit" name="action" value="edit_item">Сохранить</button>
-                <button class="btn btn--quiet" type="submit" name="action" value="delete_item">Удалить</button>
-              </div>
+        <div class="plan-row__actions">
+          <button class="btn btn--quiet" type="submit" name="action" value="edit_item">Сохранить</button>
+          <button class="btn btn--quiet" type="submit" name="action" value="delete_item">Удалить</button>
+        </div>
 
-              {% if item.lesson_id %}
-                <p class="plan-row__note small muted">
-                  Место занято занятием
-                  <a href="{% url 'cabinet:lesson_journal' item.lesson_id %}">{{ item.lesson.starts_at|date:"d.m H:i" }}</a>.
-                </p>
-              {% elif item.kind == "lesson" %}
-                <p class="plan-row__note small muted">
-                  Свободное место под занятие: баллы отложены, занятие выберется позже —
-                  в самом занятии кнопкой «Сделать с оцениванием».
-                </p>
-              {% endif %}
-            </form>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+        {% if item.lesson_id %}
+          <p class="plan-row__note small muted">
+            Место занято занятием
+            <a href="{% url 'cabinet:lesson_journal' item.lesson_id %}">{{ item.lesson.starts_at|date:"d.m H:i" }}</a>.
+          </p>
+        {% elif item.kind == "lesson" %}
+          <p class="plan-row__note small muted">
+            Свободное место под занятие: баллы отложены, занятие выберется позже —
+            в самом занятии кнопкой «Сделать с оцениванием».
+          </p>
+        {% endif %}
+      </form>
+    {% endfor %}
   </div>
 {% else %}
   <div class="empty-state" style="margin-top:16px">

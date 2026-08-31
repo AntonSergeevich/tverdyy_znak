@@ -20,7 +20,7 @@
   Формы, которые ведёт свой скрипт, вдобавок помечаются hx-boost="false":
   иначе boost перехватит отправку раньше собственного обработчика.
 {% endcomment %}
-{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#site-nav"{% endblock %}
+{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#site-nav"{% if request.impersonator %} class="is-readonly"{% endif %}{% endblock %}
 
 {% block body %}
 {% if request.impersonator %}
@@ -32,7 +32,8 @@
   <div class="impersonation-bar">
     <span>
       Вы смотрите кабинет: <strong>{{ request.user.full_name|default:request.user.login }}</strong>.
-      Только просмотр — изменить ничего нельзя.
+      Только просмотр: кнопки видны, но ничего не сохранят — ни балл, ни тему,
+      ни оценивание. Чтобы что-то изменить, вернитесь к себе.
     </span>
     <span class="btn-row">
       <a class="btn btn--quiet" href="{% url 'accounts:impersonate_list' %}">Другой кабинет</a>

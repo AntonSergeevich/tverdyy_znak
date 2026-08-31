@@ -578,6 +578,10 @@ def test_the_schedule_shows_which_lesson_carries_points(tenant_a):
     """
     Два урока подряд по одному предмету выглядели одинаково, и понять, за
     какой из них идёт балл, было неоткуда.
+
+    Метка — точка, а не надпись: в узкой колонке дня «без баллов» занимало
+    больше места, чем само занятие, и вылезало за край. Что значит цвет,
+    сказано один раз сверху.
     """
     from apps.journal.services.grading import enable_lesson_grading
 
@@ -587,4 +591,7 @@ def test_the_schedule_shows_which_lesson_carries_points(tenant_a):
     client = sign_in(tenant_a, tenant_a.teacher_user)
     body = client.get(reverse("cabinet:schedule")).content.decode()
 
-    assert "с баллами" in body
+    assert "week__dot--graded" in body
+    assert "week__legend" in body
+    # Надписи у каждого занятия быть не должно — только точка и расшифровка.
+    assert body.count("без оценивания") == 1

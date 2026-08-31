@@ -291,3 +291,71 @@
   }
   document.body.addEventListener('htmx:afterSettle', init);
 })();
+
+/**
+ * Отказ сервера не должен выглядеть как «кнопка не работает».
+ *
+ * htmx по умолчанию подменяет содержимое только на успешный ответ. На 403
+ * и 500 он не делает ничего — вообще ничего, даже в консоли пусто. Для
+ * человека это неотличимо от сломанной кнопки, и именно так и читалось:
+ * «нажимаю — ничего не происходит». Хуже всего это било в режиме просмотра
+ * чужого кабинета, где любое изменение запрещено по замыслу.
+ *
+ * Теперь любой неудачный запрос говорит, что случилось. Сообщение сервера
+ * показываем как есть, если он прислал короткий текст, — оно точнее любого
+ * общего «произошла ошибка».
+ */
+(function () {
+  'use strict';
+
+  var BOX_ID = 'request-error';
+  var HIDE_AFTER = 7000;
+  var timer = null;
+
+  function box() {
+    var found = document.getElementById(BOX_ID);
+    if (found) return found;
+    found = document.createElement('div');
+    found.id = BOX_ID;
+    found.className = 'request-error';
+    found.setAttribute('role', 'alert');
+    document.body.appendChild(found);
+    return found;
+  }
+
+  function show(text) {
+    var element = box();
+    element.textContent = text;
+    element.classList.add('is-visible');
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      element.classList.remove('is-visible');
+    }, HIDE_AFTER);
+  }
+
+  function fromResponse(xhr) {
+    var text = (xhr && xhr.responseText) || '';
+    // Ответ страницей целиком читать человеку незачем — покажем своё.
+    if (!text || text.length > 300 || text.indexOf('<') === 0) return '';
+    return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  document.body.addEventListener('htmx:responseError', function (event) {
+    var xhr = event.detail.xhr || {};
+    var said = fromResponse(xhr);
+    if (said) return show(said);
+    if (xhr.status === 403) {
+      return show('Нет прав на это действие. Если вы смотрите чужой кабинет, вернитесь к себе.');
+    }
+    if (xhr.status === 404) return show('Страница или запись не найдена — обновите экран.');
+    show('Сервер не принял запрос (' + (xhr.status || '?') + '). Попробуйте ещё раз.');
+  });
+
+  document.body.addEventListener('htmx:sendError', function () {
+    show('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.');
+  });
+
+  document.body.addEventListener('htmx:timeout', function () {
+    show('Сервер не ответил вовремя. Попробуйте ещё раз.');
+  });
+})();

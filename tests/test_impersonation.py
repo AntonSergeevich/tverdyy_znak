@@ -255,3 +255,30 @@ def test_a_person_from_another_centre_cannot_be_viewed(sign_in, tenant_a, tenant
 
     assert "Вы смотрите кабинет" not in body
     assert SESSION_KEY not in client.session
+
+
+def test_the_read_only_notice_says_what_will_not_work(sign_in, tenant_a, platform_admin):
+    """
+    «Нажимаю — ничего не происходит» было ровно этим: в режиме просмотра
+    любое изменение отклоняется, а htmx на отказ не делает ничего.
+
+    Полоса наверху теперь называет вещи своими именами, тело кабинета
+    помечено как режим чтения, а отказ сервера объясняет себя текстом —
+    его и показывает браузер.
+    """
+    client = sign_in(platform_admin)
+    _start(client, tenant_a.teacher_user)
+
+    body = client.get(reverse("cabinet:schedule")).content.decode()
+    assert "ничего не сохранят" in body
+    assert "is-readonly" in body
+
+    refused = client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]),
+        {"is_graded": "1"},
+    )
+    assert refused.status_code == 403
+    assert "вернитесь к себе" in refused.content.decode().lower()
+
+    tenant_a.lesson.refresh_from_db()
+    assert not tenant_a.lesson.is_graded
