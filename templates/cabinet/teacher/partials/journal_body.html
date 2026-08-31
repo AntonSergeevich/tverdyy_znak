@@ -37,8 +37,9 @@
 
   {% elif not grade_item %}
     {% comment %}
-      Занятие без оценивания. Список всё равно на экране — а баллы
-      включаются одной кнопкой прямо здесь, чтобы не искать её наверху.
+      Занятие без оценивания. Список всё равно на экране: педагог открывает
+      занятие, чтобы увидеть, кто на нём. Второй кнопки здесь нет — она
+      одна, наверху, рядом с надписью о текущем состоянии.
     {% endcomment %}
     <div class="journal-list" style="margin-top:16px">
       {% for row in rows %}
@@ -48,19 +49,11 @@
         </div>
       {% endfor %}
     </div>
-    <div class="empty-state" style="margin-top:16px">
-      <p class="empty-state__title">За это занятие баллы пока не ставят</p>
-      <p>Включите оценивание — и напротив каждой фамилии появится круг для балла.
-         Баллы за поведение не начисляются: только за работу.</p>
-      <form style="margin-top:12px"
-            hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}"
-            hx-select="unset" hx-select-oob="unset"
-            hx-target="#lesson-header" hx-swap="innerHTML">
-        {% csrf_token %}
-        <input type="hidden" name="is_graded" value="1">
-        <button class="btn" type="submit">Выставить баллы за это занятие</button>
-      </form>
-    </div>
+    <p class="small muted" style="margin-top:12px">
+      Баллы за это занятие не ставят. Переключатель наверху — «Сделать
+      с оцениванием»: тогда напротив каждой фамилии появится круг для балла.
+      Баллы за поведение не начисляются: только за работу.
+    </p>
 
   {% else %}
     <div class="bulk-grade" id="bulk-controls"

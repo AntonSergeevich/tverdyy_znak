@@ -433,3 +433,43 @@ def attach_to_lessons(plan_object, *, overwrite: bool = False) -> dict[str, int]
     ThematicPlanEntry.objects.bulk_update(entries, ["lesson"])
     result["unmatched"] = sum(1 for entry in entries if entry.lesson_id is None)
     return result
+
+
+# ─── Связь темы занятия с планом ────────────────────────────────────────────
+
+def entry_for(lesson):
+    """
+    Строка КТП, привязанная к занятию, — если план разложен по расписанию.
+
+    Заголовки разделов сюда не попадают: они не занятия.
+    """
+    from apps.journal.models import ThematicPlanEntry
+
+    return (
+        ThematicPlanEntry.objects.filter(lesson=lesson, is_section=False)
+        .select_related("plan", "plan__subject")
+        .first()
+    )
+
+
+def sync_topic_from_lesson(lesson) -> bool:
+    """
+    Тема, исправленная в занятии, уходит обратно в КТП.
+
+    План — не высеченный в камне документ: педагог правит формулировку по
+    ходу года, и держать в плане одно, а в журнале другое значит завести
+    два разных плана. Правка идёт в одну сторону — от занятия к плану, —
+    потому что занятие всегда конкретнее: оно уже состоялось.
+    """
+    from apps.journal.models import ThematicPlanEntry
+
+    topic = (lesson.topic or "").strip()[:250]
+    if not topic:
+        # Стёртая тема занятия не стирает плановую: у плана она была
+        # осмысленной, а пустое поле — это чаще всего «ещё не заполнил».
+        return False
+    return bool(
+        ThematicPlanEntry.objects.filter(lesson=lesson, is_section=False)
+        .exclude(topic=topic)
+        .update(topic=topic)
+    )

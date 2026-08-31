@@ -22,10 +22,25 @@
       <span class="lesson-field__state" data-state></span>
     </span>
     <input class="input" type="text" name="topic" maxlength="250"
-           value="{{ lesson.topic }}" autocomplete="off"
+           value="{% if lesson.topic %}{{ lesson.topic }}{% elif plan_entry %}{{ plan_entry.topic }}{% endif %}"
+           autocomplete="off"
            {% if recent_topics %}list="topic-suggestions"{% endif %}
            placeholder="О чём было занятие">
   </label>
+
+  {% if plan_entry %}
+    {% comment %}
+      Занятию сопоставлена строка КТП. Тема подставлена из плана, а правка
+      уйдёт обратно в план: держать в плане одно, а в журнале другое значит
+      завести два разных плана.
+    {% endcomment %}
+    <p class="field__hint">
+      Тема из КТП
+      <a href="{% url 'cabinet:ktp_detail' plan_entry.plan.pk %}">{{ plan_entry.plan.title|default:plan_entry.plan.subject.name }}</a>{% if plan_entry.hours %},
+      по плану {{ plan_entry.hours|floatformat:"-2" }} ч{% endif %}.
+      Исправите здесь — исправится и в плане.
+    </p>
+  {% endif %}
 
   {% if recent_topics %}
     <datalist id="topic-suggestions">

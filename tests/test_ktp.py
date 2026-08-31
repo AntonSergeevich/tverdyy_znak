@@ -393,3 +393,77 @@ def test_the_plan_does_not_reach_another_organizations_lessons(tenant_a, tenant_
     with organization_context(tenant_b.organization):
         tenant_b.lesson.refresh_from_db()
         assert tenant_b.lesson.topic == before
+
+
+# ─── Тема занятия и план ────────────────────────────────────────────────────
+
+@pytest.fixture
+def attached_plan(tenant_a):
+    """План, разложенный по расписанию: у занятия есть своя строка КТП."""
+    with organization_context(tenant_a.organization):
+        tenant_a.lesson.topic = ""
+        tenant_a.lesson.save(update_fields=["topic"])
+        plan = ThematicPlan.objects.create(
+            organization=tenant_a.organization, academic_year=tenant_a.year,
+            subject=tenant_a.subject, group=tenant_a.group, title="КТП",
+        )
+        ThematicPlanEntry.objects.create(
+            organization=tenant_a.organization, plan=plan, position=1,
+            topic="Причастный оборот", lesson=tenant_a.lesson,
+        )
+    return plan
+
+
+def test_the_topic_is_pulled_from_the_plan_into_the_lesson(tenant_a, attached_plan):
+    """План для того и составляли, чтобы не сочинять тему заново."""
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert "Причастный оборот" in body
+    assert "Тема из КТП" in body
+
+
+def test_correcting_the_topic_corrects_the_plan(tenant_a, attached_plan):
+    """
+    Держать в плане одно, а в журнале другое значит завести два разных плана.
+
+    Поэтому правка идёт и туда — от занятия к плану: занятие конкретнее,
+    оно уже состоялось.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    response = client.post(
+        reverse("cabinet:lesson_topic_save", args=[tenant_a.lesson.pk]),
+        {"topic": "Причастный оборот и запятые", "view": "journal"},
+    )
+
+    assert response.json()["in_plan"] is True
+    with organization_context(tenant_a.organization):
+        assert attached_plan.entries.get().topic == "Причастный оборот и запятые"
+
+
+def test_an_erased_topic_does_not_erase_the_plan(tenant_a, attached_plan):
+    """Пустое поле — это чаще «ещё не заполнил», а не «убрать из плана»."""
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:lesson_topic_save", args=[tenant_a.lesson.pk]),
+        {"topic": "", "view": "journal"},
+    )
+
+    with organization_context(tenant_a.organization):
+        assert attached_plan.entries.get().topic == "Причастный оборот"
+
+
+def test_a_section_heading_is_never_the_lessons_topic(tenant_a):
+    """Заголовок раздела к занятию не привязывается и темой стать не может."""
+    with organization_context(tenant_a.organization):
+        plan = ThematicPlan.objects.create(
+            organization=tenant_a.organization, academic_year=tenant_a.year,
+            subject=tenant_a.subject, group=tenant_a.group,
+        )
+        ThematicPlanEntry.objects.create(
+            organization=tenant_a.organization, plan=plan, position=1,
+            topic="Причастие 21ч", lesson=tenant_a.lesson, is_section=True,
+        )
+        assert ktp.entry_for(tenant_a.lesson) is None

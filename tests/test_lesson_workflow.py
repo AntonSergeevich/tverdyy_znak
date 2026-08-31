@@ -170,7 +170,24 @@ def test_the_children_are_listed_even_without_grading(tenant_a):
     ).content.decode()
 
     assert tenant_a.student.short_name in body
-    assert "Выставить баллы за это занятие" in body
+    assert "без оценивания" in body
+
+
+def test_grading_is_switched_in_exactly_one_place(tenant_a):
+    """
+    Переключатель оценивания один на весь экран.
+
+    Их было два — кнопка в шапке и такая же под списком, — и оба вдобавок
+    назывались состоянием, а не действием: «Занятие с оцениванием»
+    читается как подпись, а не как «сделать таким».
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert body.count(reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk])) == 1
+    assert "Сделать с оцениванием" in body
 
 
 def test_an_empty_group_says_what_is_missing(tenant_a):
@@ -212,6 +229,39 @@ def test_turning_grading_on_brings_the_circles_at_once(tenant_a):
     assert 'id="journal-body"' in body
     assert 'hx-swap-oob="true"' in body
     assert "data-dial-open" in body
+
+
+def test_a_full_module_says_where_to_free_the_points(tenant_a):
+    """
+    Сотня на модуль не резиновая: когда она разобрана, оценивание не
+    включить. Отказ должен говорить не только «нельзя», но и «вот где».
+
+    Раньше отказ приезжал в шапку, а нажимали кнопку внизу экрана — и связи
+    между ними не было видно вовсе.
+    """
+    from apps.journal.models import GradeItem, GradeItemKind
+
+    with organization_context(tenant_a.organization):
+        GradeItem.objects.create(
+            organization=tenant_a.organization, module=tenant_a.module,
+            subject=tenant_a.subject, group=tenant_a.group,
+            kind=GradeItemKind.CREDIT, title="Зачёт", max_points=Decimal("100.00"),
+        )
+
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]),
+        {"is_graded": "1"},
+    ).content.decode()
+
+    assert "лимит модуля" in body
+    assert reverse(
+        "cabinet:module_plan",
+        args=[tenant_a.module.pk, tenant_a.subject.pk, tenant_a.group.pk],
+    ) in body
+
+    tenant_a.lesson.refresh_from_db()
+    assert not tenant_a.lesson.is_graded
 
 
 # ─── Подсказки «как в прошлый раз» ──────────────────────────────────────────

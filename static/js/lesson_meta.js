@@ -83,8 +83,14 @@
       lastSent = field.value;
       say(form, 'сохраняю…');
       send(form).then(function (response) {
-        say(form, response.ok ? 'сохранено' : 'не сохранилось',
-            response.ok ? '' : 'error');
+        if (!response.ok) { say(form, 'не сохранилось', 'error'); return; }
+        // Занятию бывает сопоставлена строка КТП: тогда правка ушла и туда,
+        // и сказать об этом надо — иначе непонятно, что план тоже изменился.
+        return response.json().then(function (data) {
+          say(form, data && data.in_plan ? 'сохранено и в КТП' : 'сохранено');
+        }).catch(function () {
+          say(form, 'сохранено');
+        });
       }).catch(function () {
         say(form, 'нет связи — попробуйте ещё раз', 'error');
       });

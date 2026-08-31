@@ -1,24 +1,55 @@
-{% load journal_extras %}
+{% load journal_extras public_extras %}
+{% comment %}
+  Шапка занятия и единственный переключатель оценивания.
+
+  Раньше кнопка называлась «Занятие с оцениванием» и означала действие —
+  «сделать таким». Читалась же она как подпись: занятие, мол, и так с
+  оцениванием, чего его включать. Вдобавок такая же кнопка стояла внизу,
+  под списком, и две кнопки для одного действия сбивали окончательно.
+
+  Теперь слева написано, как есть сейчас, справа — что произойдёт, если
+  нажать. Кнопка одна на весь экран.
+{% endcomment %}
 <div class="page-title">
   <div>
     <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ lesson.subject.name }}</h1>
     <p class="muted">{{ lesson.group.name }} · {{ lesson.starts_at|date:"d.m.Y H:i" }} · {{ lesson.module }}</p>
   </div>
-  <form hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}" hx-select="unset" hx-select-oob="unset" hx-target="#lesson-header" hx-swap="innerHTML">
+</div>
+
+{% if error %}
+  <div class="form-error" role="alert">
+    {{ error }}
+    {% if budget.remaining <= 0 %}
+      <a href="{% url 'cabinet:module_plan' lesson.module.pk lesson.subject.pk lesson.group.pk %}">
+        Освободить баллы в плане модуля
+      </a>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="lesson-switch">
+  <div class="lesson-switch__text">
+    <p class="lesson-switch__state">
+      {% if lesson.is_graded %}
+        Занятие <strong>с оцениванием</strong>{% if grade_item %} — максимум
+        {{ grade_item.max_points|points }} {{ grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
+      {% else %}
+        Занятие <strong>без оценивания</strong> — баллы за него не ставят
+      {% endif %}
+    </p>
+    <p class="small muted">
+      В модуле распределено {{ budget.distributed|points }} из {{ budget.limit|points }} баллов,
+      осталось {{ budget.remaining|points }}.
+    </p>
+  </div>
+  <form hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}"
+        hx-select="unset" hx-select-oob="unset"
+        hx-target="#lesson-header" hx-swap="innerHTML">
     {% csrf_token %}
     <input type="hidden" name="is_graded" value="{% if lesson.is_graded %}0{% else %}1{% endif %}">
     <button class="btn {% if lesson.is_graded %}btn--quiet{% endif %}" type="submit">
-      {% if lesson.is_graded %}Снять оценивание{% else %}Занятие с оцениванием{% endif %}
+      {% if lesson.is_graded %}Сделать без оценивания{% else %}Сделать с оцениванием{% endif %}
     </button>
   </form>
-</div>
-
-{% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
-
-<div class="budget {% if budget.remaining < 0 %}budget--over{% endif %}">
-  <span>
-    Распределено <strong>{{ budget.distributed|points }}</strong> из {{ budget.limit|points }} баллов модуля
-    {% if grade_item %} · за это занятие максимум {{ grade_item.max_points|points }}{% endif %}
-  </span>
-  <span class="label">осталось {{ budget.remaining|points }}</span>
 </div>

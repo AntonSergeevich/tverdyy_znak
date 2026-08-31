@@ -34,6 +34,7 @@ from apps.journal.models import (
     Student,
     Subject,
 )
+from apps.journal.services import ktp as ktp_service
 from apps.journal.services.grading import (
     create_default_structure,
     points_budget,
@@ -112,6 +113,7 @@ def lesson_journal(request, lesson_id):
 
     grade_item = getattr(lesson, "grade_item", None)
     budget = points_budget(lesson.module, lesson.subject, lesson.group)
+    plan_entry = ktp_service.entry_for(lesson)
 
     log_audit(action=AuditAction.VIEW_STUDENT, request=request, obj=lesson, scope="lesson_journal")
 
@@ -135,6 +137,10 @@ def lesson_journal(request, lesson_id):
             ),
             "previous_lesson": previous_lesson(lesson),
             "previous_homework": previous_homework(lesson),
+            # Тема из КТП: если занятию сопоставлена строка плана, её текст
+            # подставляется в поле. Не как подсказка сбоку, а прямо в поле —
+            # план для того и составляли, чтобы не сочинять тему заново.
+            "plan_entry": plan_entry,
         },
     )
 
@@ -412,14 +418,19 @@ def lesson_topic_save(request, lesson_id):
     assert_can_grade(request.user, organization, lesson)
     lesson.topic = (request.POST.get("topic") or "").strip()[:250]
     lesson.save(update_fields=["topic", "updated_at"])
+    # Правка уходит и в КТП: держать в плане одно, а в журнале другое
+    # значит завести два разных плана.
+    in_plan = ktp_service.sync_topic_from_lesson(lesson)
 
     if request.POST.get("view") == "journal":
         # Отвечаем коротко: страницу трогать не надо, браузеру достаточно
         # знать, что сохранилось. Подменять поле во время набора нельзя —
         # теряется курсор, а на телефоне закрывается клавиатура.
-        return JsonResponse({"saved": True})
+        return JsonResponse({"saved": True, "in_plan": in_plan})
     return render(
-        request, "cabinet/teacher/partials/topic_cell.html", {"lesson": lesson, "saved": True}
+        request,
+        "cabinet/teacher/partials/topic_cell.html",
+        {"lesson": lesson, "saved": True, "in_plan": in_plan},
     )
 
 

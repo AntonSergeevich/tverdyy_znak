@@ -1192,3 +1192,18 @@ details.fieldset[open] > summary::after { content: ' −'; }
 
 /* Заголовок раздела в КТП: не строка данных, а надпись над ними. */
 .ktp-section td { background: var(--mark); }
+
+/* Состояние занятия и переключатель к нему: слева — как есть сейчас,
+   справа — что будет, если нажать. Одна кнопка на весь экран: две для
+   одного действия сбивают сильнее, чем отсутствие обеих. */
+.lesson-switch {
+  display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center;
+  justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--line);
+  padding: 14px clamp(12px, 2vw, 18px);
+}
+.lesson-switch__text { flex: 1 1 260px; min-width: 0; }
+.lesson-switch__state { margin: 0 0 2px; font-size: 16px; }
+.lesson-switch form { flex: 0 0 auto; }
+.lesson-switch .btn { min-height: 44px; }
+.form-error a { margin-left: 8px; white-space: nowrap; }
