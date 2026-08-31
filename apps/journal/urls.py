@@ -3,6 +3,7 @@ from django.urls import path
 from apps.journal.views import (
     common,
     exports,
+    ktp,
     manage,
     parent,
     people,
@@ -36,6 +37,15 @@ urlpatterns = [
         "pedagog/modul/<int:module_id>/<int:subject_id>/<int:group_id>/deystvie/",
         teacher.module_plan_action, name="module_plan_action",
     ),
+
+    # Календарно-тематическое планирование: приходит файлом, разбирается здесь
+    path("pedagog/ktp/", ktp.plan_list, name="ktp_list"),
+    path("pedagog/ktp/zagruzit/", ktp.plan_upload, name="ktp_upload"),
+    path("pedagog/ktp/<uuid:plan_id>/", ktp.plan_detail, name="ktp_detail"),
+    path("pedagog/ktp/<uuid:plan_id>/razmetka/", ktp.plan_remap, name="ktp_remap"),
+    path("pedagog/ktp/<uuid:plan_id>/privyazat/", ktp.plan_attach, name="ktp_attach"),
+    path("pedagog/ktp/<uuid:plan_id>/udalit/", ktp.plan_delete, name="ktp_delete"),
+    path("pedagog/ktp/<uuid:plan_id>/fayl/", ktp.plan_source, name="ktp_source"),
 
     # Родитель
     path("roditel/", parent.parent_home, name="parent_home"),

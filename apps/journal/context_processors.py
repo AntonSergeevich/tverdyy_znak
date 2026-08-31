@@ -41,6 +41,7 @@ def cabinet_menu(request) -> dict:
             _item("staff", "Сотрудники", "staff_create", "staff_card", "staff_remove"),
             _item("subjects", "Предметы", "subject_create", "subject_edit", "subject_delete"),
             _item("schedule_builder", "Расписание"),
+            _item("ktp_list", "КТП", "ktp_detail"),
             _item("payroll", "ФОТ"),
             _item("review_queue", "Отзывы"),
         ]
@@ -61,6 +62,7 @@ def cabinet_menu(request) -> dict:
             "cabinet_menu": [
                 _item("teacher_today", "Сегодня", "lesson_journal", "module_plan"),
                 _item("schedule", "Расписание"),
+                _item("ktp_list", "КТП", "ktp_detail"),
                 _item("teacher_hours", "Мои часы"),
             ]
         }

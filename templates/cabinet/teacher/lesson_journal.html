@@ -20,20 +20,11 @@
   {% include "cabinet/teacher/partials/lesson_homework.html" %}
 </div>
 
-{% if grade_item %}
-  {% include "cabinet/teacher/partials/journal_body.html" %}
-  <p class="small muted" style="margin-top:12px">
-    Балл ставится кругом: нажмите на отметку у фамилии и ведите пальцем.
-    Сохраняется само. Если пропадёт сеть, введённое останется на устройстве
-    и уйдёт на сервер, когда связь вернётся.
-  </p>
-{% else %}
-  <div class="empty-state" style="margin-top:16px">
-    <p class="empty-state__title">Это занятие идёт без оценивания</p>
-    <p>Отметьте его как оцениваемое — тогда появится список учеников с баллами.
-       Баллы за поведение не начисляются: только за работу.</p>
-  </div>
-{% endif %}
+{% comment %}
+  Список учеников — всегда, независимо от того, ставят за занятие баллы или
+  нет. Что показать внутри, решает сам блок.
+{% endcomment %}
+{% include "cabinet/teacher/partials/journal_body.html" %}
 
 {% include "cabinet/teacher/partials/grade_dial.html" %}
 {% endblock %}

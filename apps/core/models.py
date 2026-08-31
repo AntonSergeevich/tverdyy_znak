@@ -251,6 +251,7 @@ class AuditAction(models.TextChoices):
     DATA_PURGED = "data_purged", "удаление по истечении срока хранения"
     TWO_FACTOR_RESET = "two_factor_reset", "сброс второго фактора"
     PASSWORD_CHANGED = "password_changed", "смена пароля"
+    PLAN_IMPORTED = "plan_imported", "загрузка тематического планирования"
 
 
 class AuditLog(models.Model):

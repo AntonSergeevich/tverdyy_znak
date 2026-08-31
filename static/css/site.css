@@ -1189,3 +1189,6 @@ details.fieldset[open] > summary::after { content: ' −'; }
   text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
 }
 .link-btn:hover, .link-btn:focus-visible { color: var(--accent); }
+
+/* Заголовок раздела в КТП: не строка данных, а надпись над ними. */
+.ktp-section td { background: var(--mark); }

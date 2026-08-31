@@ -155,6 +155,65 @@ def test_a_grade_carries_one_student_and_not_the_whole_list():
     assert opening.group(1) != "form"
 
 
+def test_the_children_are_listed_even_without_grading(tenant_a):
+    """
+    Список детей виден всегда, а не только у занятий «с оцениванием».
+
+    Оценивание включено у единиц занятий, и без списка экран выглядел так,
+    будто учеников в системе нет вовсе.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    assert not tenant_a.lesson.is_graded
+
+    body = client.get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert tenant_a.student.short_name in body
+    assert "Выставить баллы за это занятие" in body
+
+
+def test_an_empty_group_says_what_is_missing(tenant_a):
+    """
+    Пустая группа — это «состав ещё не заполнили», а не поломка.
+
+    И к личным кабинетам это отношения не имеет: ученик попадает в список
+    сразу, вход ему можно выдать позже.
+    """
+    from apps.journal.models import GroupMembership
+
+    with organization_context(tenant_a.organization):
+        GroupMembership.objects.filter(group=tenant_a.group).delete()
+
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert "Учеников в этой группе пока нет" in body
+    assert tenant_a.group.name in body
+
+
+def test_turning_grading_on_brings_the_circles_at_once(tenant_a):
+    """
+    Включили оценивание — круги для баллов должны появиться сразу.
+
+    Меняются два места экрана одним запросом, и список приезжает отдельным
+    куском: между ним и шапкой лежат тема и домашнее задание, где может
+    быть недописанное.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    response = client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]),
+        {"is_graded": "1"},
+    )
+    body = response.content.decode()
+
+    assert 'id="journal-body"' in body
+    assert 'hx-swap-oob="true"' in body
+    assert "data-dial-open" in body
+
+
 # ─── Подсказки «как в прошлый раз» ──────────────────────────────────────────
 
 @pytest.fixture

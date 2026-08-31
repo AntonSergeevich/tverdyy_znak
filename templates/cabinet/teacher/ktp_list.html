@@ -1,0 +1,78 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Тематическое планирование{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Календарно-тематическое планирование</h1>
+    <p class="muted">{{ year }}</p>
+  </div>
+</div>
+
+<p class="small muted" style="max-width:62ch">
+  КТП составляют не здесь — его присылают файлом. Загрузите таблицу, а
+  система покажет, как она её поняла: где заголовок и какая колонка что
+  значит. Если поняла неверно, разметку можно поправить руками и перечитать
+  файл — исходник хранится и никуда не денется. Дальше темы плана
+  раскладываются по занятиям расписания одним действием.
+</p>
+
+<div class="card" style="margin-top:20px">
+  <p class="card__title">Загрузить файл</p>
+  <form method="post" action="{% url 'cabinet:ktp_upload' %}" enctype="multipart/form-data"
+        hx-boost="false" class="grid grid--tight" style="margin-top:12px;align-items:flex-end">
+    {% csrf_token %}
+    <div class="field">
+      <label for="ktp-subject">Предмет</label>
+      <select class="input" id="ktp-subject" name="subject" required>
+        {% for subject in subjects %}<option value="{{ subject.pk }}">{{ subject.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="ktp-group">Группа</label>
+      <select class="input" id="ktp-group" name="group">
+        <option value="">все группы предмета</option>
+        {% for group in groups %}<option value="{{ group.pk }}">{{ group.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="ktp-title">Название — не обязательно</label>
+      <input class="input" type="text" id="ktp-title" name="title" placeholder="КТП, 9 класс">
+    </div>
+    <div class="field">
+      <label for="ktp-file">Файл</label>
+      <input class="input" type="file" id="ktp-file" name="source" required
+             accept="{% for suffix in supported %}{{ suffix }}{% if not forloop.last %},{% endif %}{% endfor %}">
+    </div>
+    <button class="btn" type="submit" style="flex:0 0 auto">Загрузить</button>
+  </form>
+  <p class="field__hint">
+    Подойдёт таблица Excel ({% for suffix in supported %}{{ suffix }}{% if not forloop.last %}, {% endif %}{% endfor %}).
+    Файл сохраняется целиком, в закрытом хранилище, и его всегда можно скачать обратно.
+  </p>
+</div>
+
+{% if plans %}
+  <div class="table-wrap" style="margin-top:24px">
+    <table class="data">
+      <thead><tr><th>Предмет</th><th>Группа</th><th>Строк</th><th>Файл</th><th></th></tr></thead>
+      <tbody>
+      {% for plan in plans %}
+        <tr>
+          <td><a href="{% url 'cabinet:ktp_detail' plan.pk %}">{{ plan.title|default:plan.subject.name }}</a></td>
+          <td class="muted">{{ plan.group.name|default:"все группы" }}</td>
+          <td>{{ plan.entries.count }}</td>
+          <td class="muted">{{ plan.source_name|default:"—" }}</td>
+          <td class="muted">{{ plan.created_at|date:"d.m.Y" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state" style="margin-top:24px">
+    <p class="empty-state__title">Пока ничего не загружено</p>
+    <p>Как только пришлют файл КТП — загрузите его здесь.</p>
+  </div>
+{% endif %}
+{% endblock %}

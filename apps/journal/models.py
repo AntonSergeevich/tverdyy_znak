@@ -586,6 +586,107 @@ class HomeworkMark(TenantModel):
         return f"{self.student} сделал {self.homework_id}"
 
 
+def thematic_plan_path(instance, filename: str) -> str:
+    """Исходник КТП внутри закрытого хранилища."""
+    suffix = Path(filename).suffix.lower()[:8] or ".xlsx"
+    return f"ktp/{instance.organization_id}/{instance.pk}{suffix}"
+
+
+class ThematicPlan(TenantModel):
+    """
+    Календарно-тематическое планирование (КТП) по предмету.
+
+    Приходит файлом — таблицей, которую педагог составлял не здесь. Мы её
+    не переписываем и не подменяем: исходник хранится как есть, а разобранные
+    строки живут рядом. Если разбор оказался неверным, файл всегда можно
+    прочитать заново с другой разметкой колонок, ничего не потеряв.
+
+    Колонки в присланных таблицах называются как угодно — «Тема урока»,
+    «Содержание», «Раздел/тема». Поэтому соответствие колонок хранится
+    здесь же, у плана: угаданное можно поправить руками, и разбор
+    повторится по исправленному.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    academic_year = models.ForeignKey(
+        AcademicYear, on_delete=models.CASCADE, related_name="thematic_plans",
+        verbose_name="учебный год",
+    )
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="thematic_plans", verbose_name="предмет"
+    )
+    group = models.ForeignKey(
+        Group, on_delete=models.CASCADE, related_name="thematic_plans",
+        null=True, blank=True, verbose_name="группа",
+        help_text="Пусто — план общий для всех групп, где идёт предмет.",
+    )
+    title = models.CharField("название", max_length=200, blank=True)
+    source = models.FileField(
+        "исходный файл", upload_to=thematic_plan_path, storage=private_storage,
+        null=True, blank=True,
+    )
+    source_name = models.CharField("имя файла", max_length=250, blank=True)
+    # Как разобрали файл: с какой строки заголовок и какая колонка что значит.
+    header_row = models.PositiveSmallIntegerField("строка заголовка", default=0)
+    column_map = models.JSONField("разметка колонок", default=dict, blank=True)
+    note = models.TextField("примечание", blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="thematic_plans", verbose_name="кто загрузил",
+    )
+
+    class Meta:
+        verbose_name = "тематическое планирование"
+        verbose_name_plural = "тематические планирования"
+        ordering = ["subject__name", "-created_at"]
+        indexes = [models.Index(fields=["organization", "academic_year", "subject"])]
+
+    def __str__(self) -> str:
+        return self.title or f"КТП · {self.subject}"
+
+
+class ThematicPlanEntry(TenantModel):
+    """
+    Строка КТП: одно занятие по плану.
+
+    Привязка к занятию расписания необязательна и появляется отдельным
+    действием: план составляют до того, как расписание собрано, и строка
+    без занятия — это не ошибка, а «ещё не поставили».
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plan = models.ForeignKey(
+        ThematicPlan, on_delete=models.CASCADE, related_name="entries", verbose_name="план"
+    )
+    position = models.PositiveIntegerField("порядок", default=0)
+    number = models.CharField("№ по плану", max_length=20, blank=True)
+    planned_date = models.DateField("дата по плану", null=True, blank=True)
+    topic = models.CharField("тема", max_length=250)
+    hours = models.DecimalField(
+        "часов", max_digits=4, decimal_places=2, default=Decimal("1.00")
+    )
+    kind = models.CharField("тип занятия", max_length=80, blank=True)
+    homework = models.TextField("домашнее задание", blank=True)
+    notes = models.TextField("примечание", blank=True)
+    lesson = models.ForeignKey(
+        Lesson, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="plan_entries", verbose_name="занятие",
+    )
+    # «Причастие 21ч +2К + 2Р.р» — заголовок раздела, а не занятие. В плане
+    # он нужен: без него список тем читается как сплошная лента. Но
+    # раскладывать его по расписанию нечего.
+    is_section = models.BooleanField("заголовок раздела", default=False)
+
+    class Meta:
+        verbose_name = "строка планирования"
+        verbose_name_plural = "строки планирования"
+        ordering = ["plan", "position"]
+        indexes = [models.Index(fields=["organization", "plan", "position"])]
+
+    def __str__(self) -> str:
+        return f"{self.number or self.position}. {self.topic}"
+
+
 class GradeItemKind(models.TextChoices):
     LESSON = "lesson", "занятие"
     HOMEWORK = "homework", "домашняя работа"

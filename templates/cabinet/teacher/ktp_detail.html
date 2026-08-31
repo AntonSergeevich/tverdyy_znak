@@ -1,0 +1,155 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}{{ plan.title|default:plan.subject.name }}{% endblock %}
+
+{% block content %}
+<p class="small muted" style="margin-bottom:8px">
+  <a href="{% url 'cabinet:ktp_list' %}">← Тематическое планирование</a>
+</p>
+
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ plan.title|default:plan.subject.name }}</h1>
+    <p class="muted">
+      {{ plan.subject.name }} · {{ plan.group.name|default:"все группы предмета" }} ·
+      {{ plan.academic_year }}{% if plan.source_name %} · {{ plan.source_name }}{% endif %}
+    </p>
+  </div>
+  <div class="btn-row">
+    {% if plan.source %}
+      <a class="btn btn--quiet" href="{% url 'cabinet:ktp_source' plan.pk %}">Скачать исходник</a>
+    {% endif %}
+    {% if can_delete %}
+      <form method="post" action="{% url 'cabinet:ktp_delete' plan.pk %}" hx-boost="false"
+            onsubmit="return confirm('Удалить планирование вместе с исходным файлом?')">
+        {% csrf_token %}
+        <button class="btn btn--quiet" type="submit">Удалить</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% for warning in warnings %}
+  <div class="message message--error">{{ warning }}</div>
+{% endfor %}
+
+{% if header %}
+  <h2 class="label" style="font-size:18px;margin:24px 0 8px">Как поняли файл</h2>
+  <p class="small muted" style="max-width:62ch">
+    Слева — что мы ищем, справа — колонка файла, в которой это нашли.
+    Угадали неверно — поправьте и перечитайте: исходник хранится целиком,
+    перечитывать можно сколько угодно раз. Без колонки с темой плана не
+    собрать, остальные необязательны.
+  </p>
+
+  <form method="post" action="{% url 'cabinet:ktp_remap' plan.pk %}" hx-boost="false"
+        class="card" style="margin-top:12px">
+    {% csrf_token %}
+    <div class="grid grid--tight" style="align-items:flex-end">
+      <div class="field">
+        <label for="header-row">Строка заголовка</label>
+        <input class="input" type="number" id="header-row" name="header_row" min="0"
+               value="{{ plan.header_row }}">
+      </div>
+      {% for field in fields %}
+        <div class="field">
+          <label for="column-{{ field.name }}">{{ field.label }}</label>
+          <select class="input" id="column-{{ field.name }}" name="column_{{ field.name }}">
+            <option value="">нет такой колонки</option>
+            {% for column in header %}
+              <option value="{{ column.index }}"{% if column.index == field.selected %} selected{% endif %}>
+                {{ column.title }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+      <button class="btn" type="submit" style="flex:0 0 auto">Перечитать файл</button>
+    </div>
+  </form>
+
+  <details style="margin-top:16px">
+    <summary class="small muted">Первые строки файла, как они есть</summary>
+    <div class="table-wrap" style="margin-top:8px">
+      <table class="data">
+        <tbody>
+        {% for row in preview %}
+          <tr>
+            <td class="muted numeral">{{ forloop.counter0 }}</td>
+            {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Разобранные строки</h2>
+{% if entries %}
+  <div class="budget">
+    <span>
+      Занятий по плану <strong>{{ lesson_count }}</strong>, часов
+      <strong>{{ hours_total|floatformat:"-2" }}</strong>{% if section_count %},
+      разделов {{ section_count }}{% endif %}
+    </span>
+    <span class="label">
+      {% if attached_count %}привязано к занятиям {{ attached_count }}{% else %}к расписанию не привязано{% endif %}
+    </span>
+  </div>
+
+  <form method="post" action="{% url 'cabinet:ktp_attach' plan.pk %}" hx-boost="false"
+        class="card" style="margin-bottom:16px">
+    {% csrf_token %}
+    <p class="card__title">Разложить темы по расписанию</p>
+    <p class="small muted">
+      Сначала по дате — если в плане она есть и в этот день занятие одно.
+      Остальное по порядку: n-я строка плана на n-е занятие предмета.
+      Занятия с уже вписанной темой не трогаем: тема, дописанная педагогом
+      руками, точнее плановой.
+    </p>
+    <label class="checkbox" style="margin-top:10px">
+      <input type="checkbox" name="overwrite" value="1">
+      Перезаписать темы, вписанные вручную
+    </label>
+    <p style="margin-top:12px"><button class="btn" type="submit">Разложить по занятиям</button></p>
+  </form>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>№</th><th>Дата</th><th>Тема</th><th>Часов</th><th>Домашнее</th><th>Занятие</th></tr>
+      </thead>
+      <tbody>
+      {% for entry in entries %}
+        {% if entry.is_section %}
+          {% comment %}
+            Заголовок раздела: занятием не является, по расписанию не
+            раскладывается. Но в списке он нужен — без него сто с лишним
+            тем читаются сплошной лентой.
+          {% endcomment %}
+          <tr class="ktp-section"><td colspan="6"><strong>{{ entry.topic }}</strong></td></tr>
+        {% else %}
+          <tr>
+            <td class="muted numeral">{{ entry.number|default:entry.position }}</td>
+            <td class="muted numeral">{{ entry.planned_date|date:"d.m.Y"|default:"—" }}</td>
+            <td>{{ entry.topic }}{% if entry.kind %}<span class="small muted"> · {{ entry.kind }}</span>{% endif %}</td>
+            <td class="numeral">{{ entry.hours|floatformat:"-2" }}</td>
+            <td class="muted">{{ entry.homework|default:"—" }}</td>
+            <td class="muted">
+              {% if entry.lesson %}
+                <a href="{% url 'cabinet:lesson_journal' entry.lesson.pk %}">{{ entry.lesson.starts_at|date:"d.m H:i" }}</a>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <p class="empty-state__title">Строк пока нет</p>
+    <p>Проверьте разметку колонок выше: без колонки с темой план не собрать.</p>
+  </div>
+{% endif %}
+{% endblock %}

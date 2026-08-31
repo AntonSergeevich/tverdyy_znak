@@ -124,6 +124,9 @@ def lesson_journal(request, lesson_id):
             "homework": getattr(lesson, "homework", None),
             "rows": _lesson_rows(lesson),
             "budget": budget,
+            # Кому есть куда идти за составом группы: педагог его не правит,
+            # и кнопка, ведущая в отказ, хуже её отсутствия.
+            "can_manage": is_manager(request.user, organization),
             # Подсказки «как в прошлый раз»: половина того, что педагог
             # печатает, уже была напечатана — тема идёт по учебнику подряд,
             # задание того же вида. Предлагаем, но не подставляем молча.
@@ -203,13 +206,20 @@ def lesson_toggle_graded(request, lesson_id):
             lesson.save(update_fields=["is_graded", "updated_at"])
 
     lesson.refresh_from_db()
+    # Вместе с шапкой возвращаем и список учеников: включили оценивание —
+    # круги для баллов должны появиться сразу, а не после перезагрузки.
+    # Список уезжает отдельным куском (hx-swap-oob), потому что одним
+    # запросом меняются два места на экране, а между ними лежат тема и
+    # домашнее задание — их трогать нельзя, там может быть недописанное.
     return render(
         request,
-        "cabinet/teacher/partials/lesson_header.html",
+        "cabinet/teacher/partials/lesson_toggled.html",
         {
             "lesson": lesson,
             "grade_item": getattr(lesson, "grade_item", None),
             "budget": points_budget(lesson.module, lesson.subject, lesson.group),
+            "rows": _lesson_rows(lesson),
+            "can_manage": is_manager(request.user, organization),
             "error": error,
         },
     )
@@ -520,6 +530,7 @@ def grade_bulk(request, lesson_id):
             "grade_item": grade_item,
             "rows": _lesson_rows(lesson),
             "budget": points_budget(lesson.module, lesson.subject, lesson.group),
+            "can_manage": is_manager(request.user, organization),
             "bulk_error": error,
             "bulk_changed": changed,
         },

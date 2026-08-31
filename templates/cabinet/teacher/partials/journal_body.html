@@ -1,63 +1,116 @@
 {% load journal_extras %}
 {% comment %}
-  Тело журнала: строка «поставить всем» и список учеников.
+  Список учеников занятия.
+
+  Показывается всегда, а не только у занятий с оцениванием: педагог
+  открывает занятие, чтобы увидеть, кто на нём, — и уже потом решает,
+  ставить ли баллы. Раньше без отметки «с оцениванием» списка не было
+  вовсе, и экран выглядел так, будто учеников в системе нет.
 
   Отдельным файлом, потому что групповое выставление обновляет весь
   список сразу — по одной строке тут не отделаешься.
 {% endcomment %}
-<div id="journal-body">
+<div id="journal-body"{% if oob %} hx-swap-oob="true"{% endif %}>
   {% if bulk_error %}
     <div class="message message--error">{{ bulk_error }}</div>
   {% elif bulk_changed %}
     <div class="message">Поставлено баллов: {{ bulk_changed }}.</div>
   {% endif %}
 
-  <div class="bulk-grade" id="bulk-controls"
-       data-name="Всем ученикам" data-max="{{ grade_item.max_points|machine_number }}">
-    <span class="bulk-grade__label">Поставить всем</span>
+  {% if not rows %}
+    <div class="empty-state" style="margin-top:16px">
+      <p class="empty-state__title">Учеников в этой группе пока нет</p>
+      <p>
+        Они появятся здесь сами, как только группу «{{ lesson.group.name }}»
+        заполнят: список берётся из состава группы, отдельно для занятия его
+        вести не нужно. Личные кабинеты для этого не обязательны — ученик
+        попадает в список сразу, а вход в кабинет ему можно выдать позже.
+      </p>
+      {% if can_manage %}
+        <p style="margin-top:12px">
+          <a class="btn" href="{% url 'cabinet:students' %}">Открыть список учеников</a>
+        </p>
+      {% else %}
+        <p class="muted">Состав группы заполняет администратор.</p>
+      {% endif %}
+    </div>
+
+  {% elif not grade_item %}
+    {% comment %}
+      Занятие без оценивания. Список всё равно на экране — а баллы
+      включаются одной кнопкой прямо здесь, чтобы не искать её наверху.
+    {% endcomment %}
+    <div class="journal-list" style="margin-top:16px">
+      {% for row in rows %}
+        <div class="journal-row">
+          <span class="journal-row__name">{{ row.student.short_name }}</span>
+          <span class="journal-row__state muted">без баллов</span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="empty-state" style="margin-top:16px">
+      <p class="empty-state__title">За это занятие баллы пока не ставят</p>
+      <p>Включите оценивание — и напротив каждой фамилии появится круг для балла.
+         Баллы за поведение не начисляются: только за работу.</p>
+      <form style="margin-top:12px"
+            hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}"
+            hx-select="unset" hx-select-oob="unset"
+            hx-target="#lesson-header" hx-swap="innerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="is_graded" value="1">
+        <button class="btn" type="submit">Выставить баллы за это занятие</button>
+      </form>
+    </div>
+
+  {% else %}
+    <div class="bulk-grade" id="bulk-controls"
+         data-name="Всем ученикам" data-max="{{ grade_item.max_points|machine_number }}">
+      <span class="bulk-grade__label">Поставить всем</span>
+
+      {% comment %}
+        Тот же ползунок, что и в строке: две разные механики на одном экране
+        путают сильнее, чем одна лишняя кнопка.
+      {% endcomment %}
+      <button class="grade-chip" type="button" data-dial-open data-dial-bulk
+              aria-label="Балл всем ученикам, из {{ grade_item.max_points|points }}">
+        <span class="grade-chip__value" data-chip-value>—</span>
+        <span class="grade-chip__max">из {{ grade_item.max_points|points }}</span>
+      </button>
+      <input type="hidden" name="points" data-points value="">
+
+      <label class="checkbox" style="font-size:14px">
+        <input type="checkbox" name="overwrite" value="1">
+        Перезаписать уже выставленные
+      </label>
+      <button class="btn btn--quiet" type="button"
+              hx-post="{% url 'cabinet:grade_bulk' lesson.pk %}"
+              hx-select="unset" hx-select-oob="unset"
+              hx-include="#bulk-controls input"
+              hx-target="#journal-body" hx-swap="outerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        Поставить
+      </button>
+    </div>
 
     {% comment %}
-      Тот же ползунок, что и в строке: две разные механики на одном экране
-      путают сильнее, чем одна лишняя кнопка.
+      Список — не форма, и это принципиально. htmx на любом запросе, кроме
+      GET, прикладывает к нему всю ближайшую форму целиком. Пока строки
+      лежали внутри <form>, отправка балла одному ученику увозила поля всех
+      сразу, и сервер брал из них последнее: балл уходил не тому, кому его
+      ставили. Теперь к запросу идёт ровно одна строка — та, в которой
+      нажали.
     {% endcomment %}
-    <button class="grade-chip" type="button" data-dial-open data-dial-bulk
-            aria-label="Балл всем ученикам, из {{ grade_item.max_points|points }}">
-      <span class="grade-chip__value" data-chip-value>—</span>
-      <span class="grade-chip__max">из {{ grade_item.max_points|points }}</span>
-    </button>
-    <input type="hidden" name="points" data-points value="">
+    <div class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
+         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+      {% for row in rows %}
+        {% include "cabinet/teacher/partials/grade_row.html" %}
+      {% endfor %}
+    </div>
 
-    <label class="checkbox" style="font-size:14px">
-      <input type="checkbox" name="overwrite" value="1">
-      Перезаписать уже выставленные
-    </label>
-    <button class="btn btn--quiet" type="button"
-            hx-post="{% url 'cabinet:grade_bulk' lesson.pk %}"
-            hx-select="unset" hx-select-oob="unset"
-            hx-include="#bulk-controls input"
-            hx-target="#journal-body" hx-swap="outerHTML"
-            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-      Поставить
-    </button>
-  </div>
-
-  {% comment %}
-    Список — не форма, и это принципиально. htmx на любом запросе, кроме
-    GET, прикладывает к нему всю ближайшую форму целиком. Пока строки
-    лежали внутри <form>, отправка балла одному ученику увозила поля всех
-    сразу, и сервер брал из них последнее: балл уходил не тому, кому его
-    ставили. Теперь к запросу идёт ровно одна строка — та, в которой
-    нажали.
-  {% endcomment %}
-  <div class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
-       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    {% for row in rows %}
-      {% include "cabinet/teacher/partials/grade_row.html" %}
-    {% empty %}
-      <div class="empty-state">
-        <p class="empty-state__title">В группе пока нет учеников</p>
-        <p>Добавьте состав группы — и здесь появится список.</p>
-      </div>
-    {% endfor %}
-  </div>
+    <p class="small muted" style="margin-top:12px">
+      Балл ставится кругом: нажмите на отметку у фамилии и ведите пальцем.
+      Сохраняется само. Если пропадёт сеть, введённое останется на устройстве
+      и уйдёт на сервер, когда связь вернётся.
+    </p>
+  {% endif %}
 </div>

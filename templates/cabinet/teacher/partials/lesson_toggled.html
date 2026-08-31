@@ -1,0 +1,9 @@
+{% comment %}
+  Ответ на включение и снятие оценивания.
+
+  Меняются два места сразу: шапка с бюджетом модуля и список учеников.
+  Шапка едет в цель запроса, список — отдельным куском по своему id, чтобы
+  не задеть тему и домашнее задание между ними: там может быть недописанное.
+{% endcomment %}
+{% include "cabinet/teacher/partials/lesson_header.html" %}
+{% include "cabinet/teacher/partials/journal_body.html" with oob=True %}
