@@ -9,7 +9,7 @@
   <td class="muted">{{ lead.get_call_window_display }}</td>
   <td class="small muted">{{ lead.utm_source|default:"прямой" }}{% if lead.utm_campaign %} · {{ lead.utm_campaign }}{% endif %}</td>
   <td>
-    <form class="stack" hx-post="{% url 'cabinet:lead_status' lead.pk %}"
+    <form class="stack" hx-post="{% url 'cabinet:lead_status' lead.pk %}" hx-select="unset" hx-select-oob="unset"
           hx-target="#lead-{{ lead.pk }}" hx-swap="outerHTML">
       {% csrf_token %}
       <select class="input" name="status" aria-label="Статус заявки" onchange="this.form.requestSubmit()">
@@ -25,7 +25,7 @@
   </td>
   <td>
     {% if lead.is_deleted %}
-      <form hx-post="{% url 'cabinet:lead_restore' lead.pk %}"
+      <form hx-post="{% url 'cabinet:lead_restore' lead.pk %}" hx-select="unset" hx-select-oob="unset"
             hx-target="#lead-{{ lead.pk }}" hx-swap="outerHTML">
         {% csrf_token %}
         <button class="btn btn--quiet" type="submit">Вернуть</button>
@@ -38,7 +38,7 @@
         подтверждается законность обработки, стирать его нельзя.
       {% endcomment %}
       <button class="btn btn--quiet" type="button"
-              hx-post="{% url 'cabinet:lead_delete' lead.pk %}"
+              hx-post="{% url 'cabinet:lead_delete' lead.pk %}" hx-select="unset" hx-select-oob="unset"
               hx-target="#lead-{{ lead.pk }}" hx-swap="delete"
               hx-confirm="Убрать заявку из списка? Её можно вернуть во вкладке «Удалённые»."
               hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

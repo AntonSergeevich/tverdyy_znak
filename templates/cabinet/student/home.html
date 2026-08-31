@@ -42,7 +42,7 @@
 <div id="goals-block">{% include "cabinet/student/partials/goals.html" %}</div>
 
 <form class="grid grid--tight" style="margin-top:16px;align-items:flex-end"
-      hx-post="{% url 'cabinet:goal_create' %}" hx-target="#goals-block" hx-swap="innerHTML">
+      hx-post="{% url 'cabinet:goal_create' %}" hx-select="unset" hx-select-oob="unset" hx-target="#goals-block" hx-swap="innerHTML">
   {% csrf_token %}
   <div class="field">
     <label for="goal-title">Новая цель</label>
@@ -66,15 +66,7 @@
   {% endcomment %}
   <div class="stack">
     {% for item in homework %}
-      <div class="card homework-card{% if item.is_overdue %} homework-card--late{% endif %}">
-        <p class="small muted">
-          {{ item.lesson.subject.name }} · задано {{ item.lesson.starts_at|date:"d.m" }}
-          {% if item.due_date %} · сдать до {{ item.due_date|date:"d.m.Y" }}{% endif %}
-          {% if item.grade_item %} · на {{ item.grade_item.max_points|points }}
-            {{ item.grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
-        </p>
-        <p style="margin-top:6px">{{ item.text|linebreaksbr }}</p>
-      </div>
+      {% include "cabinet/student/partials/homework_card.html" %}
     {% endfor %}
   </div>
 {% else %}

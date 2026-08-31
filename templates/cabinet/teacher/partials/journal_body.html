@@ -1,3 +1,4 @@
+{% load journal_extras %}
 {% comment %}
   Тело журнала: строка «поставить всем» и список учеников.
 
@@ -11,18 +12,28 @@
     <div class="message">Поставлено баллов: {{ bulk_changed }}.</div>
   {% endif %}
 
-  <div class="bulk-grade" id="bulk-controls">
+  <div class="bulk-grade" id="bulk-controls"
+       data-name="Всем ученикам" data-max="{{ grade_item.max_points|machine_number }}">
     <span class="bulk-grade__label">Поставить всем</span>
-    <input class="input" type="number" step="0.5" min="0"
-           max="{{ grade_item.max_points|floatformat:'-2' }}"
-           name="points" aria-label="Балл всем ученикам"
-           placeholder="из {{ grade_item.max_points|floatformat:'-2' }}">
+
+    {% comment %}
+      Тот же ползунок, что и в строке: две разные механики на одном экране
+      путают сильнее, чем одна лишняя кнопка.
+    {% endcomment %}
+    <button class="grade-chip" type="button" data-dial-open data-dial-bulk
+            aria-label="Балл всем ученикам, из {{ grade_item.max_points|points }}">
+      <span class="grade-chip__value" data-chip-value>—</span>
+      <span class="grade-chip__max">из {{ grade_item.max_points|points }}</span>
+    </button>
+    <input type="hidden" name="points" data-points value="">
+
     <label class="checkbox" style="font-size:14px">
       <input type="checkbox" name="overwrite" value="1">
       Перезаписать уже выставленные
     </label>
     <button class="btn btn--quiet" type="button"
             hx-post="{% url 'cabinet:grade_bulk' lesson.pk %}"
+            hx-select="unset" hx-select-oob="unset"
             hx-include="#bulk-controls input"
             hx-target="#journal-body" hx-swap="outerHTML"
             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
@@ -30,9 +41,16 @@
     </button>
   </div>
 
-  <form class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
-        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    {% csrf_token %}
+  {% comment %}
+    Список — не форма, и это принципиально. htmx на любом запросе, кроме
+    GET, прикладывает к нему всю ближайшую форму целиком. Пока строки
+    лежали внутри <form>, отправка балла одному ученику увозила поля всех
+    сразу, и сервер брал из них последнее: балл уходил не тому, кому его
+    ставили. Теперь к запросу идёт ровно одна строка — та, в которой
+    нажали.
+  {% endcomment %}
+  <div class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
+       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {% for row in rows %}
       {% include "cabinet/teacher/partials/grade_row.html" %}
     {% empty %}
@@ -41,5 +59,5 @@
         <p>Добавьте состав группы — и здесь появится список.</p>
       </div>
     {% endfor %}
-  </form>
+  </div>
 </div>

@@ -538,6 +538,94 @@ body.htmx-request::after {
 .bulk-grade__label { font-weight: 600; }
 .bulk-grade .input { width: 120px; }
 
+/* ─── Балл: отметка в строке и полукруглый ползунок ──────────────────────── */
+
+/* Отметка — крупная цель под палец, а не поле ввода: клавиатура на
+   телефоне закрывает пол-списка, а попасть в узкий инпут стоя трудно. */
+.grade-chip {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;
+  min-width: 84px; min-height: 52px; gap: 1px;
+  padding: 6px 12px; cursor: pointer;
+  background: var(--surface); color: var(--ink-3);
+  border: 1px solid var(--line-strong); border-radius: 12px;
+  font: inherit; transition: border-color .12s ease, color .12s ease;
+}
+.grade-chip:hover, .grade-chip:focus-visible { border-color: var(--accent); }
+.grade-chip__value { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.grade-chip__max { font-size: 11px; letter-spacing: .02em; }
+.grade-chip--set { color: var(--ink); border-color: var(--accent); }
+.grade-chip--set .grade-chip__value { color: var(--accent-2); }
+
+.dial { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; }
+/* display:flex перебивает hidden: закрытая панель осталась бы поверх
+   страницы и ловила бы касания, не показываясь. */
+.dial[hidden] { display: none; }
+.dial__backdrop { position: absolute; inset: 0; background: rgba(20, 17, 14, .5); }
+.dial__sheet {
+  position: relative; width: min(460px, 100%);
+  max-height: 100%; overflow-y: auto;
+  display: grid; gap: 14px;
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 18px 18px 0 0;
+  padding: 16px clamp(14px, 4vw, 24px) calc(16px + env(safe-area-inset-bottom, 0px));
+  animation: tz-dial-in .18s ease-out;
+}
+@keyframes tz-dial-in { from { transform: translateY(14px); opacity: .6; } }
+@media (min-width: 620px) {
+  .dial { align-items: center; }
+  .dial__sheet { border-radius: 18px; }
+}
+
+.dial__head { display: flex; align-items: center; gap: 8px; }
+.dial__who { flex: 1 1 auto; text-align: center; min-width: 0; }
+.dial__name { margin: 0; font-weight: 700; font-size: 18px; }
+.dial__sub { margin: 2px 0 0; }
+.dial__nav {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--line-strong);
+  color: var(--ink-2); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.dial__nav[hidden] { display: none; }
+
+.dial__gauge { position: relative; touch-action: none; cursor: pointer; user-select: none; }
+.dial__gauge svg { display: block; width: 100%; height: auto; overflow: visible; }
+.dial__track, .dial__fill { fill: none; stroke-width: 16; stroke-linecap: round; }
+.dial__track { stroke: var(--track); }
+.dial__fill { stroke: var(--accent); transition: stroke-dashoffset .08s linear; }
+.dial__gauge--held .dial__fill { transition: none; }
+.dial__knob {
+  fill: var(--accent); stroke: var(--thumb-ring); stroke-width: 4;
+  transition: cx .08s linear, cy .08s linear;
+}
+.dial__gauge--held .dial__knob { transition: none; r: 15; }
+.dial__knob--empty { fill: var(--grey); }
+
+/* Цифра стоит в чаше дуги — там, где взгляд и так остановился. */
+.dial__readout {
+  position: absolute; left: 0; right: 0; bottom: 6%;
+  display: grid; justify-items: center; gap: 2px; pointer-events: none;
+}
+.dial__value {
+  font-size: clamp(48px, 15vw, 72px); font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+
+.dial__quick { display: flex; gap: 8px; }
+.dial__quick .btn { flex: 1 1 auto; padding-inline: 4px; min-height: 44px; }
+.dial__comment { margin: 0; }
+.dial__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dial__actions .btn { flex: 1 1 auto; min-height: 46px; }
+.dial__actions .btn[hidden] { display: none; }
+
+/* Пока панель открыта, страница под ней не прокручивается: иначе список
+   уезжает из-под пальца вместе с дугой. */
+body.is-dialed { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dial__sheet { animation: none; }
+  .dial__fill, .dial__knob { transition: none; }
+}
+
 /* Оценка звёздами: radio-кнопки остаются радио-кнопками — так работает
    клавиатура и так понятно, что выбор один. */
 .rating { display: flex; flex-wrap: wrap; gap: 14px; }
@@ -805,6 +893,7 @@ body.htmx-request::after {
 .journal-row__points { flex: 0 0 96px; }
 .journal-row__points input { text-align: center; }
 .journal-row__comment { flex: 1 1 220px; }
+.journal-row__note { flex: 1 1 100%; order: 3; font-size: 13px; color: var(--ink-3); }
 .journal-row__state { flex: 0 0 auto; font-size: 14px; min-width: 92px; }
 .state--saved { color: var(--ok); }
 .state--error { color: var(--accent-2); }
@@ -894,6 +983,19 @@ table.data th { font-size: 14px; color: var(--ink-3); font-weight: 600; }
 .week__what { display: grid; gap: 2px; min-width: 0; }
 .week__subject { font-weight: 600; }
 .week__empty { margin: 0; font-size: 14px; }
+
+/* Занятие, которое можно открыть, — вся строка целиком: на телефоне
+   в стрелку сбоку не попасть. Стрелка только подсказывает, что тут есть куда
+   нажать. Цель по высоте не меньше 44 px — палец меньше не берёт. */
+a.week__lesson--open {
+  color: inherit; text-decoration: none;
+  align-items: center; min-height: 44px;
+  margin: -6px -8px; padding: 6px 8px; border-radius: 10px;
+  transition: background-color .12s ease;
+}
+a.week__lesson--open:hover, a.week__lesson--open:focus-visible { background: var(--mark); }
+a.week__lesson--open .week__subject { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.week__go { margin-left: auto; color: var(--ink-3); font-size: 20px; line-height: 1; }
 
 @media (max-width: 760px) {
   :root { --header-h: 73px; }
@@ -1066,3 +1168,24 @@ details.fieldset[open] > summary::after { content: ' −'; }
    а прочитать надо именно это. */
 .homework-card { border-left: 3px solid var(--line-strong); }
 .homework-card--late { border-left-color: var(--warn); }
+/* Сделанное не прячем — гасим: задолженность и выполненное должны быть
+   в одном списке, иначе непонятно, сколько всего задано. */
+.homework-card--done { border-left-color: var(--ok); opacity: .72; }
+
+/* Фото листа с задачами: превью небольшое, полный размер открывается
+   отдельной вкладкой — читать задание с миниатюры всё равно нельзя. */
+.homework-photo { display: grid; gap: 8px; }
+.homework-photo__thumb { display: block; width: max-content; max-width: 100%; }
+.homework-photo__thumb img {
+  display: block; max-width: 220px; max-height: 160px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+
+/* Подсказка «как в прошлый раз» — не кнопка на пол-экрана, а текст,
+   на который можно нажать. */
+.link-btn {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: var(--accent-2); text-align: left;
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.link-btn:hover, .link-btn:focus-visible { color: var(--accent); }

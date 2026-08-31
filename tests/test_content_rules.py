@@ -632,3 +632,43 @@ def admin_client_for_rules(client, tenant_a):
             {"username": tenant_a.owner_user.email, "password": PASSWORD},
         )
         yield client
+
+
+def test_partial_htmx_requests_cancel_the_inherited_selection():
+    """
+    На <body> кабинета висят hx-select="#main" и hx-select-oob="#site-nav",
+    и они наследуются всему, что внутри.
+
+    Точечный запрос — тот, где сервер отвечает куском страницы, — получает
+    ответ, из которого htmx вырезает #main. Куска с таким id в ответе нет,
+    вырезается пустота, и обновляемый блок не меняется, а исчезает: так
+    молча ломались и выдача доступа, и домашнее задание, и темы занятий.
+    Лечится это одним — hx-select="unset" hx-select-oob="unset" на самом
+    элементе. Проверка следит, чтобы про них не забыли снова.
+    """
+    import pathlib
+    import re
+
+    # Здесь hx-select стоит на общей обёртке, и ссылки берут его оттуда:
+    # ответ на переключение недели — целая страница, из неё и вырезают.
+    inherits_from_a_wrapper = {"cabinet/manage/schedule_builder.html"}
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "templates" / "cabinet"
+    offenders = []
+    for path in sorted(root.rglob("*.html")):
+        if str(path.relative_to(root.parent)) in inherits_from_a_wrapper:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for tag in re.finditer(r"<[a-zA-Z][^>]*>", text, re.S):
+            body = tag.group(0)
+            if not re.search(r"hx-(post|get|put|patch|delete)=", body):
+                continue
+            if "hx-select" in body:
+                continue
+            line = text[: tag.start()].count("\n") + 1
+            offenders.append(f"{path.relative_to(root.parent)}:{line}")
+
+    assert not offenders, (
+        'Точечный запрос без hx-select="unset" hx-select-oob="unset": '
+        f"блок не обновится, а исчезнет. {offenders}"
+    )

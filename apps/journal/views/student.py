@@ -24,12 +24,13 @@ from apps.journal.models import (
     GradeItemKind,
     Grade,
     GradeItem,
+    Homework,
     ModuleResult,
     MoodEntry,
     Student,
 )
 from apps.journal.services.grading import get_scale
-from apps.journal.services.homework import upcoming_homework
+from apps.journal.services.homework import mark_done, upcoming_homework
 from apps.journal.views.parent import current_module, week_lessons
 
 
@@ -127,6 +128,34 @@ def goal_toggle(request, goal_id):
     goal.save(update_fields=["status", "updated_at"])
     goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
     return render(request, "cabinet/student/partials/goals.html", {"goals": list(goals)})
+
+
+@login_required
+@role_required("student")
+@require_http_methods(["POST"])
+def homework_mark(request, homework_id):
+    """
+    Отметка «сделал» — ставит и снимает сам ученик.
+
+    Это не подтверждение выполнения и не заявка на проверку: задание
+    перестаёт висеть в списке, а педагог видит, сколько человек к занятию
+    готовились. Передумать можно в любой момент — отметка снимается тем же
+    касанием, каким ставилась.
+    """
+    student = _own_student(request)
+    homework = get_object_or_404(
+        Homework.objects.filter(lesson__group__memberships__student=student).distinct(),
+        pk=homework_id,
+    )
+    done = mark_done(
+        homework=homework, student=student, done=request.POST.get("done") == "1"
+    )
+    homework.done = done
+    return render(
+        request,
+        "cabinet/student/partials/homework_card.html",
+        {"item": homework},
+    )
 
 
 @login_required

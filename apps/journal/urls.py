@@ -27,6 +27,7 @@ urlpatterns = [
     path("pedagog/zanyatie/<uuid:lesson_id>/ocenivanie/", teacher.lesson_toggle_graded, name="lesson_toggle_graded"),
     path("pedagog/zanyatie/<uuid:lesson_id>/tema/", teacher.lesson_topic_save, name="lesson_topic_save"),
     path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/", teacher.lesson_homework_save, name="lesson_homework_save"),
+    path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/foto/", teacher.homework_photo, name="homework_photo"),
     path(
         "pedagog/modul/<int:module_id>/<int:subject_id>/<int:group_id>/",
         teacher.module_plan, name="module_plan",
@@ -49,6 +50,7 @@ urlpatterns = [
     path("uchenik/cel/", student.goal_create, name="goal_create"),
     path("uchenik/cel/<uuid:goal_id>/", student.goal_toggle, name="goal_toggle"),
     path("uchenik/sostoyanie/", student.mood_save, name="mood_save"),
+    path("uchenik/domashnee/<uuid:homework_id>/", student.homework_mark, name="homework_mark"),
 
     # Администратор и владелец
     path("panel/", manage.dashboard, name="dashboard"),

@@ -10,27 +10,72 @@
   <a class="btn btn--quiet" href="{% url 'cabinet:export_module' module.pk %}">Выгрузить успеваемость</a>
 </div>
 
+<h2 class="label" style="font-size:18px;margin:24px 0 8px">Из чего складываются сто баллов</h2>
+<p class="small muted" style="margin-bottom:12px">
+  Работы модуля и их вес. Ниже, в тематическом планировании, — темы занятий.
+</p>
 <div id="plan-items">
   {% include "cabinet/teacher/partials/plan_items.html" %}
 </div>
 
-<h2 class="label" style="font-size:18px;margin:32px 0 12px">Тематическое планирование</h2>
-<p class="small muted" style="margin-bottom:12px">Темы занятий на модуль вперёд — их видит родитель в кабинете.</p>
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Тематическое планирование</h2>
+{% comment %}
+  Раньше здесь стояли голые поля без единого слова, и было непонятно, что это
+  вообще такое и почему нет кнопки «добавить». Теперь сказано прямо: строка на
+  каждое занятие модуля, поле — тема, кнопки нет намеренно.
+{% endcomment %}
+<p class="small muted" style="margin-bottom:12px">
+  По строке на каждое занятие модуля. Впишите тему — она сохранится сама, как
+  только вы уйдёте из поля: отдельной кнопки здесь нет намеренно. Тему видят
+  ученик и родитель в своём кабинете, и она же подставляется в журнал занятия.
+  Новые строки не добавляются отсюда — они появляются, когда занятие ставят
+  в расписание. Занятия других педагогов показаны, но не правятся.
+</p>
+
+{% if recent_topics %}
+  <datalist id="topic-suggestions">
+    {% for topic in recent_topics %}<option value="{{ topic }}"></option>{% endfor %}
+  </datalist>
+{% endif %}
+
 <div class="table-wrap">
   <table class="data">
-    <thead><tr><th>Дата</th><th>Тема</th><th>Оценивание</th></tr></thead>
+    <thead><tr><th>Занятие</th><th>Тема</th><th>Оценивание</th></tr></thead>
     <tbody>
     {% for lesson in lessons %}
       <tr id="topic-{{ lesson.pk }}">
-        <td>{{ lesson.starts_at|date:"d.m H:i" }}</td>
         <td>
-          <input class="input" type="text" name="topic" value="{{ lesson.topic }}"
-                 aria-label="Тема занятия {{ lesson.starts_at|date:'d.m' }}"
-                 hx-post="{% url 'cabinet:lesson_topic_save' lesson.pk %}"
-                 hx-trigger="change"
-                 hx-target="#topic-{{ lesson.pk }} td:last-child"
-                 hx-swap="innerHTML"
-                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+          {% if lesson.can_edit %}
+            {# Дата — ссылка в журнал: оттуда ставят баллы и домашнее задание. #}
+            <a href="{% url 'cabinet:lesson_journal' lesson.pk %}">{{ lesson.starts_at|date:"d.m H:i" }}</a>
+          {% else %}
+            {{ lesson.starts_at|date:"d.m H:i" }}
+          {% endif %}
+        </td>
+        <td>
+          {% if lesson.can_edit %}
+            <input class="input" type="text" name="topic" value="{{ lesson.topic }}"
+                   maxlength="250" autocomplete="off"
+                   {% if recent_topics %}list="topic-suggestions"{% endif %}
+                   placeholder="О чём занятие"
+                   aria-label="Тема занятия {{ lesson.starts_at|date:'d.m' }}"
+                   hx-post="{% url 'cabinet:lesson_topic_save' lesson.pk %}"
+                   hx-select="unset" hx-select-oob="unset"
+                   hx-trigger="change"
+                   hx-target="#topic-state-{{ lesson.pk }}"
+                   hx-swap="innerHTML"
+                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+            <span class="small" id="topic-state-{{ lesson.pk }}"></span>
+          {% else %}
+            {% comment %}
+              Чужое занятие. Поле для него не показываем: набранное в нём
+              не сохранилось бы, а понять почему было бы неоткуда.
+            {% endcomment %}
+            <span>{{ lesson.topic|default:"—" }}</span>
+            <span class="small muted">
+              ведёт {{ lesson.teacher.short_name|default:"другой педагог" }}
+            </span>
+          {% endif %}
         </td>
         <td>
           {% if lesson.is_graded %}<span class="level level--elevated">с баллами</span>

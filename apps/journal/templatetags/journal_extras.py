@@ -35,6 +35,25 @@ def points(value) -> str:
 
 
 @register.filter
+def machine_number(value) -> str:
+    """
+    Число для машины, а не для человека: «7.5», всегда с точкой.
+
+    В атрибутах — max у поля, data-* для скриптов — запятая ломает разбор,
+    а `floatformat` в русской локали даёт именно запятую.
+    """
+    if value in (None, ""):
+        return ""
+    try:
+        number = Decimal(value)
+    except (InvalidOperation, TypeError):
+        return ""
+    if number == number.to_integral():
+        return str(int(number))
+    return f"{number.normalize():f}"
+
+
+@register.filter
 def percent_of(value, total) -> int:
     try:
         value = Decimal(value or 0)

@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Prefetch
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -21,6 +21,7 @@ from apps.journal.access import (
     accessible_groups,
     assert_can_grade,
     get_lesson_or_403,
+    is_manager,
     teacher_profile,
 )
 from apps.journal.models import (
@@ -38,6 +39,11 @@ from apps.journal.services.grading import (
     points_budget,
     set_grade,
     validate_grade_item,
+)
+from apps.journal.services.suggestions import (
+    previous_homework,
+    previous_lesson,
+    recent_topics,
 )
 
 
@@ -118,8 +124,37 @@ def lesson_journal(request, lesson_id):
             "homework": getattr(lesson, "homework", None),
             "rows": _lesson_rows(lesson),
             "budget": budget,
+            # Подсказки «как в прошлый раз»: половина того, что педагог
+            # печатает, уже была напечатана — тема идёт по учебнику подряд,
+            # задание того же вида. Предлагаем, но не подставляем молча.
+            "recent_topics": recent_topics(
+                subject=lesson.subject, group=lesson.group, exclude_lesson=lesson
+            ),
+            "previous_lesson": previous_lesson(lesson),
+            "previous_homework": previous_homework(lesson),
         },
     )
+
+
+@login_required
+def homework_photo(request, lesson_id):
+    """
+    Фото листа с задачами.
+
+    Роль здесь не проверяется списком: снимок нужен прежде всего ученику и
+    родителю — это их задание. Кому занятие доступно, решает
+    `get_lesson_or_403` по тем же правилам, что и везде, а без роли
+    выборка занятий пуста, и никому ничего не достанется.
+
+    Файл лежит вне MEDIA_ROOT и отдаётся отсюда, а не веб-сервером: на
+    снимке страницы бывает и фамилия, и почерк.
+    """
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    homework = getattr(lesson, "homework", None)
+    if homework is None or not homework.photo:
+        raise Http404("Фотографии к этому заданию нет.")
+    return FileResponse(homework.photo.open("rb"))
 
 
 @login_required
@@ -266,12 +301,20 @@ def module_plan(request, module_id, subject_id, group_id):
         .select_related("lesson")
         .order_by("position", "due_date")
     )
-    lessons = (
+    lessons = list(
         Lesson.objects.filter(module=module, subject=subject, group=group)
         .select_related("teacher", "teacher__user")
         .prefetch_related("grade_item")
         .order_by("starts_at")
     )
+    # В планировании видны все занятия предмета, в том числе чужие: иначе
+    # не понять, где в модуле дыра. Но править чужую тему нельзя, и поле
+    # для неё показывать незачем — оно молча не сохранится.
+    profile = teacher_profile(request.user, organization)
+    manager = is_manager(request.user, organization)
+    for lesson in lessons:
+        lesson.can_edit = manager or (profile is not None and lesson.teacher_id == profile.id)
+
     return render(
         request,
         "cabinet/teacher/module_plan.html",
@@ -280,9 +323,10 @@ def module_plan(request, module_id, subject_id, group_id):
             "subject": subject,
             "group": group,
             "items": list(items),
-            "lessons": list(lessons),
+            "lessons": lessons,
             "budget": points_budget(module, subject, group),
             "kinds": GradeItemKind.choices,
+            "recent_topics": recent_topics(subject=subject, group=group),
         },
     )
 
@@ -388,12 +432,15 @@ def lesson_homework_save(request, lesson_id):
     text = request.POST.get("text") or ""
     due_date = homework_service.parse_date(request.POST.get("due_date"))
     max_points = homework_service.parse_points(request.POST.get("max_points"))
+    photo = request.FILES.get("photo")
+    drop_photo = request.POST.get("drop_photo") == "1"
 
     error = ""
     try:
         homework = homework_service.save_homework(
             lesson=lesson, text=text, due_date=due_date,
             max_points=max_points, actor=request.user,
+            photo=photo, drop_photo=drop_photo,
         )
     except ValidationError as exc:
         # Сотня на модуль не резиновая. Показываем ровно то, что мешает,
@@ -413,6 +460,7 @@ def lesson_homework_save(request, lesson_id):
             "error": error,
             "draft": {"text": text, "due_date": request.POST.get("due_date"),
                       "max_points": request.POST.get("max_points")},
+            "previous_homework": previous_homework(lesson),
         },
     )
 

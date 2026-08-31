@@ -11,7 +11,7 @@
   <td class="muted">{{ student.attestation_partner|default:"—" }}</td>
   <td>
     {% if student.is_deleted %}
-      <form hx-post="{% url 'cabinet:student_restore' student.pk %}" hx-target="#student-{{ student.pk }}" hx-swap="outerHTML">
+      <form hx-post="{% url 'cabinet:student_restore' student.pk %}" hx-select="unset" hx-select-oob="unset" hx-target="#student-{{ student.pk }}" hx-swap="outerHTML">
         {% csrf_token %}
         <button class="btn btn--quiet" type="submit">Восстановить</button>
       </form>

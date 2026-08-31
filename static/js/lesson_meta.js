@@ -40,6 +40,30 @@
   function init() {
     initTopic();
     initHomework();
+    initFill();
+  }
+
+  // ── «Как в прошлый раз» ───────────────────────────────────────────────────
+
+  /**
+   * Кнопка подставляет в поле то, что было в прошлый раз, и оставляет
+   * курсор в конце: педагог правит номера задач, а не набирает всё заново.
+   * Подставлять молча нельзя — подставленное молча приходится вычитывать.
+   */
+  function initFill() {
+    document.querySelectorAll('[data-fill]').forEach(function (button) {
+      if (button.dataset.ready === '1') return;
+      button.dataset.ready = '1';
+      button.addEventListener('click', function () {
+        var form = button.closest('form');
+        var field = form && form.querySelector('[name="' + button.getAttribute('data-fill') + '"]');
+        if (!field) return;
+        field.value = button.getAttribute('data-fill-value') || '';
+        field.focus();
+        if (field.setSelectionRange) field.setSelectionRange(field.value.length, field.value.length);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    });
   }
 
   // ── Тема ──────────────────────────────────────────────────────────────────
@@ -104,6 +128,8 @@
         return response.text();
       }).then(function (html) {
         holder.innerHTML = html;
+        // Форма приехала новая — «как в прошлый раз» в ней ещё не подключена.
+        initFill();
       }).catch(function () {
         if (button) button.disabled = false;
         say(form, 'нет связи — попробуйте ещё раз', 'error');

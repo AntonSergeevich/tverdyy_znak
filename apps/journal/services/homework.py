@@ -14,7 +14,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import models, transaction
 from django.utils import timezone
 
-from apps.journal.models import GradeItem, GradeItemKind, Homework
+from apps.journal.models import GradeItem, GradeItemKind, Homework, HomeworkMark
 from apps.journal.services.grading import validate_grade_item
 
 # Заголовок оценивания — начало текста задания: в списке «Задания модуля»
@@ -42,13 +42,20 @@ def parse_date(raw) -> dt.date | None:
 
 
 @transaction.atomic
-def save_homework(*, lesson, text: str, due_date=None, max_points=None, actor=None):
+def save_homework(
+    *, lesson, text: str, due_date=None, max_points=None, actor=None,
+    photo=None, drop_photo: bool = False,
+):
     """
     Записать задание к занятию.
 
     Пустой текст означает «задания нет» — запись удаляется вместе с
-    оцениванием, если оно было. Иначе педагогу пришлось бы отдельно
-    искать, как убрать случайно заданное.
+    оцениванием и фотографией, если они были. Иначе педагогу пришлось бы
+    отдельно искать, как убрать случайно заданное.
+
+    Фото листа с задачами — не замена тексту, а дополнение к нему:
+    сфотографировать страницу быстрее, чем переписать, но по одной
+    картинке ни найти задание в списке, ни прочитать его вслух.
 
     Возвращает домашнее задание или None, если его убрали.
     """
@@ -58,6 +65,7 @@ def save_homework(*, lesson, text: str, due_date=None, max_points=None, actor=No
     if not text:
         if existing is not None:
             item = existing.grade_item
+            existing.photo.delete(save=False)
             existing.delete()
             if item is not None:
                 item.delete()
@@ -68,6 +76,15 @@ def save_homework(*, lesson, text: str, due_date=None, max_points=None, actor=No
     homework.due_date = due_date
     if homework.created_by_id is None:
         homework.created_by = actor
+
+    # Снимок заменяется целиком: старый файл убираем сами, иначе он
+    # останется лежать в закрытом хранилище навсегда.
+    if drop_photo and homework.photo:
+        homework.photo.delete(save=False)
+    if photo is not None:
+        if homework.photo:
+            homework.photo.delete(save=False)
+        homework.photo = photo
 
     item = homework.grade_item
     if max_points is None:
@@ -104,7 +121,7 @@ def upcoming_homework(student, *, limit: int = 10) -> list[Homework]:
     задолженность с глаз значит делать вид, что её нет.
     """
     since = timezone.localdate() - dt.timedelta(days=7)
-    return list(
+    items = list(
         Homework.objects.filter(lesson__group__memberships__student=student)
         .filter(
             models.Q(due_date__gte=since)
@@ -114,3 +131,32 @@ def upcoming_homework(student, *, limit: int = 10) -> list[Homework]:
         .order_by("due_date", "lesson__starts_at")
         .distinct()[:limit]
     )
+    # Отметки одним запросом, а не по одной на карточку.
+    done = set(
+        HomeworkMark.objects.filter(
+            student=student, homework__in=items
+        ).values_list("homework_id", flat=True)
+    )
+    for item in items:
+        item.done = item.id in done
+    return items
+
+
+def mark_done(*, homework: Homework, student, done: bool) -> bool:
+    """
+    Отметка ученика «сделал». Возвращает состояние после переклика.
+
+    Ставит и снимает сам ученик — это не подтверждение выполнения, а способ
+    убрать задание с глаз и показать педагогу, сколько человек готовились.
+    """
+    if done:
+        HomeworkMark.objects.get_or_create(
+            organization=homework.organization, homework=homework, student=student
+        )
+        return True
+    HomeworkMark.objects.filter(homework=homework, student=student).delete()
+    return False
+
+
+def done_by(homework: Homework, student) -> bool:
+    return HomeworkMark.objects.filter(homework=homework, student=student).exists()

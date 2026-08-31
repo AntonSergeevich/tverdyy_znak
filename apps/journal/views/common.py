@@ -9,7 +9,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from apps.accounts.models import ORG_MANAGER_ROLES, Role
-from apps.journal.access import accessible_lessons
+from apps.journal.access import accessible_lessons, is_manager, teacher_profile
 
 
 @login_required
@@ -54,10 +54,22 @@ def schedule(request):
         .order_by("starts_at")
     )
 
+    # Кому занятие можно открыть: педагогу этого занятия, администратору,
+    # владельцу. Ученику и родителю проваливаться некуда — журнал занятия
+    # не для них, а строка-ссылка, которая ведёт в отказ, хуже, чем её
+    # отсутствие. Считаем один раз здесь, а не в шаблоне: правила доступа
+    # живут в одном месте.
+    profile = teacher_profile(request.user, organization)
+    manager = is_manager(request.user, organization)
+
+    def can_open(lesson) -> bool:
+        return manager or (profile is not None and lesson.teacher_id == profile.id)
+
     # Группируем по дням в шаблоне неудобно, а по датам — нельзя: пустые дни
     # тоже нужны, иначе неделя выглядит рваной.
     by_day: dict[dt.date, list] = {monday + timedelta(days=i): [] for i in range(7)}
     for lesson in lessons:
+        lesson.can_open = can_open(lesson)
         by_day.setdefault(lesson.local_date, []).append(lesson)
 
     return render(

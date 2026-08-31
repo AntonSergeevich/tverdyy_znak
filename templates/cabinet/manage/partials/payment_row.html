@@ -17,7 +17,7 @@
         оплата так и висела бы «предстоит» после того, как деньги пришли.
       {% endcomment %}
       <button class="btn btn--quiet" type="button"
-              hx-post="{% url 'cabinet:payment_mark_paid' payment.pk %}"
+              hx-post="{% url 'cabinet:payment_mark_paid' payment.pk %}" hx-select="unset" hx-select-oob="unset"
               hx-target="#payment-{{ payment.pk }}"
               hx-swap="outerHTML">Отметить оплаченной</button>
     {% endif %}

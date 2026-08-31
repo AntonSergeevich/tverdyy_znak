@@ -4,7 +4,7 @@
     <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ lesson.subject.name }}</h1>
     <p class="muted">{{ lesson.group.name }} · {{ lesson.starts_at|date:"d.m.Y H:i" }} · {{ lesson.module }}</p>
   </div>
-  <form hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}" hx-target="#lesson-header" hx-swap="innerHTML">
+  <form hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}" hx-select="unset" hx-select-oob="unset" hx-target="#lesson-header" hx-swap="innerHTML">
     {% csrf_token %}
     <input type="hidden" name="is_graded" value="{% if lesson.is_graded %}0{% else %}1{% endif %}">
     <button class="btn {% if lesson.is_graded %}btn--quiet{% endif %}" type="submit">

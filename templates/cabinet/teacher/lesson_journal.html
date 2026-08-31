@@ -2,6 +2,10 @@
 {% block cabinet_title %}Журнал занятия{% endblock %}
 
 {% block content %}
+<p class="small muted" style="margin-bottom:8px">
+  <a href="{% url 'cabinet:schedule' %}">← Расписание</a>
+</p>
+
 <div id="lesson-header">
   {% include "cabinet/teacher/partials/lesson_header.html" %}
 </div>
@@ -19,19 +23,17 @@
 {% if grade_item %}
   {% include "cabinet/teacher/partials/journal_body.html" %}
   <p class="small muted" style="margin-top:12px">
-    Баллы сохраняются сами. Если пропадёт сеть, введённое останется на устройстве
+    Балл ставится кругом: нажмите на отметку у фамилии и ведите пальцем.
+    Сохраняется само. Если пропадёт сеть, введённое останется на устройстве
     и уйдёт на сервер, когда связь вернётся.
   </p>
 {% else %}
   <div class="empty-state" style="margin-top:16px">
     <p class="empty-state__title">Это занятие идёт без оценивания</p>
-    <p>Отметьте его как оцениваемое — тогда появится таблица баллов.
+    <p>Отметьте его как оцениваемое — тогда появится список учеников с баллами.
        Баллы за поведение не начисляются: только за работу.</p>
   </div>
 {% endif %}
-{% endblock %}
 
-{% block cabinet_scripts %}
-<script src="{% static 'js/lesson_meta.js' %}" defer></script>
-<script src="{% static 'js/journal.js' %}" defer></script>
+{% include "cabinet/teacher/partials/grade_dial.html" %}
 {% endblock %}

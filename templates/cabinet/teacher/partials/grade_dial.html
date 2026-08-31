@@ -1,0 +1,59 @@
+{% comment %}
+  Панель выставления балла.
+
+  Одна на страницу: открывается по касанию отметки в строке и наполняется
+  данными той строки. Балл — крупной цифрой, шкала — полукругом, который
+  тянут пальцем; на каждом делении телефон коротко вздрагивает, чтобы
+  шкалу можно было отмерить, не глядя.
+
+  Кнопки «−/+», «0» и «максимум» рядом не для красоты: полукруг хорош,
+  когда балл прикидывают, и плох, когда нужен ровно один конкретный.
+{% endcomment %}
+<div class="dial" id="grade-dial" hidden aria-hidden="true">
+  <div class="dial__backdrop" data-dial-close></div>
+  <div class="dial__sheet" role="dialog" aria-modal="true" aria-labelledby="dial-name">
+    <div class="dial__head">
+      <button class="dial__nav" type="button" data-dial-prev aria-label="Предыдущий ученик">‹</button>
+      <div class="dial__who">
+        <p class="dial__name" id="dial-name"></p>
+        <p class="dial__sub small muted"></p>
+      </div>
+      <button class="dial__nav" type="button" data-dial-next aria-label="Следующий ученик">›</button>
+    </div>
+
+    <div class="dial__gauge" data-dial-gauge
+         role="slider" tabindex="0" aria-label="Балл"
+         aria-valuemin="0" aria-valuenow="0" aria-valuemax="0">
+      <svg viewBox="0 0 280 172" aria-hidden="true">
+        <path class="dial__track" d="M22 150 A118 118 0 0 1 258 150" />
+        <path class="dial__fill" data-dial-fill d="M22 150 A118 118 0 0 1 258 150" />
+        <circle class="dial__knob" data-dial-knob cx="22" cy="150" r="13" />
+      </svg>
+      <div class="dial__readout">
+        <span class="dial__value" data-dial-value>—</span>
+        <span class="dial__max small muted">из <span data-dial-max></span></span>
+      </div>
+    </div>
+
+    <div class="dial__quick">
+      <button class="btn btn--quiet" type="button" data-dial-step="-1" aria-label="Меньше">−</button>
+      <button class="btn btn--quiet" type="button" data-dial-set="0">0</button>
+      <button class="btn btn--quiet" type="button" data-dial-set="half">половина</button>
+      <button class="btn btn--quiet" type="button" data-dial-set="max">максимум</button>
+      <button class="btn btn--quiet" type="button" data-dial-step="1" aria-label="Больше">+</button>
+    </div>
+
+    <label class="field dial__comment">
+      <span class="field__label">Комментарий — не обязательно</span>
+      <input class="input" type="text" data-dial-comment maxlength="200"
+             placeholder="Например: помогал соседу разобраться">
+    </label>
+
+    <div class="dial__actions">
+      <button class="btn btn--quiet" type="button" data-dial-clear>Убрать балл</button>
+      <button class="btn btn--quiet" type="button" data-dial-close>Отмена</button>
+      <button class="btn" type="button" data-dial-save>Готово</button>
+      <button class="btn" type="button" data-dial-next-save>Дальше →</button>
+    </div>
+  </div>
+</div>

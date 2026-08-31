@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from pathlib import Path
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -18,6 +19,7 @@ from django.utils import timezone
 from apps.core.fields import EncryptedCharField, EncryptedDateField
 from apps.core.managers import AllObjectsManager, TenantManager
 from apps.core.models import SoftDeleteTenantModel, TenantModel
+from apps.core.storage import private_storage
 
 POINTS = {"max_digits": 5, "decimal_places": 2}  # Decimal, никогда float (ТЗ 9.1)
 
@@ -478,6 +480,12 @@ class Lesson(TenantModel):
         return timezone.localtime(self.starts_at).date()
 
 
+def homework_photo_path(instance, filename: str) -> str:
+    """Путь внутри закрытого хранилища: организация, занятие, расширение."""
+    suffix = Path(filename).suffix.lower()[:8] or ".jpg"
+    return f"homework/{instance.organization_id}/{instance.lesson_id}{suffix}"
+
+
 class Homework(TenantModel):
     """
     Домашнее задание к занятию.
@@ -504,6 +512,13 @@ class Homework(TenantModel):
         Lesson, on_delete=models.CASCADE, related_name="homework", verbose_name="занятие"
     )
     text = models.TextField("задание")
+    # Лист с задачами проще сфотографировать, чем переписать. Файл лежит
+    # в закрытом хранилище и отдаётся вью с проверкой прав: на снимке
+    # страницы бывает и фамилия, и почерк ребёнка.
+    photo = models.ImageField(
+        "фото листа с задачами", upload_to=homework_photo_path,
+        storage=private_storage, null=True, blank=True,
+    )
     due_date = models.DateField("сдать до", null=True, blank=True)
     grade_item = models.OneToOneField(
         "GradeItem", on_delete=models.SET_NULL, null=True, blank=True,
@@ -533,6 +548,42 @@ class Homework(TenantModel):
         from django.utils import timezone
 
         return bool(self.due_date and self.due_date < timezone.localdate())
+
+
+class HomeworkMark(TenantModel):
+    """
+    Отметка ученика «сделал».
+
+    Не оценка и не подтверждение: ребёнок отмечает сам, педагог видит
+    список отметившихся. Смысл в том, чтобы задание перестало висеть
+    в кабинете, а педагог перед занятием знал, сколько человек к нему
+    готовились, — а не в том, чтобы поймать на неправде.
+
+    Отметка есть — значит, строка есть; сняли отметку — строку убрали.
+    Мягкое удаление здесь только мешало бы: снятую отметку нельзя было бы
+    поставить снова, а передумать ребёнок имеет полное право.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    homework = models.ForeignKey(
+        Homework, on_delete=models.CASCADE, related_name="marks", verbose_name="задание"
+    )
+    student = models.ForeignKey(
+        Student, on_delete=models.CASCADE, related_name="homework_marks", verbose_name="ученик"
+    )
+
+    class Meta:
+        verbose_name = "отметка о выполнении"
+        verbose_name_plural = "отметки о выполнении"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["homework", "student"], name="uniq_homework_mark_per_student"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.student} сделал {self.homework_id}"
 
 
 class GradeItemKind(models.TextChoices):

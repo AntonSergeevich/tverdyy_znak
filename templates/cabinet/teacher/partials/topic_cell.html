@@ -1,3 +1,5 @@
-{% if lesson.is_graded %}<span class="level level--elevated">с баллами</span>
-{% else %}<span class="level level--base">без баллов</span>{% endif %}
-{% if saved %}<span class="small state--saved"> · тема сохранена</span>{% endif %}
+{% comment %}
+  Ответ на сохранение темы из тематического планирования: одна отметка.
+  Строку целиком подменять нельзя — поле уехало бы вместе с курсором.
+{% endcomment %}
+<span class="state--saved">сохранено</span>

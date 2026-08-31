@@ -18,7 +18,7 @@
           <td class="muted">{{ item.due_date|date:"d.m.Y"|default:"—" }}</td>
           <td><strong>{{ item.max_points|points }}</strong></td>
           <td>
-            <form hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+            <form hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}" hx-select="unset" hx-select-oob="unset"
                   hx-target="#plan-items" hx-swap="innerHTML">
               {% csrf_token %}
               <input type="hidden" name="action" value="delete_item">
@@ -36,7 +36,7 @@
     <p class="empty-state__title">Структура модуля ещё не задана</p>
     <p>Можно разложить 100 баллов по умолчанию: зачёт 25, две проверочные по 10,
        контрольная 15 и 40 баллов по занятиям с оцениванием.</p>
-    <form hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+    <form hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}" hx-select="unset" hx-select-oob="unset"
           hx-target="#plan-items" hx-swap="innerHTML" style="margin-top:16px">
       {% csrf_token %}
       <input type="hidden" name="action" value="default_structure">
@@ -46,7 +46,7 @@
 {% endif %}
 
 <form class="grid grid--tight" style="margin-top:20px;align-items:flex-end"
-      hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
+      hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}" hx-select="unset" hx-select-oob="unset"
       hx-target="#plan-items" hx-swap="innerHTML">
   {% csrf_token %}
   <input type="hidden" name="action" value="add_item">

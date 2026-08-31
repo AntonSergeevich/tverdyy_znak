@@ -1,7 +1,11 @@
 {% comment %}
-  Тема занятия прямо в журнале. Сохраняется на лету, через полсекунды
-  после того, как педагог перестал печатать: тему дописывают между делом,
-  и кнопка «сохранить» здесь только повод забыть на неё нажать.
+  Тема занятия прямо в журнале. Это то же поле, что и в тематическом
+  планировании модуля: тема, вписанная там, подтягивается сюда, а
+  исправленная здесь — уходит туда. Двух разных тем у занятия не бывает.
+
+  Сохраняется на лету, через полсекунды после того, как педагог перестал
+  печатать: тему дописывают между делом, и кнопка «сохранить» здесь только
+  повод забыть на неё нажать.
 
   Само поле при этом не подменяется — меняется одна отметка «сохранено».
   Подменить поле значит оборвать набор на полуслове: теряется курсор, а
@@ -19,8 +23,30 @@
     </span>
     <input class="input" type="text" name="topic" maxlength="250"
            value="{{ lesson.topic }}" autocomplete="off"
+           {% if recent_topics %}list="topic-suggestions"{% endif %}
            placeholder="О чём было занятие">
   </label>
+
+  {% if recent_topics %}
+    <datalist id="topic-suggestions">
+      {% for topic in recent_topics %}<option value="{{ topic }}"></option>{% endfor %}
+    </datalist>
+  {% endif %}
+
+  {% if previous_lesson.topic %}
+    {% comment %}
+      Тема прошлого занятия — обычно продолжение той же главы. Не подставляем
+      молча: подставленное молча приходится вычитывать, а это дольше.
+    {% endcomment %}
+    <p class="field__hint">
+      В прошлый раз ({{ previous_lesson.starts_at|date:"d.m" }}):
+      <button class="link-btn" type="button"
+              data-fill="topic" data-fill-value="{{ previous_lesson.topic }}">
+        {{ previous_lesson.topic }}
+      </button>
+    </p>
+  {% endif %}
+
   {# Без скриптов тему сохраняет обычная кнопка. #}
   <noscript><button class="btn btn--quiet" type="submit">Сохранить тему</button></noscript>
 </form>

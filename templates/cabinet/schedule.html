@@ -27,15 +27,25 @@
                 Блоки дня — обед, утренний круг, рефлексия — приглушены:
                 они занимают место в сетке, но глаз должен находить занятия.
               {% endcomment %}
-              <li class="week__lesson{% if not lesson.subject.is_graded %} week__lesson--quiet{% endif %}">
-                <span class="numeral week__time">{{ lesson.starts_at|time:"H:i" }}</span>
-                <span class="week__what">
-                  <span class="week__subject">{{ lesson.subject.name }}</span>
-                  <span class="muted">
-                    {{ lesson.group.name }}{% if lesson.room %} · {{ lesson.room }}{% endif %}{% if lesson.teacher %} · {{ lesson.teacher.short_name }}{% endif %}
+              {% comment %}
+                Занятие открывается в журнал одним касанием — там тема, баллы
+                и домашнее задание. Ссылкой становится вся строка, а не
+                значок сбоку: на телефоне попасть в значок труднее, чем
+                промахнуться мимо него.
+              {% endcomment %}
+              <li>
+                <{% if lesson.can_open %}a href="{% url 'cabinet:lesson_journal' lesson.pk %}"{% else %}div{% endif %}
+                   class="week__lesson{% if not lesson.subject.is_graded %} week__lesson--quiet{% endif %}{% if lesson.can_open %} week__lesson--open{% endif %}">
+                  <span class="numeral week__time">{{ lesson.starts_at|time:"H:i" }}</span>
+                  <span class="week__what">
+                    <span class="week__subject">{{ lesson.subject.name }}</span>
+                    <span class="muted">
+                      {{ lesson.group.name }}{% if lesson.room %} · {{ lesson.room }}{% endif %}{% if lesson.teacher %} · {{ lesson.teacher.short_name }}{% endif %}
+                    </span>
+                    {% if lesson.topic %}<span class="muted">{{ lesson.topic }}</span>{% endif %}
                   </span>
-                  {% if lesson.topic %}<span class="muted">{{ lesson.topic }}</span>{% endif %}
-                </span>
+                  {% if lesson.can_open %}<span class="week__go" aria-hidden="true">›</span>{% endif %}
+                </{% if lesson.can_open %}a{% else %}div{% endif %}>
               </li>
             {% endfor %}
           </ul>

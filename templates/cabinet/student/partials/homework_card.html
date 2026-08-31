@@ -1,0 +1,37 @@
+{% load journal_extras public_extras %}
+{% comment %}
+  Карточка задания в кабинете ученика.
+
+  Отметка «сделал» ставится и снимается самим учеником. Это не заявка на
+  проверку и не обещание: задание перестаёт мозолить глаза, а педагог перед
+  занятием видит, сколько человек к нему готовились. Передумать можно тем же
+  касанием — поэтому и «убрать отметку» рядом, а не спрятано.
+{% endcomment %}
+<div class="card homework-card{% if item.is_overdue and not item.done %} homework-card--late{% endif %}{% if item.done %} homework-card--done{% endif %}"
+     id="homework-{{ item.pk }}">
+  <p class="small muted">
+    {{ item.lesson.subject.name }} · задано {{ item.lesson.starts_at|date:"d.m" }}
+    {% if item.due_date %} · сдать до {{ item.due_date|date:"d.m.Y" }}{% endif %}
+    {% if item.grade_item %} · на {{ item.grade_item.max_points|points }}
+      {{ item.grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
+  </p>
+  <p style="margin-top:6px">{{ item.text|linebreaksbr }}</p>
+
+  {% if item.photo %}
+    <a class="homework-photo__thumb" style="margin-top:10px"
+       href="{% url 'cabinet:homework_photo' item.lesson.pk %}" target="_blank" rel="noopener">
+      <img src="{% url 'cabinet:homework_photo' item.lesson.pk %}" alt="Фото листа с задачами">
+    </a>
+  {% endif %}
+
+  <form style="margin-top:10px"
+        hx-post="{% url 'cabinet:homework_mark' item.pk %}"
+        hx-select="unset" hx-select-oob="unset"
+        hx-target="#homework-{{ item.pk }}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="done" value="{% if item.done %}0{% else %}1{% endif %}">
+    <button class="btn {% if item.done %}btn--quiet{% endif %}" type="submit">
+      {% if item.done %}✓ Сделано — убрать отметку{% else %}Сделал{% endif %}
+    </button>
+  </form>
+</div>

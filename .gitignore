@@ -18,6 +18,8 @@ htmlcov/
 
 # Django
 /media/
+# Файлы с персональными данными — в репозитории им места нет.
+/private-media/
 /staticfiles/
 db.sqlite3
 *.log

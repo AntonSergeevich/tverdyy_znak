@@ -1,32 +1,45 @@
 {% load journal_extras %}
-<div class="journal-row" data-student="{{ row.student.pk }}" id="row-{{ row.student.pk }}">
+{% comment %}
+  Строка ученика в журнале занятия.
+
+  Балл ставится не с клавиатуры, а полукруглым ползунком: педагог ведёт
+  занятие с телефона в руке, и выехавшая клавиатура закрывает пол-списка.
+  Поэтому в строке — только имя и крупная отметка; сама шкала и
+  комментарий живут в панели, которая открывается по касанию.
+
+  Поля при этом остаются обычными полями формы, просто скрытыми: их
+  отправляет htmx, из них же журнал восстанавливает несохранённое после
+  обрыва сети. Панель только вписывает в них значение.
+{% endcomment %}
+<div class="journal-row" data-student="{{ row.student.pk }}" id="row-{{ row.student.pk }}"
+     data-name="{{ row.student.short_name }}"
+     data-max="{{ grade_item.max_points|machine_number }}">
   <span class="journal-row__name">{{ row.student.short_name }}</span>
 
-  <label class="journal-row__points">
-    <span class="small muted">Балл из {{ grade_item.max_points|points }}</span>
-    <input class="input" type="text" inputmode="decimal" name="points"
-           value="{% if row.grade %}{{ row.grade.points|points }}{% endif %}"
-           aria-label="Балл для {{ row.student.short_name }}"
-           hx-post="{% url 'cabinet:grade_save' lesson.pk %}"
-           hx-trigger="change, resend"
-           hx-target="#row-{{ row.student.pk }}"
-           hx-swap="outerHTML"
-           hx-include="closest .journal-row"
-           data-resend>
-  </label>
+  <button class="grade-chip{% if row.grade and row.grade.points is not None %} grade-chip--set{% endif %}"
+          type="button" data-dial-open
+          aria-label="Балл для {{ row.student.short_name }}, из {{ grade_item.max_points|points }}">
+    <span class="grade-chip__value" data-chip-value>{% if row.grade %}{{ row.grade.points|points }}{% else %}—{% endif %}</span>
+    <span class="grade-chip__max">из {{ grade_item.max_points|points }}</span>
+  </button>
 
-  <label class="journal-row__comment">
-    <span class="small muted">Комментарий</span>
-    <input class="input" type="text" name="comment" value="{{ row.grade.comment|default:'' }}"
-           aria-label="Комментарий для {{ row.student.short_name }}"
-           hx-post="{% url 'cabinet:grade_save' lesson.pk %}"
-           hx-trigger="change"
-           hx-target="#row-{{ row.student.pk }}"
-           hx-swap="outerHTML"
-           hx-include="closest .journal-row">
-  </label>
-
+  <input type="hidden" name="points" data-points
+         value="{% if row.grade %}{{ row.grade.points|machine_number }}{% endif %}"
+         hx-post="{% url 'cabinet:grade_save' lesson.pk %}"
+         hx-select="unset" hx-select-oob="unset"
+         hx-trigger="change, resend"
+         hx-target="#row-{{ row.student.pk }}"
+         hx-swap="outerHTML"
+         hx-include="closest .journal-row"
+         data-resend>
+  <input type="hidden" name="comment" data-comment value="{{ row.grade.comment|default:'' }}">
   <input type="hidden" name="student" value="{{ row.student.pk }}">
+
+  {% if row.grade.comment %}
+    <span class="journal-row__note" data-note>{{ row.grade.comment }}</span>
+  {% else %}
+    <span class="journal-row__note" data-note hidden></span>
+  {% endif %}
 
   <span class="journal-row__state {% if error %}state--error{% elif saved %}state--saved{% else %}state--pending{% endif %}" data-state>
     {% if error %}{{ error }}{% elif saved %}сохранено{% elif row.grade %}{{ row.grade.graded_at|date:"d.m H:i" }}{% else %}—{% endif %}

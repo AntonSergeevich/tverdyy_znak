@@ -6,14 +6,13 @@
   Баллы необязательны: задают домашнее почти каждый раз, а на оценку идёт
   малая часть. Если баллы поставлены, задание попадает в те же сто баллов
   модуля, что и всё остальное.
-{% endcomment %}
-{% comment %}
+
   hx-boost="false" обязателен: кабинет перехватывает отправку любых форм и
   подменяет ими середину страницы. Эту форму он бы перехватил раньше
   нашего кода — и вместо обновления блока страница уехала бы на адрес
   сохранения. Та же ловушка, что была с кнопкой «Выйти».
 {% endcomment %}
-<form class="lesson-field" hx-boost="false"
+<form class="lesson-field" hx-boost="false" enctype="multipart/form-data"
       method="post" action="{% url 'cabinet:lesson_homework_save' lesson.pk %}"
       data-homework-form>
   {% csrf_token %}
@@ -28,7 +27,46 @@
               placeholder="Например: §12, задачи 3–7 письменно">{% if error %}{{ draft.text }}{% elif homework %}{{ homework.text }}{% endif %}</textarea>
   </label>
 
+  {% if previous_homework %}
+    {% comment %}
+      «Как в прошлый раз» — не копия ради копии: вид задания у одного
+      педагога держится неделями, меняются номера. Подставляем текст,
+      номера педагог поправит.
+    {% endcomment %}
+    <p class="field__hint">
+      В прошлый раз ({{ previous_homework.lesson.starts_at|date:"d.m" }}):
+      <button class="link-btn" type="button"
+              data-fill="text" data-fill-value="{{ previous_homework.text }}">
+        {{ previous_homework.text|truncatechars:70 }}
+      </button>
+    </p>
+  {% endif %}
+
   {% if error %}<p class="field__error" role="alert">{{ error }}</p>{% endif %}
+
+  {% comment %}
+    Фото листа с задачами. Сфотографировать страницу быстрее, чем её
+    переписать, — но текст всё равно нужен: по одной картинке задание
+    не найти в списке и не прочитать вслух. Файл лежит в закрытом
+    хранилище и открывается только тем, кому доступно занятие.
+  {% endcomment %}
+  <div class="homework-photo">
+    {% if homework.photo %}
+      <a class="homework-photo__thumb" href="{% url 'cabinet:homework_photo' lesson.pk %}" target="_blank" rel="noopener">
+        <img src="{% url 'cabinet:homework_photo' lesson.pk %}" alt="Фото листа с задачами">
+      </a>
+      <label class="checkbox small">
+        <input type="checkbox" name="drop_photo" value="1"> Убрать фото
+      </label>
+    {% endif %}
+    <label class="field" style="margin:0">
+      <span class="field__label">
+        {% if homework.photo %}Заменить фото листа{% else %}Фото листа с задачами — если проще снять, чем переписать{% endif %}
+      </span>
+      {# capture="environment" открывает на телефоне сразу камеру. #}
+      <input class="input" type="file" name="photo" accept="image/*" capture="environment">
+    </label>
+  </div>
 
   <div class="lesson-field__row">
     <label class="field" style="margin:0">
@@ -40,10 +78,20 @@
       <span class="field__label">Баллы</span>
       <input class="input" type="number" name="max_points" min="0" step="0.5"
              inputmode="decimal" placeholder="без оценки"
-             value="{% if error %}{{ draft.max_points }}{% elif homework.grade_item %}{{ homework.grade_item.max_points|points }}{% endif %}">
+             value="{% if error %}{{ draft.max_points }}{% elif homework.grade_item %}{{ homework.grade_item.max_points|machine_number }}{% endif %}">
     </label>
     <button class="btn" type="submit">Сохранить</button>
   </div>
+
+  {% if homework %}
+    {% with done=homework.marks.count %}
+      <p class="field__hint">
+        {% if done %}Отметили «сделал»: {{ done }}
+          {{ done|plural:"ученик,ученика,учеников" }}.
+        {% else %}Пока никто не отметил, что сделал.{% endif %}
+      </p>
+    {% endwith %}
+  {% endif %}
 
   <p class="field__hint">
     {% if homework.grade_item %}

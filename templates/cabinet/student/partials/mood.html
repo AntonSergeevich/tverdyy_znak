@@ -1,4 +1,4 @@
-<form class="stack" hx-post="{% url 'cabinet:mood_save' %}" hx-target="#mood-block" hx-swap="innerHTML">
+<form class="stack" hx-post="{% url 'cabinet:mood_save' %}" hx-select="unset" hx-select-oob="unset" hx-target="#mood-block" hx-swap="innerHTML">
   {% csrf_token %}
   <input type="hidden" name="day" value="today">
   <div class="mood-scale">
@@ -12,7 +12,7 @@
 
 {% if not yesterday_mood %}
   {# Пропуск двух дней подряд убивает практику, поэтому вчерашний день можно отметить задним числом. #}
-  <form class="stack" style="margin-top:12px" hx-post="{% url 'cabinet:mood_save' %}" hx-target="#mood-block" hx-swap="innerHTML">
+  <form class="stack" style="margin-top:12px" hx-post="{% url 'cabinet:mood_save' %}" hx-select="unset" hx-select-oob="unset" hx-target="#mood-block" hx-swap="innerHTML">
     {% csrf_token %}
     <input type="hidden" name="day" value="yesterday">
     <span class="small muted">Вчера ({{ yesterday|date:"d.m" }}) не отмечено — можно поставить сейчас, штрафов за пропуск нет:</span>
