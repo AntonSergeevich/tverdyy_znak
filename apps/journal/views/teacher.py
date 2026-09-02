@@ -170,6 +170,20 @@ def lesson_journal(request, lesson_id):
 
 
 @login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+def rules(request):
+    """
+    Регламент оценивания — шпаргалка под рукой.
+
+    Не пересказ своими словами: тот же утверждённый документ, разложенный
+    так, чтобы в него можно было заглянуть между занятиями. Места, где сам
+    регламент говорит по-разному, отмечены прямо — педагог должен знать,
+    где спросить, а не выбирать наугад.
+    """
+    return render(request, "cabinet/teacher/rules.html", {})
+
+
+@login_required
 def homework_photo(request, lesson_id):
     """
     Фото листа с задачами.

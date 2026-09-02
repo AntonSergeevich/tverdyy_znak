@@ -102,7 +102,7 @@ def test_parent_sees_the_grade(client, tenant_a, graded_lesson):
     assert "Разобрал тему" in body
     # Уровень выводится и цветом, и текстом — доступность (ТЗ 5.1, 9.3).
     assert "level level--failed" in body
-    assert "незачёт" in body
+    assert "требуется поддержка" in body
 
 
 def test_module_plan_blocks_over_limit(client, tenant_a):

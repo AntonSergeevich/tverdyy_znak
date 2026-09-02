@@ -40,6 +40,7 @@ urlpatterns = [
     ),
 
     # Календарно-тематическое планирование: приходит файлом, разбирается здесь
+    path("pedagog/reglament/", teacher.rules, name="rules"),
     path("pedagog/ktp/", ktp.plan_list, name="ktp_list"),
     path("pedagog/ktp/zagruzit/", ktp.plan_upload, name="ktp_upload"),
     path("pedagog/ktp/<uuid:plan_id>/", ktp.plan_detail, name="ktp_detail"),
@@ -106,6 +107,7 @@ urlpatterns = [
     path("sotrudniki/", people.staff, name="staff"),
     path("sotrudniki/dobavit/", people.staff_create, name="staff_create"),
     path("sotrudniki/<uuid:user_id>/", people.staff_card, name="staff_card"),
+    path("sotrudniki/<uuid:user_id>/svesti/", people.staff_merge, name="staff_merge"),
     path("sotrudniki/<uuid:user_id>/ubrat/", people.staff_remove, name="staff_remove"),
 
     # Пароль показывается отдельной страницей после перехода: ответом

@@ -1404,3 +1404,23 @@ body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { pos
 @media (max-width: 860px) {
   .progress-row { grid-template-columns: 1fr; }
 }
+
+/* Выбранный спутник отмечен и цветом, и галочкой: одного оттенка рамки
+   мало, чтобы понять, что выбор состоялся. */
+.hero-picker__item { position: relative; }
+.hero-picker__item.is-current {
+  color: var(--ink); border-color: var(--accent); background: var(--mark);
+}
+.hero-picker__mark {
+  position: absolute; top: 2px; right: 4px; font-size: 12px; color: var(--accent-2);
+}
+
+/* Архив достигнутых целей: свёрнут, пока есть активные. */
+.goal-archive { margin-top: 20px; }
+.goal-archive > summary { cursor: pointer; color: var(--ink-3); font-size: 14px; }
+.goal--done { opacity: .8; border-left: 3px solid var(--ok); }
+
+/* Шпаргалка по регламенту: списки читаются, а не сливаются. */
+.rules-list { margin: 8px 0 0; padding-left: 22px; max-width: 78ch; }
+.rules-list li { margin-bottom: 6px; line-height: 1.45; }
+.rules-list--no li::marker { color: var(--accent-2); }

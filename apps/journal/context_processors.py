@@ -40,6 +40,7 @@ def cabinet_menu(request) -> dict:
             # педагога владельцем было попросту негде.
             _item("staff", "Сотрудники", "staff_create", "staff_card", "staff_remove"),
             _item("progress_list", "Прогресс", "progress_student"),
+            _item("rules", "Регламент"),
             _item("subjects", "Предметы", "subject_create", "subject_edit", "subject_delete"),
             _item("schedule_builder", "Расписание"),
             _item("ktp_list", "КТП", "ktp_detail"),
@@ -66,6 +67,7 @@ def cabinet_menu(request) -> dict:
                 _item("ktp_list", "КТП", "ktp_detail"),
                 _item("progress_list", "Прогресс", "progress_student"),
                 _item("teacher_hours", "Мои часы"),
+                _item("rules", "Регламент"),
             ]
         }
     if user.has_role(organization, Role.PARENT):

@@ -112,7 +112,19 @@
     </div>
     <div style="margin-top:16px">
       <span class="field__label">Предметы</span>
-      <div class="checkbox-grid">{{ teacher_form.subjects }}</div>
+      {% if teacher_form.fields.subjects.queryset %}
+        <div class="checkbox-grid">{{ teacher_form.subjects }}</div>
+      {% else %}
+        {% comment %}
+          Пустой список выглядит как отнятые права, хотя дело в другом:
+          предметы года просто не заведены. Говорим об этом прямо и даём
+          ссылку туда, где их заводят.
+        {% endcomment %}
+        <p class="small muted">
+          Предметов в учебном году пока нет — отмечать нечего.
+          <a href="{% url 'cabinet:subjects' %}">Завести предметы</a>.
+        </p>
+      {% endif %}
     </div>
   </fieldset>
 
@@ -123,4 +135,35 @@
     {% endif %}
   </div>
 </form>
+
+{% if twin %}
+  {% comment %}
+    Один и тот же педагог, заведённый дважды, показывается на сайте дважды,
+    а его занятия разъезжаются по двум карточкам. Сводим: занятия, отзывы и
+    предметы переезжают сюда, вторая запись убирается.
+
+    Право только у владельца: действие необратимое, а за занятиями стоят
+    баллы детей.
+  {% endcomment %}
+  <div class="card" style="margin-top:24px;border-left:3px solid var(--warn)">
+    <p class="card__title">Похоже, этот человек заведён дважды</p>
+    <p class="small muted">
+      В центре есть ещё одна запись: <strong>{{ twin.full_name }}</strong>.
+      Если это тот же педагог, записи лучше свести — занятия, отзывы и предметы
+      переедут в эту карточку, а вторая исчезнет вместе с сайтом. Занятия при
+      этом не теряются: за ними стоят баллы детей.
+    </p>
+    {% if may_merge %}
+      <form method="post" action="{% url 'cabinet:staff_merge' person.pk %}" hx-boost="false"
+            style="margin-top:12px"
+            onsubmit="return confirm('Свести записи? Это необратимо.')">
+        {% csrf_token %}
+        <input type="hidden" name="twin" value="{{ twin.pk }}">
+        <button class="btn" type="submit">Свести записи</button>
+      </form>
+    {% else %}
+      <p class="small muted" style="margin-top:8px">Свести записи может владелец.</p>
+    {% endif %}
+  </div>
+{% endif %}
 {% endblock %}

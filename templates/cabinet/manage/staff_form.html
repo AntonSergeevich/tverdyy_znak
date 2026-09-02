@@ -14,6 +14,23 @@
   потом, в карточке человека.
 </p>
 
+{% if twin %}
+  {% comment %}
+    Такой человек в организации уже есть. Молча завести второго — значит
+    показать его на сайте дважды и разложить занятия по двум карточкам,
+    а потом гадать, в какой из них баллы. Поэтому спрашиваем.
+  {% endcomment %}
+  <div class="message message--error" style="margin-bottom:16px">
+    <p><strong>{{ twin.full_name }}</strong> в центре уже есть.</p>
+    <p class="small">
+      Если это тот же человек — не заводите второго: откройте
+      <a href="{% url 'cabinet:staff_card' twin.pk %}">его карточку</a> и
+      поправьте там что нужно, там же выдаётся доступ. Если это однофамилец,
+      нажмите «Всё равно завести».
+    </p>
+  </div>
+{% endif %}
+
 <form method="post" class="form form--wide" enctype="multipart/form-data">{% csrf_token %}
   {% if form.non_field_errors %}
     <div class="message message--error">{{ form.non_field_errors }}</div>
@@ -58,6 +75,7 @@
     </div>
   </details>
 
-  <div class="btn-row"><button class="btn" type="submit">Создать и выдать доступ</button></div>
+  <div class="btn-row">{% if twin %}<input type="hidden" name="confirm_twin" value="1">{% endif %}
+    <button class="btn" type="submit">{% if twin %}Всё равно завести{% else %}Создать и выдать доступ{% endif %}</button></div>
 </form>
 {% endblock %}

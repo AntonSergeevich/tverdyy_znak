@@ -43,26 +43,6 @@
   её на шаги и отмечайте их по одному. Спутник пойдёт по дорожке вместе с вами.
 </p>
 
-{% comment %}
-  Выбор спутника. Мелочь, но выбранное своей рукой держится дольше
-  навязанного, а на пути к цели держаться — главное.
-{% endcomment %}
-<form class="hero-picker"
-      hx-post="{% url 'cabinet:hero_choose' %}"
-      hx-select="unset" hx-select-oob="unset"
-      hx-target="#goals-block" hx-swap="innerHTML">
-  {% csrf_token %}
-  <span class="small muted">Спутник:</span>
-  {% for value, label in heroes %}
-    <button class="hero-picker__item{% if student.hero == value %} is-current{% endif %}"
-            type="submit" name="hero" value="{{ value }}" title="{{ label }}"
-            aria-pressed="{% if student.hero == value %}true{% else %}false{% endif %}">
-      <svg viewBox="0 0 56 56" aria-hidden="true"><use href="#hero-{{ value }}"></use></svg>
-      <span class="small">{{ label }}</span>
-    </button>
-  {% endfor %}
-</form>
-
 <div id="goals-block">{% include "cabinet/student/partials/goals.html" %}</div>
 
 <form class="grid grid--tight" style="margin-top:16px;align-items:flex-end"

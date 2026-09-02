@@ -412,11 +412,13 @@ class GradingScale(TenantModel):
     """
     Пороги уровней (ТЗ 3.4).
 
-    В исходных материалах порог 60 описан противоречиво — и как незачёт,
-    и как начало базового уровня. Поэтому пороги лежат в БД и правятся
-    владельцем без разработчика. Здесь принято: 60 включительно — базовый
-    уровень, незачёт — строго меньше 60.
-    # TODO(вопрос): подтвердить у заказчика фактические пороги.
+    Значения по умолчанию взяты из утверждённого регламента оценивания
+    центра: 85 и выше — высокий, 70 — продвинутый, 50 — базовый, ниже
+    пятидесяти — требуется поддержка. Меньше 50 означает обязательную
+    пересдачу зачёта и/или контрольной.
+
+    Пороги всё равно лежат в базе, а не в коде: год другой — правила могут
+    быть другими, и менять их должен владелец, а не разработчик.
     """
 
     name = models.CharField("название", max_length=80, default="Основная шкала")
@@ -426,10 +428,12 @@ class GradingScale(TenantModel):
     )
     is_default = models.BooleanField("по умолчанию", default=True)
     module_max_points = models.DecimalField("максимум за модуль", default=Decimal("100.00"), **POINTS)
-    pass_from = models.DecimalField("зачёт от", default=Decimal("60.00"), **POINTS)
-    base_from = models.DecimalField("базовый уровень от", default=Decimal("60.00"), **POINTS)
-    elevated_from = models.DecimalField("повышенный уровень от", default=Decimal("70.00"), **POINTS)
-    advanced_from = models.DecimalField("продвинутый уровень от", default=Decimal("80.00"), **POINTS)
+    # Пороги по регламенту центра: 85 — высокий, 70 — продвинутый,
+    # 50 — базовый, ниже — требуется поддержка.
+    pass_from = models.DecimalField("зачёт от", default=Decimal("50.00"), **POINTS)
+    base_from = models.DecimalField("базовый уровень от", default=Decimal("50.00"), **POINTS)
+    elevated_from = models.DecimalField("продвинутый уровень от", default=Decimal("70.00"), **POINTS)
+    advanced_from = models.DecimalField("высокий уровень от", default=Decimal("85.00"), **POINTS)
 
     class Meta:
         verbose_name = "шкала оценивания"
@@ -458,10 +462,18 @@ class GradingScale(TenantModel):
 
 
 class Level(models.TextChoices):
-    FAILED = "failed", "незачёт"
-    BASE = "base", "базовый уровень"
-    ELEVATED = "elevated", "повышенный уровень"
-    ADVANCED = "advanced", "продвинутый уровень"
+    """
+    Уровни освоения по регламенту центра.
+
+    Названия взяты из утверждённого документа дословно: «незачёт» и
+    «повышенный» были нашими словами, и педагог, сверяясь с регламентом,
+    каждый раз переводил одно в другое.
+    """
+
+    FAILED = "failed", "требуется поддержка"
+    BASE = "base", "базовый"
+    ELEVATED = "elevated", "продвинутый"
+    ADVANCED = "advanced", "высокий"
 
 
 class Lesson(TenantModel):
@@ -717,9 +729,12 @@ class GradeItemKind(models.TextChoices):
 # Структура распределения 100 баллов по умолчанию (ТЗ 3.4).
 DEFAULT_STRUCTURE = {
     GradeItemKind.CREDIT: {"count": 1, "max_points": Decimal("25.00")},
-    GradeItemKind.QUIZ: {"count": 2, "max_points": Decimal("10.00")},
     GradeItemKind.TEST: {"count": 1, "max_points": Decimal("15.00")},
-    GradeItemKind.LESSON: {"count": 8, "max_points": Decimal("5.00")},
+    GradeItemKind.QUIZ: {"count": 2, "max_points": Decimal("10.00")},
+    # Самоподготовка — 15 на модуль, не больше 5 за одну работу: три места.
+    GradeItemKind.HOMEWORK: {"count": 3, "max_points": Decimal("5.00")},
+    # Работа на уроке — 25 на модуль, по 5 за урок: пять мест.
+    GradeItemKind.LESSON: {"count": 5, "max_points": Decimal("5.00")},
 }
 
 

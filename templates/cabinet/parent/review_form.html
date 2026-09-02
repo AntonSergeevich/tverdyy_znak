@@ -16,7 +16,7 @@
 
 <form method="post" class="form">{% csrf_token %}
   <fieldset class="fieldset">
-    <legend>Оценка</legend>
+    <legend>Оценка уроков</legend>
     <div class="rating">{{ form.rating }}</div>
     {% if form.rating.errors %}<span class="field__error">{{ form.rating.errors.0 }}</span>{% endif %}
   </fieldset>

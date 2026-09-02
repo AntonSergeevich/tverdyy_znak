@@ -53,6 +53,7 @@ from apps.journal.models import (
     StudentStatus,
     Teacher,
 )
+from apps.journal.services import duplicates
 from apps.journal.services import onboarding
 from apps.journal.services import staff as staff_service
 from apps.journal.services.grading import get_scale
@@ -435,6 +436,17 @@ def staff_create(request):
         if is_teacher and not teacher_form.is_valid():
             return _staff_form_page(request, form, teacher_form)
 
+        # Такой человек уже может быть заведён — из расписания, из другого
+        # раздела, кем-то ещё. Молча завести второго значит показать его на
+        # сайте дважды и разложить занятия по двум карточкам.
+        twin = duplicates.find_duplicate(
+            organization=organization,
+            last_name=data["last_name"], first_name=data["first_name"],
+            middle_name=data["middle_name"], email=data["email"], phone=data["phone"],
+        )
+        if twin is not None and request.POST.get("confirm_twin") != "1":
+            return _staff_form_page(request, form, teacher_form, twin=twin)
+
         with transaction.atomic():
             user, credentials = onboarding.issue_account(
                 organization=organization,
@@ -460,12 +472,59 @@ def staff_create(request):
     return _staff_form_page(request, form, teacher_form)
 
 
-def _staff_form_page(request, form, teacher_form):
+def _staff_form_page(request, form, teacher_form, *, twin=None):
     return render(
         request,
         "cabinet/manage/staff_form.html",
-        {"form": form, "teacher_form": teacher_form, "teacher_role": Role.TEACHER},
+        {
+            "form": form,
+            "teacher_form": teacher_form,
+            "teacher_role": Role.TEACHER,
+            "twin": twin,
+        },
     )
+
+
+@login_required
+@role_required(Role.OWNER, Role.PLATFORM_ADMIN)
+@require_http_methods(["POST"])
+def staff_merge(request, user_id):
+    """
+    Свести двойника с оригиналом.
+
+    Право только у владельца: действие необратимое и затрагивает занятия,
+    за которыми стоят баллы детей. Занятия при этом не теряются — они
+    переезжают на оставшуюся карточку.
+    """
+    organization = request.organization
+    User = get_user_model()
+    keep_user = get_object_or_404(
+        User.objects.filter(memberships__organization=organization).distinct(), pk=user_id
+    )
+    drop_user = get_object_or_404(
+        User.objects.filter(memberships__organization=organization).distinct(),
+        pk=request.POST.get("twin"),
+    )
+    keep = getattr(keep_user, "teacher_profile", None)
+    drop = getattr(drop_user, "teacher_profile", None)
+    if keep is None or drop is None:
+        messages.error(request, "Свести можно только две карточки педагогов.")
+        return redirect("cabinet:staff_card", user_id=user_id)
+
+    try:
+        moved = duplicates.merge_teachers(keep=keep, drop=drop)
+    except ValidationError as error:
+        messages.error(request, "; ".join(error.messages))
+        return redirect("cabinet:staff_card", user_id=user_id)
+
+    log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=keep_user,
+              change="teachers_merged", merged_from=str(drop_user.pk))
+    messages.success(
+        request,
+        "Записи сведены: занятий перенесено {lessons}, отзывов {reviews}, "
+        "предметов добавлено {subjects}.".format(**moved),
+    )
+    return redirect("cabinet:staff_card", user_id=user_id)
 
 
 @login_required
@@ -553,6 +612,16 @@ def _staff_card_page(request, form, teacher_form, target, teacher, roles_now, ca
             "can_edit_roles": can_edit_roles,
             "has_access": target.is_active and target.has_usable_password(),
             "is_self": target.pk == request.user.pk,
+            # Если такой человек в организации уже есть — предлагаем свести,
+            # а не оставлять две карточки жить своей жизнью.
+            "twin": duplicates.find_duplicate(
+                organization=request.organization,
+                last_name=target.last_name, first_name=target.first_name,
+                middle_name=target.middle_name, exclude_user=target,
+            ) if teacher is not None else None,
+            "may_merge": request.user.has_role(
+                request.organization, Role.OWNER, Role.PLATFORM_ADMIN
+            ) or request.user.is_superuser,
         },
     )
 

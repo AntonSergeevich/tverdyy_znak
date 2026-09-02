@@ -196,3 +196,44 @@ def test_steps_of_a_hidden_goal_stay_hidden(tenant_a):
 
     assert "Тайный шаг" not in body
     assert "Личное" not in body
+
+
+# ─── Спутник и архив ────────────────────────────────────────────────────────
+
+def test_the_chosen_companion_is_marked_right_away(tenant_a):
+    """
+    Раньше выбор спутника жил вне обновляемого блока: нажимаешь — а по
+    экрану непонятно, выбралось ли. Отметка «текущий» должна приезжать
+    вместе с ответом.
+    """
+    client = sign_in(tenant_a, tenant_a.student_user)
+    body = client.post(reverse("cabinet:hero_choose"), {"hero": Hero.COMPASS}).content.decode()
+
+    assert "hero-picker" in body
+    assert 'value="compass"' in body
+    marked = body[body.index('value="compass"') - 400:body.index('value="compass"') + 200]
+    assert "is-current" in marked
+
+
+def test_an_achieved_goal_goes_to_the_archive_not_to_nowhere(tenant_a, goal):
+    """
+    Достигнутая цель исчезала с экрана насовсем. Список сделанного — и есть
+    ответ на вопрос «двигаюсь ли я вообще», которого одна активная цель
+    не даёт.
+    """
+    client = sign_in(tenant_a, tenant_a.student_user)
+    body = client.post(reverse("cabinet:goal_toggle", args=[goal.pk])).content.decode()
+
+    assert "Достигнутые цели" in body
+    assert goal.title in body
+    assert "Вернуть в работу" in body
+
+
+def test_a_goal_can_come_back_from_the_archive(tenant_a, goal):
+    """«Достиг» иногда оказывается «показалось»."""
+    client = sign_in(tenant_a, tenant_a.student_user)
+    client.post(reverse("cabinet:goal_toggle", args=[goal.pk]))
+    body = client.post(reverse("cabinet:goal_toggle", args=[goal.pk])).content.decode()
+
+    assert "Достигнутые цели" not in body
+    assert goal.title in body

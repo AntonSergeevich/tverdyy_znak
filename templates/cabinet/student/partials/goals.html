@@ -1,3 +1,28 @@
+{% load public_extras %}
+{% comment %}
+  Блок целей целиком: выбор спутника, активные цели и архив достигнутых.
+
+  Спутник живёт здесь, а не снаружи, и это принципиально: htmx подменяет
+  именно этот блок, и стоило вынести выбор наружу, как отметка «текущий»
+  переставала обновляться — нажимаешь, а по экрану непонятно, выбралось ли.
+{% endcomment %}
+<form class="hero-picker"
+      hx-post="{% url 'cabinet:hero_choose' %}"
+      hx-select="unset" hx-select-oob="unset"
+      hx-target="#goals-block" hx-swap="innerHTML">
+  {% csrf_token %}
+  <span class="small muted">Спутник:</span>
+  {% for value, label in heroes %}
+    <button class="hero-picker__item{% if student.hero == value %} is-current{% endif %}"
+            type="submit" name="hero" value="{{ value }}" title="{{ label }}"
+            aria-pressed="{% if student.hero == value %}true{% else %}false{% endif %}">
+      <svg viewBox="0 0 56 56" aria-hidden="true"><use href="#hero-{{ value }}"></use></svg>
+      <span class="small">{{ label }}</span>
+      {% if student.hero == value %}<span class="hero-picker__mark" aria-hidden="true">✓</span>{% endif %}
+    </button>
+  {% endfor %}
+</form>
+
 {% if goals %}
   <div class="stack">
     {% for goal in goals %}
@@ -10,4 +35,38 @@
     <p>Начните с одной — хоть открытой, хоть скрытой. Потом разложите её на
        шаги, и спутник пойдёт по пути вместе с вами.</p>
   </div>
+{% endif %}
+
+{% if done_goals %}
+  {% comment %}
+    Достигнутые цели не исчезают. Список того, что уже сделано, — это и есть
+    ответ на вопрос «двигаюсь ли я вообще»: одна активная цель на экране
+    его не даёт. Вернуть цель в работу можно в любой момент: «достиг» иногда
+    оказывается «показалось».
+  {% endcomment %}
+  <details class="goal-archive"{% if not goals %} open{% endif %}>
+    <summary>Достигнутые цели — {{ done_goals|length }}</summary>
+    <div class="stack" style="margin-top:12px">
+      {% for goal in done_goals %}
+        <div class="goal goal--done">
+          <div class="goal__head">
+            <div>
+              <h3 class="goal__title">{{ goal.title }}</h3>
+              <p class="small muted">
+                {% if goal.path.total %}пройдено {{ goal.path.total }}
+                  {{ goal.path.total|plural:"шаг,шага,шагов" }} · {% endif %}
+                достигнута {{ goal.updated_at|date:"d.m.Y" }}
+              </p>
+            </div>
+            <form hx-post="{% url 'cabinet:goal_toggle' goal.pk %}"
+                  hx-select="unset" hx-select-oob="unset"
+                  hx-target="#goals-block" hx-swap="innerHTML">
+              {% csrf_token %}
+              <button class="btn btn--quiet" type="submit">Вернуть в работу</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </details>
 {% endif %}

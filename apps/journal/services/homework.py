@@ -95,6 +95,16 @@ def save_homework(
         return homework
 
     if item is None:
+        # Самоподготовка тоже занимает готовое место в плане модуля, а не
+        # добавляет работу сверх сотни: по регламенту на неё отложено 15
+        # баллов, не больше 5 за одну работу. Свободного места нет —
+        # заводим новую работу, и тогда её проверит лимит модуля.
+        from apps.journal.services.grading import free_slots
+
+        item = free_slots(
+            lesson.module, lesson.subject, lesson.group, GradeItemKind.HOMEWORK
+        ).first()
+    if item is None:
         item = GradeItem(
             organization=lesson.organization, module=lesson.module,
             subject=lesson.subject, group=lesson.group,

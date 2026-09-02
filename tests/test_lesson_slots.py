@@ -53,22 +53,22 @@ def planned(tenant_a):
 
 def test_a_graded_lesson_takes_a_reserved_slot_not_a_new_hundredth(planned, tenant_a):
     """
-    Сорок баллов на занятия отложены заранее — занятие занимает место, а не
+    Двадцать пять баллов на занятия отложены заранее — занятие занимает место, а не
     добавляет работу сверх плана.
 
-    Именно из-за этого сотня и переполнялась: восемь мест пустовали, а
+    Именно из-за этого сотня и переполнялась: пять мест пустовали, а
     каждое отмеченное занятие заводило девятую работу.
     """
     with organization_context(tenant_a.organization):
         before = points_budget(tenant_a.module, tenant_a.subject, tenant_a.group)
         assert before.remaining == Decimal("0.00")
-        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 8
+        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 5
 
         switch = enable_lesson_grading(tenant_a.lesson)
 
         after = points_budget(tenant_a.module, tenant_a.subject, tenant_a.group)
         assert after.distributed == before.distributed
-        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 7
+        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 4
 
     tenant_a.lesson.refresh_from_db()
     assert tenant_a.lesson.is_graded
@@ -80,11 +80,11 @@ def test_removing_grading_returns_the_slot_to_the_plan(planned, tenant_a):
     """Снятое оценивание не должно обеднять сотню: место возвращается в план."""
     with organization_context(tenant_a.organization):
         enable_lesson_grading(tenant_a.lesson)
-        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 7
+        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 4
 
         disable_lesson_grading(tenant_a.lesson)
 
-        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 8
+        assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 5
         assert points_budget(
             tenant_a.module, tenant_a.subject, tenant_a.group
         ).distributed == Decimal("100.00")
@@ -110,12 +110,12 @@ def test_when_the_slots_run_out_the_points_come_from_a_lesson_ahead(planned, ten
     ли», а «за счёт чего».
     """
     with organization_context(tenant_a.organization):
-        ahead = [_extra_lesson(tenant_a, day) for day in range(1, 10)]
-        for lesson in ahead[:8]:
+        ahead = [_extra_lesson(tenant_a, day) for day in range(1, 8)]
+        for lesson in ahead[:5]:
             enable_lesson_grading(lesson)
         assert free_lesson_slots(tenant_a.module, tenant_a.subject, tenant_a.group).count() == 0
 
-        donor = ahead[7]
+        donor = ahead[4]
         switch = enable_lesson_grading(tenant_a.lesson)
 
         donor.refresh_from_db()
@@ -132,10 +132,10 @@ def test_when_the_slots_run_out_the_points_come_from_a_lesson_ahead(planned, ten
 def test_points_are_never_taken_from_a_lesson_that_already_has_grades(planned, tenant_a):
     """Выставленное — чужая работа, а не резерв."""
     with organization_context(tenant_a.organization):
-        ahead = [_extra_lesson(tenant_a, day) for day in range(1, 10)]
-        for lesson in ahead[:8]:
+        ahead = [_extra_lesson(tenant_a, day) for day in range(1, 8)]
+        for lesson in ahead[:5]:
             enable_lesson_grading(lesson)
-        for lesson in ahead[:8]:
+        for lesson in ahead[:5]:
             set_grade(
                 student=tenant_a.student, grade_item=GradeItem.objects.get(lesson=lesson),
                 points=Decimal("3"), actor=tenant_a.owner_user,
@@ -155,7 +155,7 @@ def test_points_are_never_taken_from_a_lesson_that_has_already_happened(planned,
             subject=tenant_a.subject, group=tenant_a.group, teacher=tenant_a.teacher,
             starts_at=tenant_a.lesson.starts_at - dt.timedelta(days=1),
         )
-        others = [_extra_lesson(tenant_a, day) for day in range(1, 8)]
+        others = [_extra_lesson(tenant_a, day) for day in range(1, 5)]
         enable_lesson_grading(earlier)
         for lesson in others:
             enable_lesson_grading(lesson)

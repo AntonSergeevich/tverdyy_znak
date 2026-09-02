@@ -65,13 +65,11 @@ def _own_student(request) -> Student:
     return student
 
 
-def _goals_for(request, student):
+def _goals_for(request, student, *, status: str = GoalStatus.ACTIVE):
     """Цели ученика — с оглядкой на то, кто на них смотрит."""
-    goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE)
+    goals = Goal.objects.filter(student=student, status=status)
     if getattr(request, "impersonator", None) is not None:
-        goals = Goal.objects.visible_to_others().filter(
-            student=student, status=GoalStatus.ACTIVE
-        )
+        goals = Goal.objects.visible_to_others().filter(student=student, status=status)
     return goals.select_related("subject", "module")
 
 
@@ -108,12 +106,11 @@ def student_home(request):
             # кабинет смотрят чужими глазами — только открытые: ребёнку
             # обещано, что скрытые не видит никто, и «проверка» не повод
             # это обещание нарушить.
-            "goals": _with_path(_goals_for(request, student)),
+            **_goals_context(request, student),
             "today_mood": today_mood,
             "yesterday_mood": yesterday_mood,
             "yesterday": yesterday,
             "mood_choices": MoodEntry.Scale.choices,
-            "heroes": Hero.choices,
         },
     )
 
@@ -139,12 +136,7 @@ def goal_create(request):
             description=(request.POST.get("description") or "").strip(),
             created_by=request.user,
         )
-    goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
-    return render(
-        request,
-        "cabinet/student/partials/goals.html",
-        {"goals": _with_path(goals), "student": student},
-    )
+    return _goals_block(request, student)
 
 
 @login_required
@@ -155,22 +147,36 @@ def goal_toggle(request, goal_id):
     goal = get_object_or_404(Goal.objects.filter(student=student), pk=goal_id)
     goal.status = GoalStatus.DONE if goal.status == GoalStatus.ACTIVE else GoalStatus.ACTIVE
     goal.save(update_fields=["status", "updated_at"])
-    goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
-    return render(
-        request,
-        "cabinet/student/partials/goals.html",
-        {"goals": _with_path(goals), "student": student},
-    )
+    return _goals_block(request, student)
 
 
 def _goals_block(request, student):
-    """Ответ на любое действие с целями: блок целей целиком."""
-    goals = Goal.objects.filter(student=student, status=GoalStatus.ACTIVE).select_related("subject")
+    """
+    Ответ на любое действие с целями: блок целей целиком.
+
+    Целиком — потому что в нём меняется не только список: выбранный спутник
+    отмечен здесь же, и подменять один список значило оставлять отметку
+    «текущий» на прежнем месте.
+    """
     return render(
         request,
         "cabinet/student/partials/goals.html",
-        {"goals": _with_path(goals), "student": student},
+        _goals_context(request, student),
     )
+
+
+def _goals_context(request, student) -> dict:
+    """Активные цели, достигнутые и спутник — один набор для всех ответов."""
+    return {
+        "student": student,
+        "goals": _with_path(_goals_for(request, student)),
+        # Достигнутое не исчезает: список сделанного — и есть ответ на
+        # вопрос «двигаюсь ли я вообще», которого одна активная цель не даёт.
+        "done_goals": _with_path(
+            _goals_for(request, student, status=GoalStatus.DONE)
+        ),
+        "heroes": Hero.choices,
+    }
 
 
 @login_required

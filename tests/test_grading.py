@@ -35,7 +35,12 @@ def test_default_structure_gives_exactly_100(tenant_a, structure):
     assert total == Decimal("100.00")
     assert sum(1 for i in structure if i.kind == GradeItemKind.CREDIT) == 1
     assert sum(1 for i in structure if i.kind == GradeItemKind.QUIZ) == 2
-    assert sum(1 for i in structure if i.kind == GradeItemKind.LESSON) == 8
+    # Ровно как в утверждённом регламенте центра: зачёт 25, контрольная 15,
+    # две проверочные по 10, самоподготовка 15 (три работы по 5) и работа
+    # на уроке 25 (пять уроков по 5).
+    assert sum(1 for i in structure if i.kind == GradeItemKind.TEST) == 1
+    assert sum(1 for i in structure if i.kind == GradeItemKind.HOMEWORK) == 3
+    assert sum(1 for i in structure if i.kind == GradeItemKind.LESSON) == 5
 
 
 def test_budget_reports_remaining(tenant_a, structure):
@@ -83,10 +88,12 @@ def test_grade_cannot_exceed_item_max(tenant_a, structure):
 @pytest.mark.parametrize(
     "share, expected_level, passed",
     [
-        (Decimal("0.50"), Level.FAILED, False),
-        (Decimal("0.60"), Level.BASE, True),
+        # Пороги регламента центра: 85 — высокий, 70 — продвинутый,
+        # 50 — базовый, ниже — требуется поддержка.
+        (Decimal("0.40"), Level.FAILED, False),
+        (Decimal("0.50"), Level.BASE, True),
         (Decimal("0.75"), Level.ELEVATED, True),
-        (Decimal("0.95"), Level.ADVANCED, True),
+        (Decimal("0.90"), Level.ADVANCED, True),
     ],
 )
 def test_levels_by_thresholds(tenant_a, structure, share, expected_level, passed):

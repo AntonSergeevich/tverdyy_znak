@@ -672,3 +672,41 @@ def test_partial_htmx_requests_cancel_the_inherited_selection():
         'Точечный запрос без hx-select="unset" hx-select-oob="unset": '
         f"блок не обновится, а исчезнет. {offenders}"
     )
+
+
+def test_the_default_structure_matches_the_approved_regulation():
+    """
+    Регламент оценивания центра — утверждённый документ, и структура по
+    умолчанию обязана совпадать с ним до балла. Разойдутся — педагог,
+    сверяясь со шпаргалкой, будет каждый раз перекладывать баллы руками.
+    """
+    from decimal import Decimal
+
+    from apps.journal.models import DEFAULT_STRUCTURE, GradeItemKind
+
+    approved = {
+        GradeItemKind.CREDIT: Decimal("25.00"),
+        GradeItemKind.TEST: Decimal("15.00"),
+        GradeItemKind.QUIZ: Decimal("20.00"),
+        GradeItemKind.HOMEWORK: Decimal("15.00"),
+        GradeItemKind.LESSON: Decimal("25.00"),
+    }
+    got = {
+        kind: spec["max_points"] * spec["count"] for kind, spec in DEFAULT_STRUCTURE.items()
+    }
+
+    assert got == approved
+    assert sum(got.values()) == Decimal("100.00")
+
+
+def test_the_levels_are_named_as_the_regulation_names_them():
+    """
+    «Незачёт» и «повышенный» были нашими словами: педагог, сверяясь
+    с регламентом, каждый раз переводил одно в другое.
+    """
+    from apps.journal.models import Level
+
+    assert Level.FAILED.label == "требуется поддержка"
+    assert Level.BASE.label == "базовый"
+    assert Level.ELEVATED.label == "продвинутый"
+    assert Level.ADVANCED.label == "высокий"

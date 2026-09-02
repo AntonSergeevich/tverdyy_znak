@@ -140,12 +140,26 @@ def teachable_subjects():
     Не только учебные предметы: профориентацию, проектную деятельность
     и рефлексию тоже кто-то ведёт. Из списка выпадает только обед —
     единственный блок дня, за которым нет человека.
-    """
-    from apps.journal.models import Subject
 
-    return Subject.objects.filter(academic_year__is_current=True).exclude(
-        name__iexact="Обед"
-    ).order_by("kind", "position", "name")
+    Год берём текущий, а если ни один не отмечен текущим — последний
+    заведённый. Раньше здесь стоял жёсткий фильтр по «текущему», и стоило
+    флагу не оказаться проставленным, как список предметов становился
+    пустым: в карточке педагога отмечать было нечего, и выглядело это как
+    отнятые права, а не как незаполненная настройка.
+    """
+    from apps.journal.models import AcademicYear, Subject
+
+    year = (
+        AcademicYear.objects.filter(is_current=True).first()
+        or AcademicYear.objects.order_by("-starts_on").first()
+    )
+    if year is None:
+        return Subject.objects.none()
+    return (
+        Subject.objects.filter(academic_year=year)
+        .exclude(name__iexact="Обед")
+        .order_by("kind", "position", "name")
+    )
 
 
 # Поля, которые решают, что о педагоге видно на сайте. Их набор один

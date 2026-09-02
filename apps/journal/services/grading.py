@@ -181,21 +181,27 @@ class GradingSwitch:
     released: str = ""
 
 
-def free_lesson_slots(module, subject, group):
+def free_slots(module, subject, group, kind: str):
     """
-    Свободные места «Занятие с оцениванием» в плане модуля.
+    Свободные места нужного вида в плане модуля.
 
-    План заранее откладывает часть сотни на занятия — по умолчанию сорок
-    баллов на восемь занятий. Это и есть места: отметить занятие
-    оцениваемым значит занять одно из них, а не добавить сверх плана.
+    План заранее откладывает часть сотни: по регламенту центра — 25 баллов
+    на работу на уроке и 15 на самоподготовку. Это и есть места. Отметить
+    занятие оцениваемым или задать домашнее на балл значит занять готовое
+    место, а не добавить работу сверх плана.
     """
     return (
         GradeItem.objects.filter(
-            module=module, subject=subject, group=group,
-            kind=GradeItemKind.LESSON, lesson__isnull=True,
+            module=module, subject=subject, group=group, kind=kind, lesson__isnull=True
         )
+        .exclude(homework__isnull=False)
         .order_by("position", "created_at")
     )
+
+
+def free_lesson_slots(module, subject, group):
+    """Свободные места под занятия — самый частый случай."""
+    return free_slots(module, subject, group, GradeItemKind.LESSON)
 
 
 def _borrowable(lesson):
@@ -525,9 +531,10 @@ def recalculate_for_items(items: Iterable[GradeItem]) -> None:
             recalculate_module_result(student=student, subject=item.subject, module=item.module)
 
 
+# Названия уровней — из регламента центра, дословно.
 LEVEL_LABELS = {
-    Level.FAILED: "незачёт",
+    Level.FAILED: "требуется поддержка",
     Level.BASE: "базовый",
-    Level.ELEVATED: "повышенный",
-    Level.ADVANCED: "продвинутый",
+    Level.ELEVATED: "продвинутый",
+    Level.ADVANCED: "высокий",
 }
