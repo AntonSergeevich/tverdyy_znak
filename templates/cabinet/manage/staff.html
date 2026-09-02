@@ -4,7 +4,18 @@
 {% block content %}
 <div class="page-title">
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Сотрудники</h1>
-  <a class="btn" href="{% url 'cabinet:staff_create' %}">Добавить</a>
+  <span class="btn-row">
+    {% if twins_count %}
+      {% comment %}
+        Ссылка появляется, только когда двойники есть: постоянный пункт меню,
+        под которым обычно пусто, перестают замечать через неделю.
+      {% endcomment %}
+      <a class="btn btn--quiet" href="{% url 'cabinet:staff_twins' %}">
+        Двойники: {{ twins_count }}
+      </a>
+    {% endif %}
+    <a class="btn" href="{% url 'cabinet:staff_create' %}">Добавить</a>
+  </span>
 </div>
 
 {% comment %}

@@ -156,7 +156,10 @@ def _published_teachers():
     from apps.journal.models import Teacher
 
     return list(
-        Teacher.objects.filter(is_published=True)
+        # Убранный из центра человек не должен оставаться на сайте, даже
+        # если галочку «показывать» с него забыли снять: сотрудника
+        # выключают в одном месте, а помнить про второе никто не обязан.
+        Teacher.objects.filter(is_published=True, user__is_active=True)
         .select_related("user")
         .prefetch_related("subjects", "reviews")
         .order_by("public_position", "user__last_name")

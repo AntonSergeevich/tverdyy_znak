@@ -325,3 +325,22 @@ def logout_view(request):
 
 def healthz(request) -> HttpResponse:
     return HttpResponse("ok", content_type="text/plain")
+
+
+def csrf_failure(request, reason=""):
+    """
+    Устаревшая форма — не поломка, и говорить об этом надо словами.
+
+    Случай ровно один: страницу открыли, отвлеклись, сеанс за это время
+    закрылся, а форму всё-таки отправили. Django на это показывает
+    «CSRF verification failed» — текст, после которого человек жмёт
+    «назад» и решает, что система сломалась.
+
+    Отвечаем 403, как и положено, но по-русски и с одной кнопкой.
+    """
+    return render(
+        request,
+        "accounts/stale_form.html",
+        {"login_url": reverse("accounts:login")},
+        status=403,
+    )

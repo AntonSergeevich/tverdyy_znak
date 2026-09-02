@@ -1464,3 +1464,22 @@ body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { pos
 /* Приписка под крупной цифрой: «академических часов» без «по 45 минут»
    читается как обычные часы, и путаница возвращается. */
 .stat__note { margin-top: 2px; }
+
+/* Пара двойников: слева та запись, что остаётся, справа — та, что исчезнет. */
+.twins {
+  display: grid; gap: 12px 18px; align-items: start;
+  grid-template-columns: 1fr auto 1fr auto;
+}
+.twins__side { min-width: 0; }
+.twins__side--drop { opacity: .8; }
+.twins__arrow { align-self: center; color: var(--ink-3); font-size: 22px; }
+.twins__action { min-width: 180px; }
+@media (max-width: 900px) {
+  .twins { grid-template-columns: 1fr; }
+  .twins__arrow { display: none; }
+}
+
+/* Подпись исполнителя в подвале: заметна, но не спорит с реквизитами центра. */
+.site-footer__author { margin-top: 10px; }
+.site-footer__author a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.site-footer__author a:hover { color: var(--accent); }

@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 
 from apps.accounts import totp
@@ -285,3 +286,84 @@ def test_the_check_becomes_an_error_once_there_are_children(tenant_a, settings):
 
     settings.TWO_FACTOR_ENABLED = True
     assert two_factor_enabled(None) == []
+
+
+# ─── Кэш браузера и устаревшая форма ────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_the_cabinet_does_not_stay_in_the_browser_cache(client, tenant_a):
+    """
+    Сеанс закрылся, человек оказался на форме входа, нажал «назад» — и снова
+    видит кабинет со списком детей. Страницы там нет, она поднялась из кэша
+    браузера, но отличить это невозможно, а данные на экране настоящие.
+    """
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.teacher_user.email, "password": PASSWORD},
+        )
+
+    response = client.get(reverse("cabinet:schedule"))
+
+    assert response.status_code == 200
+    assert "no-store" in response["Cache-Control"]
+
+
+@pytest.mark.django_db
+def test_public_pages_are_still_cacheable(client, tenant_a):
+    """Незалогиненному кэш не мешает: данных на публичных страницах нет."""
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    response = client.get("/")
+
+    assert "no-store" not in response.get("Cache-Control", "")
+
+
+@pytest.mark.django_db
+def test_a_stale_form_explains_itself_instead_of_shouting_csrf(client, tenant_a):
+    """
+    Страницу открыли, отвлеклись, сеанс закрылся, форму всё-таки отправили.
+    Django на это показывает «CSRF verification failed» — текст, после
+    которого человек жмёт «назад» и решает, что система сломалась.
+    """
+    from django.test import Client
+
+    strict = Client(enforce_csrf_checks=True)
+    strict.defaults["HTTP_HOST"] = tenant_a.host
+
+    response = strict.post(
+        reverse("accounts:login"),
+        {"username": tenant_a.teacher_user.email, "password": PASSWORD},
+    )
+
+    assert response.status_code == 403
+    body = response.content.decode()
+    assert "Страница устарела" in body
+    assert "Войти заново" in body
+    assert "CSRF" not in body
+
+
+@pytest.mark.django_db
+def test_the_idle_logout_says_why(client, tenant_a, settings):
+    """
+    Человек отошёл на полчаса и видит форму входа вместо своей страницы.
+    Без объяснения это читается как поломка.
+    """
+    settings.SESSION_IDLE_TIMEOUT = 1
+    settings.SESSION_IDLE_TIMEOUT_STAFF = 1
+    client.defaults["HTTP_HOST"] = tenant_a.host
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.teacher_user.email, "password": PASSWORD},
+        )
+
+    # Первый заход после входа только ставит отметку времени — с неё и
+    # начинается отсчёт простоя.
+    client.get(reverse("cabinet:schedule"))
+    time.sleep(1.1)
+    response = client.get(reverse("cabinet:schedule"), follow=True)
+
+    # Проверяем на отрисованной странице, а не в контексте: сообщение,
+    # которого нет в разметке, человеку не поможет.
+    assert "сеанс закрылся" in response.content.decode()

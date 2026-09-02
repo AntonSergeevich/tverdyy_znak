@@ -60,6 +60,9 @@ MIDDLEWARE = [
     "apps.core.middleware.OrganizationMiddleware",
     # Ограничение сессии по неактивности (ТЗ 8.2).
     "apps.accounts.middleware.SessionIdleTimeoutMiddleware",
+    # Страницы вошедшего человека не остаются в кэше браузера: иначе после
+    # закрытия сеанса кнопка «назад» показывает кабинет с данными детей.
+    "apps.accounts.middleware.NoStoreForPrivatePagesMiddleware",
     # Просмотр кабинета от чужого лица. После определения организации:
     # право проверяется по роли в ней.
     "apps.accounts.middleware.ImpersonationMiddleware",
@@ -151,6 +154,11 @@ LOGOUT_REDIRECT_URL = "public:landing"
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "sessions"
 SESSION_COOKIE_AGE = 60 * 60 * 12
+# Форма, пролежавшая открытой дольше сеанса, отправляется с устаревшим
+# ключом. Голая страница «CSRF verification failed» на этом месте пугает и
+# ничего не объясняет — показываем человеческую.
+CSRF_FAILURE_VIEW = "apps.accounts.views.csrf_failure"
+
 SESSION_IDLE_TIMEOUT = 60 * 60 * 4          # обычные роли
 SESSION_IDLE_TIMEOUT_STAFF = 60 * 30        # owner / admin / platform_admin
 SESSION_COOKIE_HTTPONLY = True

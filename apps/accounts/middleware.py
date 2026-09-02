@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import logout
 from django.http import HttpResponseForbidden
 
@@ -31,6 +32,14 @@ class SessionIdleTimeoutMiddleware:
             timeout = self._timeout_for(request, user)
             if last_seen and now - last_seen > timeout:
                 logout(request)
+                # Сказать, что произошло. Иначе человек видит форму входа
+                # вместо своей страницы и решает, что что-то сломалось, —
+                # а сломалось только его терпение: он отошёл на полчаса.
+                messages.info(
+                    request,
+                    "Вы давно не заходили на страницу, и сеанс закрылся. "
+                    "Войдите заново — это защита данных детей, а не сбой.",
+                )
             else:
                 request.session[LAST_SEEN_KEY] = now
         return self.get_response(request)
@@ -119,3 +128,31 @@ class ImpersonationMiddleware:
             "accounts:impersonate_stop",
             "accounts:logout",
         }
+
+
+class NoStoreForPrivatePagesMiddleware:
+    """
+    Страницы вошедшего человека браузер не кэширует.
+
+    Иначе выходит вот что: сеанс закрылся, человек оказался на форме входа,
+    нажал «назад» — и снова видит кабинет со списком детей и их баллами.
+    Страницы там нет, она поднялась из кэша браузера, но отличить это
+    невозможно, а данные на экране настоящие.
+
+    Поэтому всё, что отдаётся вошедшему, помечается no-store: назад
+    вернуться можно, но браузер сходит на сервер, а сервер отправит
+    на вход. Публичные страницы для незалогиненных кэшируются как прежде —
+    там и данных никаких нет.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            response["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+            response["Pragma"] = "no-cache"
+            response["Expires"] = "0"
+        return response

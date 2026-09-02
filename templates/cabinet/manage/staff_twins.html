@@ -1,0 +1,84 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Двойники{% endblock %}
+
+{% block content %}
+<p class="small muted" style="margin-bottom:8px">
+  <a href="{% url 'cabinet:staff' %}">← Сотрудники</a>
+</p>
+
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Двойники</h1>
+    <p class="muted">Один человек, заведённый дважды</p>
+  </div>
+</div>
+
+<p class="small muted" style="max-width:74ch">
+  Учётные записи заводятся из нескольких мест — раздел сотрудников, выгрузка
+  расписания, выдача доступа, — и один человек легко оказывается в базе дважды.
+  Заметно это только на публичной странице центра, а туда заглядывают редко.
+  Поэтому пары ищутся сами, а решение принимаете вы: система не знает, где
+  однофамильцы, а где один и тот же человек.
+</p>
+
+{% if pairs %}
+  <div class="stack" style="margin-top:20px">
+    {% for pair in pairs %}
+      <div class="card twins">
+        <div class="twins__side">
+          <p class="card__title">{{ pair.keep.full_name }}</p>
+          <p class="small muted">
+            логин {{ pair.keep.login }}{% if pair.keep.email %} · {{ pair.keep.email }}{% endif %}<br>
+            {% if pair.keep_teacher %}ведёт:
+              {% for subject in pair.keep_teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не указаны{% endfor %}
+              {% if pair.keep_teacher.is_published %}<br>показан на сайте{% endif %}
+            {% else %}не педагог{% endif %}
+          </p>
+          <p class="small"><a href="{% url 'cabinet:staff_card' pair.keep.pk %}">Открыть карточку</a></p>
+        </div>
+
+        <div class="twins__arrow" aria-hidden="true">←</div>
+
+        <div class="twins__side twins__side--drop">
+          <p class="card__title">{{ pair.drop.full_name }}</p>
+          <p class="small muted">
+            логин {{ pair.drop.login }}{% if pair.drop.email %} · {{ pair.drop.email }}{% endif %}<br>
+            {% if pair.drop_teacher %}ведёт:
+              {% for subject in pair.drop_teacher.subjects.all %}{{ subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}предметы не указаны{% endfor %}
+              {% if pair.drop_teacher.is_published %}<br>показан на сайте{% endif %}
+            {% else %}не педагог{% endif %}
+          </p>
+          <p class="small"><a href="{% url 'cabinet:staff_card' pair.drop.pk %}">Открыть карточку</a></p>
+        </div>
+
+        <div class="twins__action">
+          {% if pair.keep_teacher and pair.drop_teacher %}
+            <form method="post" action="{% url 'cabinet:staff_merge' pair.keep.pk %}" hx-boost="false"
+                  onsubmit="return confirm('Свести записи? Вторая исчезнет совсем. Это необратимо.')">
+              {% csrf_token %}
+              <input type="hidden" name="twin" value="{{ pair.drop.pk }}">
+              <input type="hidden" name="back" value="twins">
+              <button class="btn" type="submit">Свести в левую</button>
+            </form>
+            <p class="small muted" style="margin-top:8px">
+              Занятия, отзывы и предметы переедут в левую карточку. Правая
+              исчезнет совсем — ни в списке, ни на сайте.
+            </p>
+          {% else %}
+            <p class="small muted">
+              Свести можно только две карточки педагогов. Здесь одна из записей —
+              не педагог: если она лишняя, уберите её из карточки.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state" style="margin-top:20px">
+    <p class="empty-state__title">Двойников не нашлось</p>
+    <p>Пары ищутся по имени, почте и телефону. Если знаете о двойнике, которого
+       здесь нет, — напишите, поправим правило поиска.</p>
+  </div>
+{% endif %}
+{% endblock %}

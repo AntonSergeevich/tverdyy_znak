@@ -411,7 +411,18 @@ def staff(request):
         if rows:
             sections.append({"label": label, "rows": rows})
 
-    return render(request, "cabinet/manage/staff.html", {"sections": sections})
+    return render(
+        request,
+        "cabinet/manage/staff.html",
+        {
+            "sections": sections,
+            # Считаем здесь, а не в шаблоне: ссылка на двойников должна
+            # появляться, только когда они есть.
+            "twins_count": len(duplicates.find_pairs(organization))
+            if _can_edit_roles(request)
+            else 0,
+        },
+    )
 
 
 @login_required
@@ -487,6 +498,35 @@ def _staff_form_page(request, form, teacher_form, *, twin=None):
 
 @login_required
 @role_required(Role.OWNER, Role.PLATFORM_ADMIN)
+def staff_twins(request):
+    """
+    Двойники — отдельным экраном.
+
+    Ходить по карточкам и высматривать их вручную бесполезно: заметен
+    двойник только на публичной странице центра, а туда владелец
+    заглядывает раз в месяц. Пусть система назовёт пары сама, а решение
+    примет человек.
+    """
+    pairs = duplicates.find_pairs(request.organization)
+    return render(
+        request,
+        "cabinet/manage/staff_twins.html",
+        {
+            "pairs": [
+                {
+                    "keep": keep,
+                    "drop": drop,
+                    "keep_teacher": getattr(keep, "teacher_profile", None),
+                    "drop_teacher": getattr(drop, "teacher_profile", None),
+                }
+                for keep, drop in pairs
+            ]
+        },
+    )
+
+
+@login_required
+@role_required(Role.OWNER, Role.PLATFORM_ADMIN)
 @require_http_methods(["POST"])
 def staff_merge(request, user_id):
     """
@@ -522,8 +562,11 @@ def staff_merge(request, user_id):
     messages.success(
         request,
         "Записи сведены: занятий перенесено {lessons}, отзывов {reviews}, "
-        "предметов добавлено {subjects}.".format(**moved),
+        "предметов добавлено {subjects}. Вторая запись убрана совсем — "
+        "ни в списке, ни на сайте её больше нет.".format(**moved),
     )
+    if request.POST.get("back") == "twins":
+        return redirect("cabinet:staff_twins")
     return redirect("cabinet:staff_card", user_id=user_id)
 
 

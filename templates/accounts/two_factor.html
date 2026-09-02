@@ -9,6 +9,17 @@
     <p class="muted" style="margin-bottom:24px">
       Для владельца и администратора вход подтверждается кодом из приложения-аутентификатора.
     </p>
+    {% comment %}
+      Сообщения показываются и здесь: сеанс закрывается сам, и человек
+      оказывается на этой странице, не понимая почему. Молчащая форма входа
+      на месте своей страницы читается как поломка.
+    {% endcomment %}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="message message--{{ message.tags }}" role="status">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
     <form class="form" method="post">
       {% csrf_token %}
       <div class="field {% if form.code.errors %}field--invalid{% endif %}">

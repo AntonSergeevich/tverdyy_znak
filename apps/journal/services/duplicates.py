@@ -18,19 +18,42 @@ from django.db import transaction
 from apps.journal.models import Lesson, Teacher
 
 
-def _key(last_name: str, first_name: str, middle_name: str = "") -> tuple:
+def name_parts(*values) -> frozenset:
     """
-    Ключ человека: фамилия, имя и отчество в нижнем регистре.
+    Имя человека как набор слов, без оглядки на то, что где записано.
 
-    Отчество учитываем, если оно есть у обоих: два Ивановых Ивана —
-    в центре с сорока учениками почти наверняка один и тот же человек,
-    а вот Иванов Иван Петрович и Иванов Иван Сергеевич — разные.
+    В одной записи «Семидалова Маргарита Андреевна», в другой — просто
+    «Маргарита Андреевна»: фамилию при первом заведении не знали. Сравнение
+    по паре «фамилия + имя» такие записи не сводило вовсе, и предложение
+    объединить не появлялось — а человек всё это время был на сайте дважды.
+
+    Поэтому сравниваем множества слов: порядок и то, в какое поле слово
+    попало, значения не имеют.
     """
-    return (
-        (last_name or "").strip().lower(),
-        (first_name or "").strip().lower(),
-        (middle_name or "").strip().lower(),
-    )
+    words = set()
+    for value in values:
+        for word in (value or "").strip().lower().replace("ё", "е").split():
+            word = word.strip(".,")
+            if word:
+                words.add(word)
+    return frozenset(words)
+
+
+def looks_like_the_same(first: frozenset, second: frozenset) -> bool:
+    """
+    Один ли это человек.
+
+    Совпало полностью — да. Одно имя целиком входит в другое и общих слов
+    не меньше двух — тоже да: «Маргарита Андреевна» и «Семидалова Маргарита
+    Андреевна» это один человек, а вот «Иванов» и «Иванов Пётр» по одному
+    слову сводить нельзя, однофамильцев слишком много.
+    """
+    if not first or not second:
+        return False
+    if first == second:
+        return True
+    common = first & second
+    return len(common) >= 2 and (first <= second or second <= first)
 
 
 def find_duplicate(*, organization, last_name: str, first_name: str,
@@ -39,10 +62,9 @@ def find_duplicate(*, organization, last_name: str, first_name: str,
     """
     Есть ли уже такой человек в организации.
 
-    Совпадением считаем полное совпадение ФИО, либо совпадение фамилии с
-    именем при пустом отчестве у одного из них, либо тот же email или
-    телефон. Возвращаем найденного — решать, тот ли это человек, будет
-    живой человек, а не мы.
+    Совпадением считаем совпадение по имени (см. `looks_like_the_same`)
+    либо тот же email или телефон. Возвращаем найденного — решать, тот ли
+    это человек, будет живой человек, а не мы.
     """
     User = get_user_model()
     people = User.objects.filter(memberships__organization=organization).distinct()
@@ -60,14 +82,49 @@ def find_duplicate(*, organization, last_name: str, first_name: str,
         if found is not None:
             return found
 
-    surname, name, patronymic = _key(last_name, first_name, middle_name)
-    if not surname or not name:
+    mine = name_parts(last_name, first_name, middle_name)
+    if not mine:
         return None
-    for person in people.filter(last_name__iexact=surname, first_name__iexact=name):
-        theirs = (person.middle_name or "").strip().lower()
-        if not patronymic or not theirs or patronymic == theirs:
+    for person in people:
+        theirs = name_parts(person.last_name, person.first_name, person.middle_name)
+        if looks_like_the_same(mine, theirs):
             return person
     return None
+
+
+def find_pairs(organization) -> list[tuple]:
+    """
+    Все подозрительные пары в организации — для отдельного экрана.
+
+    Ходить по карточкам и высматривать двойников вручную бесполезно:
+    заметен двойник только на публичной странице, а туда владелец
+    заглядывает раз в месяц. Пусть система назовёт их сама.
+    """
+    User = get_user_model()
+    people = list(
+        User.objects.filter(memberships__organization=organization)
+        .distinct()
+        .select_related("teacher_profile")
+    )
+    named = [
+        (person, name_parts(person.last_name, person.first_name, person.middle_name))
+        for person in people
+    ]
+
+    pairs = []
+    for index, (person, mine) in enumerate(named):
+        for other, theirs in named[index + 1:]:
+            same_contact = bool(
+                (person.email and person.email.lower() == (other.email or "").lower())
+                or (person.phone and person.phone == other.phone)
+            )
+            if same_contact or looks_like_the_same(mine, theirs):
+                # Первым — тот, у кого имя полнее: его карточку и оставляем.
+                if len(theirs) > len(mine):
+                    pairs.append((other, person))
+                else:
+                    pairs.append((person, other))
+    return pairs
 
 
 @transaction.atomic
@@ -94,7 +151,11 @@ def merge_teachers(*, keep: Teacher, drop: Teacher) -> dict:
 
     dropped_user = drop.user
     drop.subjects.clear()
-    drop.delete()
+    # Убираем совсем, а не пометкой. Мягкое удаление здесь уже подводило:
+    # карточка оставалась в базе, связь «пользователь → педагог» продолжала
+    # её отдавать, и двойник возвращался на экран при первой же правке.
+    # Терять нечего: занятия, отзывы и предметы только что переехали.
+    drop.hard_delete()
     if dropped_user is not None:
         # Учётную запись двойника убираем целиком: она никому не
         # принадлежит, а её membership иначе продолжит светиться в списках.

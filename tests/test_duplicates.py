@@ -51,6 +51,41 @@ def twin(tenant_a):
 
 # ─── Узнать заранее ─────────────────────────────────────────────────────────
 
+def test_a_record_without_a_surname_is_recognised(tenant_a):
+    """
+    Ровно тот случай, из-за которого двойник и жил на сайте месяцами.
+
+    В одной записи «Семидалова Маргарита Андреевна», в другой — просто
+    «Маргарита Андреевна»: фамилию при первом заведении не знали. Сравнение
+    по паре «фамилия + имя» их не сводило, предложение объединить не
+    появлялось, и заметить это можно было только на публичной странице.
+    """
+    with organization_context(tenant_a.organization):
+        tenant_a.teacher_user.last_name = "Семидалова"
+        tenant_a.teacher_user.first_name = "Маргарита"
+        tenant_a.teacher_user.middle_name = "Андреевна"
+        tenant_a.teacher_user.save()
+
+        found = find_duplicate(
+            organization=tenant_a.organization,
+            last_name="Маргарита", first_name="Андреевна",
+        )
+    assert found == tenant_a.teacher_user
+
+
+def test_a_single_shared_word_is_not_enough(tenant_a):
+    """«Иванов» и «Иванов Пётр» сводить нельзя: однофамильцев слишком много."""
+    with organization_context(tenant_a.organization):
+        tenant_a.teacher_user.last_name = "Иванов"
+        tenant_a.teacher_user.first_name = "Пётр"
+        tenant_a.teacher_user.middle_name = ""
+        tenant_a.teacher_user.save()
+
+        assert find_duplicate(
+            organization=tenant_a.organization, last_name="Иванов", first_name="",
+        ) is None
+
+
 def test_the_same_name_is_recognised(tenant_a):
     with organization_context(tenant_a.organization):
         found = find_duplicate(
@@ -196,3 +231,75 @@ def test_the_card_offers_to_merge_when_a_twin_exists(tenant_a, twin):
 
     assert "заведён дважды" in body
     assert reverse("cabinet:staff_merge", args=[tenant_a.teacher_user.pk]) in body
+
+
+# ─── Экран двойников ────────────────────────────────────────────────────────
+
+def test_the_pairs_are_found_without_hunting_through_cards(tenant_a, twin):
+    """
+    Ходить по карточкам и высматривать двойников бесполезно: заметны они
+    только на публичной странице, а туда заглядывают раз в месяц.
+    """
+    from apps.journal.services.duplicates import find_pairs
+
+    with organization_context(tenant_a.organization):
+        pairs = find_pairs(tenant_a.organization)
+
+    assert len(pairs) == 1
+    keep, drop = pairs[0]
+    assert {keep, drop} == {tenant_a.teacher_user, twin.user}
+
+
+def test_the_owner_sees_the_twins_screen(tenant_a, twin):
+    client = sign_in(tenant_a, tenant_a.owner_user)
+
+    listing = client.get(reverse("cabinet:staff")).content.decode()
+    assert "Двойники: 1" in listing
+
+    body = client.get(reverse("cabinet:staff_twins")).content.decode()
+    assert "Свести в левую" in body
+
+
+def test_a_merged_twin_does_not_come_back(tenant_a, twin):
+    """
+    Мягкое удаление здесь уже подводило: карточка оставалась в базе, связь
+    «пользователь → педагог» продолжала её отдавать, и двойник возвращался
+    на экран при первой же правке.
+    """
+    from apps.journal.models import Teacher
+
+    client = sign_in(tenant_a, tenant_a.owner_user)
+    client.post(
+        reverse("cabinet:staff_merge", args=[tenant_a.teacher_user.pk]),
+        {"twin": str(twin.user.pk), "back": "twins"},
+    )
+
+    with organization_context(tenant_a.organization):
+        assert not Teacher.all_objects.filter(pk=twin.pk).exists()
+        assert not find_pairs_left(tenant_a.organization)
+
+    body = client.get(reverse("cabinet:staff")).content.decode()
+    assert "Двойники" not in body
+
+
+def find_pairs_left(organization):
+    from apps.journal.services.duplicates import find_pairs
+
+    return find_pairs(organization)
+
+
+def test_a_removed_teacher_disappears_from_the_public_page(tenant_a, twin):
+    """
+    Убранный из центра человек не должен оставаться на сайте, даже если
+    галочку «показывать» с него забыли снять.
+    """
+    from apps.site_public.views import _published_teachers
+
+    with organization_context(tenant_a.organization):
+        twin.is_published = True
+        twin.save(update_fields=["is_published"])
+        assert twin in _published_teachers()
+
+        twin.user.is_active = False
+        twin.user.save(update_fields=["is_active"])
+        assert twin not in _published_teachers()
