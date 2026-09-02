@@ -37,6 +37,7 @@ from apps.journal.models import (
     Subject,
 )
 from apps.journal.services import ktp as ktp_service
+from apps.journal.services import workload
 from apps.journal.services.grading import (
     create_default_structure,
     disable_lesson_grading,
@@ -686,8 +687,11 @@ def my_hours(request):
         .select_related("subject", "group")
         .order_by("starts_at")
     )
-    minutes = sum(lesson.duration_minutes for lesson in lessons)
-    hours = (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
+    # Считаем в академических часах: ставка у педагога за них, и урок он
+    # проводит один, сколько бы минут в нём ни было.
+    for lesson in lessons:
+        lesson.academic_hours = workload.academic_hours(lesson.duration_minutes)
+    hours = workload.hours_of(lessons)
 
     return render(
         request,
@@ -698,8 +702,9 @@ def my_hours(request):
             "end": end,
             "lessons": lessons,
             "hours": hours,
+            "minutes": sum(lesson.duration_minutes for lesson in lessons),
             "rate": profile.hourly_rate,
-            "amount": (hours * profile.hourly_rate).quantize(Decimal("0.01")),
+            "amount": workload.payment_for(hours=hours, rate=profile.hourly_rate),
             "reviews": profile.published_reviews,
         },
     )

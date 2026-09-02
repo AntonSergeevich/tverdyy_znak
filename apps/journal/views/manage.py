@@ -24,6 +24,7 @@ from apps.journal.models import (
     StudentStatus,
     Teacher,
 )
+from apps.journal.services import workload
 from apps.journal.views.parent import current_module
 from apps.site_public.models import Lead
 
@@ -233,28 +234,35 @@ def lead_restore(request, lead_id):
 
 
 def _payroll_rows(start: date, end: date) -> list[dict]:
-    rows = (
-        Teacher.objects.annotate(
-            minutes=Sum(
-                "lessons__duration_minutes",
-                filter=Q(
-                    lessons__starts_at__date__gte=start,
-                    lessons__starts_at__date__lte=end,
-                ),
-            )
-        )
-        .select_related("user")
-        .order_by("user__last_name")
-    )
+    """
+    Начисление по академическим часам, а не по сумме минут.
+
+    Сложить минуты и поделить на шестьдесят — не то же самое: два урока по
+    сорок минут это два академических часа, а не один час двадцать. Поэтому
+    считаем по каждому занятию отдельно и в базе, и на экране педагога
+    одинаково — иначе «Мои часы» и ФОТ разойдутся, и правым окажется тот,
+    кто громче.
+    """
+    lessons = Lesson.objects.filter(
+        teacher__isnull=False, starts_at__date__gte=start, starts_at__date__lte=end
+    ).values_list("teacher_id", "duration_minutes")
+
+    hours_by_teacher: dict = {}
+    lessons_by_teacher: dict = {}
+    for teacher_id, minutes in lessons:
+        hours_by_teacher[teacher_id] = hours_by_teacher.get(teacher_id, 0) + workload.academic_hours(minutes)
+        lessons_by_teacher[teacher_id] = lessons_by_teacher.get(teacher_id, 0) + 1
+
     result = []
-    for teacher in rows:
-        hours = Decimal(teacher.minutes or 0) / Decimal(60)
+    for teacher in Teacher.objects.select_related("user").order_by("user__last_name"):
+        hours = hours_by_teacher.get(teacher.id, 0)
         result.append(
             {
                 "teacher": teacher,
-                "hours": hours.quantize(Decimal("0.01")),
+                "hours": hours,
+                "lessons": lessons_by_teacher.get(teacher.id, 0),
                 "rate": teacher.hourly_rate,
-                "amount": (hours * teacher.hourly_rate).quantize(Decimal("0.01")),
+                "amount": workload.payment_for(hours=hours, rate=teacher.hourly_rate),
             }
         )
     return result

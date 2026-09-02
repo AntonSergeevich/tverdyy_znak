@@ -1460,3 +1460,7 @@ body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { pos
 .dropzone__chosen { color: var(--ink-2); overflow-wrap: anywhere; }
 
 @media (prefers-reduced-motion: reduce) { .dropzone__area { transition: none; } }
+
+/* Приписка под крупной цифрой: «академических часов» без «по 45 минут»
+   читается как обычные часы, и путаница возвращается. */
+.stat__note { margin-top: 2px; }

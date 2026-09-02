@@ -159,7 +159,7 @@ def test_teacher_sees_own_hours_and_pay(logged_in, tenant_a):
     response = logged_in(tenant_a.teacher_user).get(reverse("cabinet:teacher_hours"))
 
     assert response.status_code == 200
-    assert "Часов за период" in response.content.decode()
+    assert "Академических часов" in response.content.decode()
 
 
 def test_teacher_hours_are_only_your_own(logged_in, tenant_a):

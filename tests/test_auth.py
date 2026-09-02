@@ -234,3 +234,54 @@ def test_reset_two_factor_command_rejects_unknown_login(db):
 
     with pytest.raises(CommandError):
         call_command("reset_two_factor", "no-such@example.org")
+
+
+# ─── Выключатель второго фактора ────────────────────────────────────────────
+
+def test_two_factor_cannot_be_switched_off_in_production():
+    """
+    Выключатель задумывался как временный, «на приёмку, пока данных нет».
+    Так и вышло: его выключили, приёмка кончилась, дети появились, а строка
+    в .env осталась — и владелец с администратором заходили по одному паролю.
+
+    Поэтому на проде переменная окружения больше не действует.
+    """
+    import pathlib
+
+    prod = (
+        pathlib.Path(__file__).resolve().parent.parent / "config" / "settings" / "prod.py"
+    ).read_text(encoding="utf-8")
+
+    assert "TWO_FACTOR_ENABLED = True" in prod
+    # И не из переменной окружения: иначе всё вернётся к прежнему.
+    assert 'config("TWO_FACTOR_ENABLED' not in prod
+
+
+def test_the_deploy_guide_no_longer_tells_you_to_switch_it_off():
+    """Инструкция и была причиной: она прямо советовала выключить."""
+    import pathlib
+
+    guide = (
+        pathlib.Path(__file__).resolve().parent.parent / "docs" / "DEPLOY-WINDOWS.md"
+    ).read_text(encoding="utf-8")
+
+    assert "TWO_FACTOR_ENABLED=False" not in guide
+    assert "выключить второй фактор на проде нельзя" in guide.lower()
+
+
+@pytest.mark.django_db
+def test_the_check_becomes_an_error_once_there_are_children(tenant_a, settings):
+    """
+    Предупреждение в `check --deploy` не спасло: его никто не запускает.
+    Теперь проверка обычная и ругается ошибкой, как только в базе
+    появляется хотя бы один ученик.
+    """
+    from apps.accounts.checks import two_factor_enabled
+
+    settings.TWO_FACTOR_ENABLED = False
+    found = two_factor_enabled(None)
+
+    assert [item.id for item in found] == ["accounts.E001"]
+
+    settings.TWO_FACTOR_ENABLED = True
+    assert two_factor_enabled(None) == []

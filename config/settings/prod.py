@@ -8,6 +8,13 @@ from .base import *  # noqa: F403
 
 DEBUG = False
 
+# Второй фактор на проде не выключается. Переменная окружения здесь не
+# действует намеренно: выключатель задумывался как временный, «на приёмку,
+# пока данных нет», — и ровно так его и забыли включить обратно, когда дети
+# появились. Нужно снять — снимается кодом и осознанно, а не строкой в .env,
+# про которую через месяц никто не вспомнит.
+TWO_FACTOR_ENABLED = True
+
 if not ALLOWED_HOSTS or ALLOWED_HOSTS == ["localhost", "127.0.0.1"]:  # noqa: F405
     raise RuntimeError("DJANGO_ALLOWED_HOSTS обязателен в проде")
 if SECRET_KEY.startswith("insecure-"):  # noqa: F405

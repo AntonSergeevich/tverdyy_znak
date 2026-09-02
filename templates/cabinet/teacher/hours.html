@@ -25,12 +25,14 @@
 {% endcomment %}
 <div class="stat-row">
   <div class="stat">
-    <div class="stat__label">Часов за период</div>
+    <div class="stat__label">Академических часов</div>
     <div class="stat__value">{{ hours }}</div>
+    <div class="stat__note small muted">по 45 минут</div>
   </div>
   <div class="stat">
     <div class="stat__label">Ставка за час</div>
     <div class="stat__value">{{ rate|money }} ₽</div>
+    <div class="stat__note small muted">за академический</div>
   </div>
   <div class="stat">
     <div class="stat__label">Начислено</div>
@@ -41,23 +43,27 @@
     <div class="stat__value">{{ lessons|length }}</div>
   </div>
 </div>
-<p class="small muted" style="margin-top:10px">
-  Считается по занятиям из расписания за выбранный период. Выплаты
-  проводит администрация центра — эта страница показывает начисление.
+<p class="small muted" style="margin-top:10px;max-width:74ch">
+  Считается по занятиям из расписания за выбранный период. Академический час —
+  45 минут; занятие короче считается за один час, длиннее — за столько часов,
+  сколько в нём помещается. Всего в аудитории {{ minutes }}
+  {{ minutes|plural:"минута,минуты,минут" }}. Выплаты проводит администрация
+  центра — эта страница показывает начисление.
 </p>
 
 <h2 class="label" style="font-size:18px;margin:32px 0 12px">Занятия</h2>
 {% if lessons %}
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>Когда</th><th>Предмет</th><th>Группа</th><th>Минут</th></tr></thead>
+      <thead><tr><th>Когда</th><th>Предмет</th><th>Группа</th><th>Ак. часов</th><th>Минут</th></tr></thead>
       <tbody>
       {% for lesson in lessons %}
         <tr>
           <td>{{ lesson.starts_at|date:"d.m.Y, H:i" }}</td>
           <td>{{ lesson.subject.name }}</td>
           <td>{{ lesson.group.name }}</td>
-          <td class="numeral">{{ lesson.duration_minutes }}</td>
+          <td class="numeral"><strong>{{ lesson.academic_hours }}</strong></td>
+          <td class="numeral muted">{{ lesson.duration_minutes }}</td>
         </tr>
       {% endfor %}
       </tbody>

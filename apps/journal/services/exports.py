@@ -110,14 +110,23 @@ def payroll_xlsx(rows: list[dict], start: date, end: date) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "ФОТ"
-    _header(sheet, ["Педагог", "Часы", "Ставка", "К выплате"])
+    # Часы академические: в бухгалтерию должна уходить та же цифра, что
+    # педагог видит у себя, иначе разбираться будут не с таблицей, а друг
+    # с другом.
+    _header(sheet, ["Педагог", "Занятий", "Академических часов", "Ставка", "К выплате"])
     total = Decimal("0.00")
     for row in rows:
         sheet.append(
-            [row["teacher"].user.full_name, float(row["hours"]), float(row["rate"]), float(row["amount"])]
+            [
+                row["teacher"].user.full_name,
+                row.get("lessons", 0),
+                row["hours"],
+                float(row["rate"]),
+                float(row["amount"]),
+            ]
         )
         total += row["amount"]
-    sheet.append(["Итого", "", "", float(total)])
+    sheet.append(["Итого", "", "", "", float(total)])
     sheet.append([f"Период: {start.isoformat()} — {end.isoformat()}"])
     return _finish(workbook)
 
