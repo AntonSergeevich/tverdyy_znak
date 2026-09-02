@@ -1442,3 +1442,21 @@ body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { pos
 .rules-list { margin: 8px 0 0; padding-left: 22px; max-width: 78ch; }
 .rules-list li { margin-bottom: 6px; line-height: 1.45; }
 .rules-list--no li::marker { color: var(--accent-2); }
+
+/* Зона перетаскивания файлов: документ уже лежит в открытой папке, и
+   тащить его быстрее, чем искать в диалоге. Без скриптов остаётся
+   обычная кнопка выбора — зона просто ничего не подсвечивает. */
+.dropzone { position: relative; }
+.dropzone__area {
+  display: grid; gap: 10px; justify-items: center;
+  padding: 16px 14px; border-radius: 12px;
+  border: 1.5px dashed var(--line-strong); background: var(--paper);
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.dropzone__call { display: grid; gap: 2px; justify-items: center; text-align: center; color: var(--ink-2); }
+.dropzone__input { max-width: 100%; }
+.dropzone.is-over .dropzone__area { border-color: var(--accent); background: var(--mark); }
+.dropzone.is-over .dropzone__call { color: var(--accent-2); }
+.dropzone__chosen { color: var(--ink-2); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) { .dropzone__area { transition: none; } }

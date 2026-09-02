@@ -410,6 +410,28 @@ def test_a_task_cannot_become_a_file_dump(tenant_a, private_media):
         assert not HomeworkFile.objects.exists()
 
 
+def test_files_can_be_dragged_in_and_still_chosen_by_hand(tenant_a, private_media):
+    """
+    Перетаскивание — самый короткий путь: документ уже лежит в открытой
+    папке. Но зона остаётся обычным полем формы: без скриптов работает
+    кнопка, и ничего не ломается.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert "data-dropzone" in body
+    assert "Перетащите файлы сюда" in body
+    # Поле — обычный input, множественный: он и отправляет файлы, скрипт
+    # только докладывает их в него.
+    zone = body[body.index("data-dropzone"):]
+    zone = zone[: zone.index("</label>")]
+    assert 'type="file"' in zone
+    assert "multiple" in zone
+    assert 'name="files"' in zone
+
+
 def test_the_files_are_saved_outside_the_public_media(tenant_a, private_media, settings):
     """
     На снимке страницы бывает и фамилия, и почерк ребёнка, а в присланной

@@ -92,17 +92,39 @@
       </ul>
     {% endif %}
 
-    <label class="field" style="margin:0">
+    {% comment %}
+      Файлы можно перетащить сюда мышью, вставить из буфера или выбрать
+      обычной кнопкой. Перетаскивание — самый короткий путь: документ уже
+      лежит в папке открытым, и тащить его быстрее, чем искать в диалоге.
+
+      Зона остаётся обычным полем формы: без скриптов работает кнопка,
+      и ничего не ломается.
+    {% endcomment %}
+    <label class="field dropzone" style="margin:0" data-dropzone>
       <span class="field__label">
         {% if files %}Приложить ещё{% else %}Приложить файлы — если проще дать, чем переписать{% endif %}
       </span>
+
+      <span class="dropzone__area">
+        <span class="dropzone__call">
+          Перетащите файлы сюда
+          <span class="small muted">или вставьте из буфера, или выберите на устройстве</span>
+        </span>
+        {% comment %}
+          capture убран намеренно: с ним телефон открывает сразу камеру и до
+          файлов на устройстве уже не добраться, а Word лежит именно там.
+          Снять страницу камерой всё равно можно — через выбор источника.
+        {% endcomment %}
+        <input class="input dropzone__input" type="file" name="files" multiple
+               accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.rtf,.odt,.txt,.xls,.xlsx,.csv,.ods,.ppt,.pptx,.odp,image/*">
+      </span>
+
       {% comment %}
-        capture убран намеренно: с ним телефон открывает сразу камеру и до
-        файлов на устройстве уже не добраться, а Word лежит именно там.
-        Снять страницу камерой всё равно можно — через выбор источника.
+        Что выбрано — списком. Родной вид «файлов: 3» не отвечает на
+        единственный вопрос, который в этот момент есть: те ли это файлы.
       {% endcomment %}
-      <input class="input" type="file" name="files" multiple
-             accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.rtf,.odt,.txt,.xls,.xlsx,.csv,.ods,.ppt,.pptx,.odp,image/*">
+      <span class="dropzone__chosen small" data-chosen hidden></span>
+
       <span class="field__hint">
         Документы Word и PDF, таблицы Excel и CSV, презентации, картинки.
         До 25 МБ файл, до 10 файлов на задание.

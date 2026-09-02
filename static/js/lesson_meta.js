@@ -41,7 +41,112 @@
     initTopic();
     initHomework();
     initFill();
+    initDropzone();
   }
+
+  // ── Перетаскивание файлов ─────────────────────────────────────────────────
+
+  /**
+   * Файлы можно перетащить, вставить из буфера или выбрать кнопкой.
+   *
+   * Перетаскивание — самый короткий путь: документ уже лежит в открытой
+   * папке, и тащить его быстрее, чем искать в диалоге. Вставка из буфера
+   * нужна не реже: снимок экрана попадает туда сразу, минуя диск.
+   *
+   * Ничего своего мы не отправляем — только докладываем файлы в обычное
+   * поле формы. Отправит их та же форма и та же проверка на сервере.
+   */
+  function initDropzone() {
+    var zone = document.querySelector('[data-dropzone]');
+    if (!zone || zone.dataset.ready === '1') return;
+    zone.dataset.ready = '1';
+
+    var input = zone.querySelector('input[type=file]');
+    var chosen = zone.querySelector('[data-chosen]');
+    if (!input) return;
+
+    function show() {
+      if (!chosen) return;
+      var names = Array.prototype.map.call(input.files, function (file) {
+        return file.name;
+      });
+      chosen.textContent = names.length
+        ? 'Выбрано: ' + names.join(', ')
+        : '';
+      chosen.hidden = !names.length;
+    }
+
+    function add(files) {
+      if (!files || !files.length) return;
+      // DataTransfer — единственный способ дописать файлы в поле: сам
+      // FileList менять нельзя. Уже выбранные сохраняем, иначе перетащить
+      // второй файл значило бы потерять первый.
+      var box = new DataTransfer();
+      Array.prototype.forEach.call(input.files, function (file) { box.items.add(file); });
+      Array.prototype.forEach.call(files, function (file) { box.items.add(file); });
+      input.files = box.files;
+      show();
+    }
+
+    ['dragenter', 'dragover'].forEach(function (name) {
+      zone.addEventListener(name, function (event) {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        zone.classList.add('is-over');
+      });
+    });
+    ['dragleave', 'dragend'].forEach(function (name) {
+      zone.addEventListener(name, function (event) {
+        // Уход к вложенному элементу — это не уход из зоны.
+        if (event.relatedTarget && zone.contains(event.relatedTarget)) return;
+        zone.classList.remove('is-over');
+      });
+    });
+    zone.addEventListener('drop', function (event) {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      zone.classList.remove('is-over');
+      add(event.dataTransfer.files);
+    });
+
+    // Вставку слушаем на всём документе, а не на зоне: подпись поля
+    // фокуса не принимает, а снимок экрана вставляют, ни на что не нажав.
+    // Текстовой вставке это не мешает — у неё в буфере нет файлов.
+    document.addEventListener('paste', function (event) {
+      if (!zone.isConnected) return;
+      var files = event.clipboardData && event.clipboardData.files;
+      if (!files || !files.length) return;
+      event.preventDefault();
+      add(files);
+      zone.scrollIntoView({ block: 'nearest' });
+    });
+
+    input.addEventListener('change', show);
+    show();
+  }
+
+  function hasFiles(event) {
+    var transfer = event.dataTransfer;
+    if (!transfer) return false;
+    if (transfer.types && transfer.types.indexOf) {
+      return transfer.types.indexOf('Files') >= 0;
+    }
+    return true;
+  }
+
+  /**
+   * Файл, брошенный мимо зоны, браузер открывает вместо страницы — и
+   * недописанное задание пропадает вместе с ней. Отменяем перетаскивание
+   * по всему документу: промахнуться мимо небольшой зоны легко, а цена
+   * промаха несоразмерна.
+   */
+  ['dragover', 'drop'].forEach(function (name) {
+    document.addEventListener(name, function (event) {
+      if (!hasFiles(event)) return;
+      if (event.target.closest && event.target.closest('[data-dropzone]')) return;
+      event.preventDefault();
+    });
+  });
 
   // ── «Как в прошлый раз» ───────────────────────────────────────────────────
 
@@ -138,8 +243,9 @@
         // сам же её и получил. Кнопки внутри — «убрать вложение» и прочие —
         // без этого остаются мёртвыми: нажимаешь, и ничего не уходит.
         if (window.htmx) window.htmx.process(holder);
-        // Форма приехала новая — «как в прошлый раз» в ней ещё не подключена.
+        // Форма приехала новая — обработчики в ней ещё не подключены.
         initFill();
+        initDropzone();
       }).catch(function () {
         if (button) button.disabled = false;
         say(form, 'нет связи — попробуйте ещё раз', 'error');
