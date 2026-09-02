@@ -512,9 +512,28 @@ class Lesson(TenantModel):
 
 
 def homework_photo_path(instance, filename: str) -> str:
-    """Путь внутри закрытого хранилища: организация, занятие, расширение."""
+    """
+    Путь единственного фото — как было до вложений.
+
+    Функция осталась только ради старых миграций: они ссылаются на неё по
+    имени, и удалить её значит сломать применение миграций с нуля. Новые
+    файлы кладёт `homework_file_path`.
+    """
     suffix = Path(filename).suffix.lower()[:8] or ".jpg"
     return f"homework/{instance.organization_id}/{instance.lesson_id}{suffix}"
+
+
+def homework_file_path(instance, filename: str) -> str:
+    """
+    Путь вложения внутри закрытого хранилища.
+
+    Имя файла на диске своё, а не пришедшее от педагога: в присланных
+    именах бывает что угодно — от кириллицы до слэшей, — и класть их прямо
+    в файловую систему значит однажды получить не тот путь. Настоящее имя
+    хранится рядом, в поле, и отдаётся при скачивании.
+    """
+    suffix = Path(filename).suffix.lower()[:10]
+    return f"homework/{instance.organization_id}/{instance.homework_id}/{uuid.uuid4().hex}{suffix}"
 
 
 class Homework(TenantModel):
@@ -543,13 +562,6 @@ class Homework(TenantModel):
         Lesson, on_delete=models.CASCADE, related_name="homework", verbose_name="занятие"
     )
     text = models.TextField("задание")
-    # Лист с задачами проще сфотографировать, чем переписать. Файл лежит
-    # в закрытом хранилище и отдаётся вью с проверкой прав: на снимке
-    # страницы бывает и фамилия, и почерк ребёнка.
-    photo = models.ImageField(
-        "фото листа с задачами", upload_to=homework_photo_path,
-        storage=private_storage, null=True, blank=True,
-    )
     due_date = models.DateField("сдать до", null=True, blank=True)
     grade_item = models.OneToOneField(
         "GradeItem", on_delete=models.SET_NULL, null=True, blank=True,
@@ -579,6 +591,92 @@ class Homework(TenantModel):
         from django.utils import timezone
 
         return bool(self.due_date and self.due_date < timezone.localdate())
+
+
+class HomeworkFile(TenantModel):
+    """
+    Вложение к домашнему заданию: лист с задачами, документ, таблица.
+
+    Файлов может быть несколько, и это не прихоть: к одному заданию
+    прикладывают и текст задания в Word, и таблицу с данными, и снимок
+    страницы учебника. Одно поле «фото» заставляло педагога выбирать,
+    что из этого важнее, а остальное слать в мессенджер мимо журнала.
+
+    Лежит в закрытом хранилище и отдаётся вью с проверкой прав: на
+    странице учебника бывает и фамилия, и почерк ребёнка, а в присланной
+    таблице — список группы.
+
+    Удаляется по-настоящему: убранное вложение должно исчезнуть и с диска,
+    иначе закрытое хранилище растёт файлами, на которые никто не ссылается.
+    """
+
+    # Что принимаем. Список закрытый и намеренно скучный: всё, в чём
+    # педагоги действительно присылают задания, и ничего исполняемого.
+    # SVG сюда не входит — это, по сути, страница со скриптами.
+    IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"}
+    DOCUMENT_SUFFIXES = {
+        ".pdf", ".doc", ".docx", ".rtf", ".odt", ".txt",
+        ".xls", ".xlsx", ".csv", ".ods",
+        ".ppt", ".pptx", ".odp",
+    }
+    ALLOWED_SUFFIXES = IMAGE_SUFFIXES | DOCUMENT_SUFFIXES
+    MAX_SIZE = 25 * 1024 * 1024
+    MAX_PER_HOMEWORK = 10
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    homework = models.ForeignKey(
+        Homework, on_delete=models.CASCADE, related_name="files", verbose_name="задание"
+    )
+    file = models.FileField(
+        "файл", upload_to=homework_file_path, storage=private_storage, max_length=300
+    )
+    name = models.CharField("имя файла", max_length=250)
+    size = models.PositiveIntegerField("размер, байт", default=0)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="homework_files", verbose_name="кто приложил",
+    )
+
+    class Meta:
+        verbose_name = "вложение к заданию"
+        verbose_name_plural = "вложения к заданиям"
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["organization", "homework"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def suffix(self) -> str:
+        return Path(self.name).suffix.lower()
+
+    @property
+    def is_image(self) -> bool:
+        """Картинку показываем прямо в карточке, остальное — ссылкой."""
+        return self.suffix in self.IMAGE_SUFFIXES
+
+    @property
+    def human_size(self) -> str:
+        size = self.size or 0
+        if size < 1024:
+            return f"{size} Б"
+        if size < 1024 * 1024:
+            return f"{size / 1024:.0f} КБ"
+        return f"{size / 1024 / 1024:.1f} МБ".replace(".", ",")
+
+    @property
+    def kind_label(self) -> str:
+        """Чем открывать — видно до скачивания."""
+        groups = {
+            "изображение": self.IMAGE_SUFFIXES,
+            "документ": {".pdf", ".doc", ".docx", ".rtf", ".odt", ".txt"},
+            "таблица": {".xls", ".xlsx", ".csv", ".ods"},
+            "презентация": {".ppt", ".pptx", ".odp"},
+        }
+        for label, suffixes in groups.items():
+            if self.suffix in suffixes:
+                return label
+        return "файл"
 
 
 class HomeworkMark(TenantModel):

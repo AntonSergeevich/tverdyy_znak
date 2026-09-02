@@ -17,12 +17,7 @@
   </p>
   <p style="margin-top:6px">{{ item.text|linebreaksbr }}</p>
 
-  {% if item.photo %}
-    <a class="homework-photo__thumb" style="margin-top:10px"
-       href="{% url 'cabinet:homework_photo' item.lesson.pk %}" target="_blank" rel="noopener">
-      <img src="{% url 'cabinet:homework_photo' item.lesson.pk %}" alt="Фото листа с задачами">
-    </a>
-  {% endif %}
+  {% include "cabinet/partials/homework_files.html" with files=item.files.all %}
 
   <form style="margin-top:10px"
         hx-post="{% url 'cabinet:homework_mark' item.pk %}"

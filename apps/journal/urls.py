@@ -29,7 +29,8 @@ urlpatterns = [
     path("pedagog/zanyatie/<uuid:lesson_id>/ocenivanie/", teacher.lesson_toggle_graded, name="lesson_toggle_graded"),
     path("pedagog/zanyatie/<uuid:lesson_id>/tema/", teacher.lesson_topic_save, name="lesson_topic_save"),
     path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/", teacher.lesson_homework_save, name="lesson_homework_save"),
-    path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/foto/", teacher.homework_photo, name="homework_photo"),
+    path("pedagog/domashnee/fayl/<uuid:file_id>/", teacher.homework_file, name="homework_file"),
+    path("pedagog/domashnee/fayl/<uuid:file_id>/ubrat/", teacher.homework_file_remove, name="homework_file_remove"),
     path(
         "pedagog/modul/<int:module_id>/<int:subject_id>/<int:group_id>/",
         teacher.module_plan, name="module_plan",

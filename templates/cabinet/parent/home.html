@@ -172,6 +172,7 @@
             {{ item.grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
         </p>
         <p style="margin-top:6px">{{ item.text|linebreaksbr }}</p>
+        {% include "cabinet/partials/homework_files.html" with files=item.files.all %}
       </div>
     {% endfor %}
   </div>

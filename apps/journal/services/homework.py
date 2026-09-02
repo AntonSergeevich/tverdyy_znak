@@ -10,11 +10,19 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 
-from apps.journal.models import GradeItem, GradeItemKind, Homework, HomeworkMark
+from apps.journal.models import (
+    GradeItem,
+    GradeItemKind,
+    Homework,
+    HomeworkFile,
+    HomeworkMark,
+)
 from apps.journal.services.grading import validate_grade_item
 
 # Заголовок оценивания — начало текста задания: в списке «Задания модуля»
@@ -42,20 +50,13 @@ def parse_date(raw) -> dt.date | None:
 
 
 @transaction.atomic
-def save_homework(
-    *, lesson, text: str, due_date=None, max_points=None, actor=None,
-    photo=None, drop_photo: bool = False,
-):
+def save_homework(*, lesson, text: str, due_date=None, max_points=None, actor=None):
     """
     Записать задание к занятию.
 
     Пустой текст означает «задания нет» — запись удаляется вместе с
-    оцениванием и фотографией, если они были. Иначе педагогу пришлось бы
+    оцениванием и вложениями, если они были. Иначе педагогу пришлось бы
     отдельно искать, как убрать случайно заданное.
-
-    Фото листа с задачами — не замена тексту, а дополнение к нему:
-    сфотографировать страницу быстрее, чем переписать, но по одной
-    картинке ни найти задание в списке, ни прочитать его вслух.
 
     Возвращает домашнее задание или None, если его убрали.
     """
@@ -65,7 +66,8 @@ def save_homework(
     if not text:
         if existing is not None:
             item = existing.grade_item
-            existing.photo.delete(save=False)
+            for attachment in existing.files.all():
+                attachment.file.delete(save=False)
             existing.delete()
             if item is not None:
                 item.delete()
@@ -76,15 +78,6 @@ def save_homework(
     homework.due_date = due_date
     if homework.created_by_id is None:
         homework.created_by = actor
-
-    # Снимок заменяется целиком: старый файл убираем сами, иначе он
-    # останется лежать в закрытом хранилище навсегда.
-    if drop_photo and homework.photo:
-        homework.photo.delete(save=False)
-    if photo is not None:
-        if homework.photo:
-            homework.photo.delete(save=False)
-        homework.photo = photo
 
     item = homework.grade_item
     if max_points is None:
@@ -170,3 +163,71 @@ def mark_done(*, homework: Homework, student, done: bool) -> bool:
 
 def done_by(homework: Homework, student) -> bool:
     return HomeworkMark.objects.filter(homework=homework, student=student).exists()
+
+
+# ─── Вложения ───────────────────────────────────────────────────────────────
+
+def check_attachment(uploaded, *, already: int = 0) -> None:
+    """
+    Можно ли принять этот файл.
+
+    Проверяем расширение, а не то, что браузер назвал типом: тип приходит
+    от клиента и ничего не гарантирует. Список закрытый и намеренно
+    скучный — всё, в чём педагоги действительно присылают задания, и
+    ничего исполняемого.
+    """
+    name = (getattr(uploaded, "name", "") or "").strip()
+    if not name:
+        raise ValidationError("У файла нет имени — попробуйте выбрать его заново.")
+
+    suffix = Path(name).suffix.lower()
+    if suffix not in HomeworkFile.ALLOWED_SUFFIXES:
+        raise ValidationError(
+            f"«{name}» приложить нельзя. Подойдут документы (Word, PDF, RTF, ODT, txt), "
+            "таблицы (Excel, CSV), презентации и картинки."
+        )
+    if uploaded.size > HomeworkFile.MAX_SIZE:
+        limit = HomeworkFile.MAX_SIZE // (1024 * 1024)
+        raise ValidationError(
+            f"«{name}» тяжелее {limit} МБ. Большой файл лучше положить на диск "
+            "и дать ссылку в тексте задания."
+        )
+    if already >= HomeworkFile.MAX_PER_HOMEWORK:
+        raise ValidationError(
+            f"К одному заданию можно приложить не больше {HomeworkFile.MAX_PER_HOMEWORK} файлов."
+        )
+
+
+@transaction.atomic
+def attach_files(*, homework: Homework, uploads, actor=None) -> list[HomeworkFile]:
+    """
+    Приложить файлы к заданию.
+
+    Проверяем все до единого и только потом сохраняем: принять три файла
+    из пяти и промолчать о двух отвергнутых — худшее, что здесь можно
+    сделать, потому что заметят это уже ученики.
+    """
+    uploads = [item for item in (uploads or []) if item]
+    if not uploads:
+        return []
+
+    already = homework.files.count()
+    for index, uploaded in enumerate(uploads):
+        check_attachment(uploaded, already=already + index)
+
+    saved = []
+    for uploaded in uploads:
+        attachment = HomeworkFile(
+            organization=homework.organization, homework=homework,
+            name=uploaded.name[:250], size=uploaded.size, uploaded_by=actor,
+        )
+        attachment.file = uploaded
+        attachment.save()
+        saved.append(attachment)
+    return saved
+
+
+def remove_file(attachment: HomeworkFile) -> None:
+    """Убрать вложение вместе с файлом: иначе хранилище растёт мусором."""
+    attachment.file.delete(save=False)
+    attachment.delete()

@@ -1,0 +1,27 @@
+{% comment %}
+  Вложения к заданию глазами того, кому его задали.
+
+  Картинку показываем сразу — по ней задание узнают с одного взгляда.
+  Документ и таблицу показывать нечем, поэтому у них имя, тип и вес: до
+  скачивания видно, чем открывать и стоит ли это делать с телефона.
+{% endcomment %}
+{% if files %}
+  <ul class="attachments__list attachments__list--read">
+    {% for file in files %}
+      <li class="attachments__item">
+        {% if file.is_image %}
+          <a class="attachments__thumb" href="{% url 'cabinet:homework_file' file.pk %}"
+             target="_blank" rel="noopener">
+            <img src="{% url 'cabinet:homework_file' file.pk %}" alt="{{ file.name }}">
+          </a>
+        {% else %}
+          <span class="attachments__icon" aria-hidden="true">{{ file.suffix|cut:"."|upper }}</span>
+        {% endif %}
+        <span class="attachments__what">
+          <a href="{% url 'cabinet:homework_file' file.pk %}" target="_blank" rel="noopener">{{ file.name }}</a>
+          <span class="small muted">{{ file.kind_label }} · {{ file.human_size }}</span>
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}

@@ -20,7 +20,14 @@ from django.test import override_settings
 from django.urls import reverse
 
 from apps.core.tenancy import organization_context
-from apps.journal.models import GradeItem, GradeItemKind, Homework, HomeworkMark, Lesson
+from apps.journal.models import (
+    GradeItem,
+    GradeItemKind,
+    Homework,
+    HomeworkFile,
+    HomeworkMark,
+    Lesson,
+)
 from apps.journal.services.suggestions import (
     previous_homework,
     previous_lesson,
@@ -313,7 +320,7 @@ def test_the_suggestion_does_not_reach_across_organizations(tenant_a, tenant_b):
         )
 
 
-# ─── Фото листа с задачами ──────────────────────────────────────────────────
+# ─── Вложения к заданию ─────────────────────────────────────────────────────
 
 @pytest.fixture
 def private_media(tmp_path, settings):
@@ -321,78 +328,192 @@ def private_media(tmp_path, settings):
     return settings.PRIVATE_MEDIA_ROOT
 
 
-def test_the_photo_is_saved_outside_the_public_media(tenant_a, private_media, settings):
-    """
-    Снимок страницы с задачами — не публичный файл.
+def a_document(name: str = "Задание.docx") -> SimpleUploadedFile:
+    return SimpleUploadedFile(name, b"PK\x03\x04 not really a docx, but a file")
 
-    На нём бывает и фамилия, и почерк ребёнка, поэтому он лежит вне
-    MEDIA_ROOT, и его не отдаёт веб-сервер напрямую.
+
+def test_documents_and_tables_are_accepted_not_only_photos(tenant_a, private_media):
+    """
+    Педагоги присылают задание в Word и данные в Excel. Одно поле «фото»
+    заставляло выбирать, что из этого важнее, а остальное слать
+    в мессенджер мимо журнала.
     """
     client = sign_in(tenant_a, tenant_a.teacher_user)
     response = client.post(
         reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
-        {"text": "Лист с задачами", "photo": a_photo()},
+        {
+            "text": "Разобрать документ",
+            "files": [a_document(), a_document("Данные.xlsx"), a_photo()],
+        },
     )
     assert response.status_code == 200
 
     with organization_context(tenant_a.organization):
         homework = Homework.objects.get(lesson=tenant_a.lesson)
-    assert homework.photo
-    saved = Path(private_media) / homework.photo.name
+        names = {item.name for item in homework.files.all()}
+    assert names == {"Данные.xlsx", "Задание.docx", "list.png"}
+
+
+def test_an_executable_is_never_accepted(tenant_a, private_media):
+    """Список принимаемого закрытый и намеренно скучный."""
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {"text": "Задание", "files": [a_document("вирус.exe")]},
+    ).content.decode()
+
+    assert "приложить нельзя" in body
+    with organization_context(tenant_a.organization):
+        assert not HomeworkFile.objects.exists()
+
+
+def test_nothing_is_attached_when_one_file_is_rejected(tenant_a, private_media):
+    """
+    Принять три файла из пяти и промолчать о двух — худшее, что здесь можно
+    сделать: заметят это уже ученики.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {"text": "Задание", "files": [a_document(), a_document("макрос.bat")]},
+    )
+
+    with organization_context(tenant_a.organization):
+        assert not HomeworkFile.objects.exists()
+
+
+def test_a_heavy_file_is_refused_with_a_way_out(tenant_a, private_media, settings):
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    heavy = SimpleUploadedFile("толстая.pdf", b"x" * (HomeworkFile.MAX_SIZE + 1))
+    body = client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {"text": "Задание", "files": [heavy]},
+    ).content.decode()
+
+    assert "тяжелее" in body
+    assert "ссылку" in body
+
+
+def test_a_task_cannot_become_a_file_dump(tenant_a, private_media):
+    """Десяти вложений хватает любому заданию; больше — это уже архив."""
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    body = client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {
+            "text": "Задание",
+            "files": [a_document(f"файл-{n}.pdf") for n in range(HomeworkFile.MAX_PER_HOMEWORK + 1)],
+        },
+    ).content.decode()
+
+    assert "не больше" in body
+    with organization_context(tenant_a.organization):
+        assert not HomeworkFile.objects.exists()
+
+
+def test_the_files_are_saved_outside_the_public_media(tenant_a, private_media, settings):
+    """
+    На снимке страницы бывает и фамилия, и почерк ребёнка, а в присланной
+    таблице — список группы. Такие файлы не отдаёт веб-сервер.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {"text": "Лист с задачами", "files": [a_photo()]},
+    )
+
+    with organization_context(tenant_a.organization):
+        attachment = HomeworkFile.objects.get()
+    saved = Path(private_media) / attachment.file.name
     assert saved.exists()
     assert str(settings.MEDIA_ROOT) not in str(saved)
 
 
-def test_the_photo_opens_only_for_those_who_may_see_the_lesson(
-    tenant_a, tenant_b, private_media
-):
+def test_a_file_opens_only_for_those_who_may_see_the_lesson(tenant_a, tenant_b, private_media):
     client = sign_in(tenant_a, tenant_a.teacher_user)
     client.post(
         reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
-        {"text": "Лист с задачами", "photo": a_photo()},
+        {"text": "Лист с задачами", "files": [a_photo()]},
     )
-    url = reverse("cabinet:homework_photo", args=[tenant_a.lesson.pk])
+    with organization_context(tenant_a.organization):
+        attachment = HomeworkFile.objects.get()
+    url = reverse("cabinet:homework_file", args=[attachment.pk])
 
     assert client.get(url).status_code == 200
-
     stranger = sign_in(tenant_b, tenant_b.teacher_user)
     assert stranger.get(url).status_code in (403, 404)
 
 
-def test_the_child_and_the_parent_see_the_photo(tenant_a, private_media):
-    """
-    Снимок нужен прежде всего тем, кому задание задали.
-
-    Проверка прав здесь общая — «доступно ли занятие», — а не список ролей:
-    выставлять баллы, чтобы посмотреть своё же домашнее, не требуется.
-    """
+def test_the_child_and_the_parent_see_the_files(tenant_a, private_media):
+    """Файл нужен прежде всего тем, кому задание задали."""
     teacher = sign_in(tenant_a, tenant_a.teacher_user)
     teacher.post(
         reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
-        {"text": "Лист с задачами", "photo": a_photo()},
+        {"text": "Лист с задачами", "files": [a_document()]},
     )
-    url = reverse("cabinet:homework_photo", args=[tenant_a.lesson.pk])
+    with organization_context(tenant_a.organization):
+        attachment = HomeworkFile.objects.get()
+    url = reverse("cabinet:homework_file", args=[attachment.pk])
 
     assert sign_in(tenant_a, tenant_a.student_user).get(url).status_code == 200
     assert sign_in(tenant_a, tenant_a.parent_user).get(url).status_code == 200
 
 
-def test_removing_the_task_removes_its_photo(tenant_a, private_media):
-    """Убрали задание — файл не должен остаться лежать в хранилище навсегда."""
+def test_a_document_is_handed_over_not_opened_in_the_browser(tenant_a, private_media):
+    """
+    Браузер, которому позволили показать чужой файл как страницу, покажет
+    и то, что в нём написано скриптом. Картинку смотрят, остальное скачивают.
+    """
     client = sign_in(tenant_a, tenant_a.teacher_user)
     client.post(
         reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
-        {"text": "Лист с задачами", "photo": a_photo()},
+        {"text": "Задание", "files": [a_document(), a_photo()]},
     )
     with organization_context(tenant_a.organization):
-        saved = Path(private_media) / Homework.objects.get(lesson=tenant_a.lesson).photo.name
-    assert saved.exists()
+        document = HomeworkFile.objects.get(name="Задание.docx")
+        picture = HomeworkFile.objects.get(name="list.png")
+
+    doc_response = client.get(reverse("cabinet:homework_file", args=[document.pk]))
+    picture_response = client.get(reverse("cabinet:homework_file", args=[picture.pk]))
+
+    assert "attachment" in doc_response["Content-Disposition"]
+    assert "attachment" not in picture_response["Content-Disposition"]
+
+
+def test_a_file_can_be_removed_on_its_own(tenant_a, private_media):
+    """Снятое не должно ждать кнопки «Сохранить»."""
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {"text": "Задание", "files": [a_document()]},
+    )
+    with organization_context(tenant_a.organization):
+        attachment = HomeworkFile.objects.get()
+    saved = Path(private_media) / attachment.file.name
+
+    client.post(reverse("cabinet:homework_file_remove", args=[attachment.pk]))
+
+    with organization_context(tenant_a.organization):
+        assert not HomeworkFile.objects.exists()
+    assert not saved.exists()
+
+
+def test_removing_the_task_removes_its_files(tenant_a, private_media):
+    """Убрали задание — файлы не должны остаться лежать в хранилище."""
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]),
+        {"text": "Лист с задачами", "files": [a_photo(), a_document()]},
+    )
+    with organization_context(tenant_a.organization):
+        saved = [Path(private_media) / item.file.name for item in HomeworkFile.objects.all()]
+    assert all(path.exists() for path in saved)
 
     client.post(reverse("cabinet:lesson_homework_save", args=[tenant_a.lesson.pk]), {"text": ""})
 
     with organization_context(tenant_a.organization):
         assert not Homework.objects.filter(lesson=tenant_a.lesson).exists()
-    assert not saved.exists()
+        assert not HomeworkFile.objects.exists()
+    assert not any(path.exists() for path in saved)
 
 
 # ─── Отметка ученика «сделал» ───────────────────────────────────────────────

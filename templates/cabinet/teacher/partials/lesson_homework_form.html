@@ -45,27 +45,70 @@
   {% if error %}<p class="field__error" role="alert">{{ error }}</p>{% endif %}
 
   {% comment %}
-    Фото листа с задачами. Сфотографировать страницу быстрее, чем её
-    переписать, — но текст всё равно нужен: по одной картинке задание
-    не найти в списке и не прочитать вслух. Файл лежит в закрытом
-    хранилище и открывается только тем, кому доступно занятие.
+    Вложения к заданию: лист с задачами, документ Word, таблица.
+
+    Файлов может быть несколько, и это не прихоть: к одному заданию
+    прикладывают и текст задания, и таблицу с данными, и снимок страницы
+    учебника. Одно поле «фото» заставляло выбирать, что из этого важнее,
+    а остальное слать в мессенджер мимо журнала.
   {% endcomment %}
-  <div class="homework-photo">
-    {% if homework.photo %}
-      <a class="homework-photo__thumb" href="{% url 'cabinet:homework_photo' lesson.pk %}" target="_blank" rel="noopener">
-        <img src="{% url 'cabinet:homework_photo' lesson.pk %}" alt="Фото листа с задачами">
-      </a>
-      <label class="checkbox small">
-        <input type="checkbox" name="drop_photo" value="1"> Убрать фото
-      </label>
+  {% comment %}
+    Список берём у самого задания, а не из отдельной переменной: блок
+    рисуется и при открытии занятия, и в ответ на сохранение, и после
+    снятого вложения — переменную легко забыть передать в одном из трёх
+    мест, и тогда файлы просто исчезают с экрана, оставаясь в базе.
+  {% endcomment %}
+  <div class="attachments">
+    {% with files=homework.files.all %}
+    {% if files %}
+      <span class="field__label">Приложено</span>
+      <ul class="attachments__list">
+        {% for item in files %}
+          <li class="attachments__item">
+            {% if item.is_image %}
+              <a class="attachments__thumb" href="{% url 'cabinet:homework_file' item.pk %}"
+                 target="_blank" rel="noopener">
+                <img src="{% url 'cabinet:homework_file' item.pk %}" alt="{{ item.name }}">
+              </a>
+            {% else %}
+              <span class="attachments__icon" aria-hidden="true">{{ item.suffix|cut:"." |upper }}</span>
+            {% endif %}
+            <span class="attachments__what">
+              <a href="{% url 'cabinet:homework_file' item.pk %}" target="_blank" rel="noopener">{{ item.name }}</a>
+              <span class="small muted">{{ item.kind_label }} · {{ item.human_size }}</span>
+            </span>
+            {% comment %}
+              Убрать вложение — отдельным запросом: снятое не должно ждать
+              кнопки «Сохранить», иначе непонятно, убралось оно или нет.
+            {% endcomment %}
+            <button class="btn btn--quiet attachments__remove" type="button"
+                    hx-post="{% url 'cabinet:homework_file_remove' item.pk %}"
+                    hx-select="unset" hx-select-oob="unset"
+                    hx-target="#lesson-homework" hx-swap="innerHTML"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-confirm="Убрать «{{ item.name }}»?">Убрать</button>
+          </li>
+        {% endfor %}
+      </ul>
     {% endif %}
+
     <label class="field" style="margin:0">
       <span class="field__label">
-        {% if homework.photo %}Заменить фото листа{% else %}Фото листа с задачами — если проще снять, чем переписать{% endif %}
+        {% if files %}Приложить ещё{% else %}Приложить файлы — если проще дать, чем переписать{% endif %}
       </span>
-      {# capture="environment" открывает на телефоне сразу камеру. #}
-      <input class="input" type="file" name="photo" accept="image/*" capture="environment">
+      {% comment %}
+        capture убран намеренно: с ним телефон открывает сразу камеру и до
+        файлов на устройстве уже не добраться, а Word лежит именно там.
+        Снять страницу камерой всё равно можно — через выбор источника.
+      {% endcomment %}
+      <input class="input" type="file" name="files" multiple
+             accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.rtf,.odt,.txt,.xls,.xlsx,.csv,.ods,.ppt,.pptx,.odp,image/*">
+      <span class="field__hint">
+        Документы Word и PDF, таблицы Excel и CSV, презентации, картинки.
+        До 25 МБ файл, до 10 файлов на задание.
+      </span>
     </label>
+    {% endwith %}
   </div>
 
   <div class="lesson-field__row">

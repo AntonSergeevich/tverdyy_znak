@@ -30,6 +30,7 @@ from apps.journal.models import (
     GradeItem,
     GradeItemKind,
     Group,
+    HomeworkFile,
     Lesson,
     Module,
     Student,
@@ -184,24 +185,52 @@ def rules(request):
 
 
 @login_required
-def homework_photo(request, lesson_id):
+def homework_file(request, file_id):
     """
-    Фото листа с задачами.
+    Вложение к домашнему заданию.
 
-    Роль здесь не проверяется списком: снимок нужен прежде всего ученику и
+    Роль здесь не проверяется списком: файл нужен прежде всего ученику и
     родителю — это их задание. Кому занятие доступно, решает
     `get_lesson_or_403` по тем же правилам, что и везде, а без роли
     выборка занятий пуста, и никому ничего не достанется.
 
     Файл лежит вне MEDIA_ROOT и отдаётся отсюда, а не веб-сервером: на
-    снимке страницы бывает и фамилия, и почерк.
+    снимке страницы бывает и фамилия, и почерк, а в присланной таблице —
+    список группы.
+
+    Картинки открываем в браузере, всё остальное отдаём вложением. Разница
+    не косметическая: браузер, которому позволили показать чужой файл
+    как страницу, покажет и то, что в нём написано скриптом.
     """
     organization = request.organization
-    lesson = get_lesson_or_403(request.user, organization, lesson_id)
-    homework = getattr(lesson, "homework", None)
-    if homework is None or not homework.photo:
-        raise Http404("Фотографии к этому заданию нет.")
-    return FileResponse(homework.photo.open("rb"))
+    attachment = get_object_or_404(HomeworkFile.objects.select_related("homework__lesson"),
+                                   pk=file_id)
+    get_lesson_or_403(request.user, organization, attachment.homework.lesson_id)
+    if not attachment.file:
+        raise Http404("Файла нет.")
+
+    return FileResponse(
+        attachment.file.open("rb"),
+        as_attachment=not attachment.is_image,
+        filename=attachment.name,
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def homework_file_remove(request, file_id):
+    """Убрать вложение — вместе с файлом на диске."""
+    from apps.journal.services import homework as homework_service
+
+    organization = request.organization
+    attachment = get_object_or_404(HomeworkFile.objects.select_related("homework__lesson"),
+                                   pk=file_id)
+    lesson = get_lesson_or_403(request.user, organization, attachment.homework.lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+    homework_service.remove_file(attachment)
+
+    return _homework_form(request, lesson, saved=True)
 
 
 @login_required
@@ -506,34 +535,60 @@ def lesson_homework_save(request, lesson_id):
     text = request.POST.get("text") or ""
     due_date = homework_service.parse_date(request.POST.get("due_date"))
     max_points = homework_service.parse_points(request.POST.get("max_points"))
-    photo = request.FILES.get("photo")
-    drop_photo = request.POST.get("drop_photo") == "1"
 
     error = ""
     try:
         homework = homework_service.save_homework(
             lesson=lesson, text=text, due_date=due_date,
             max_points=max_points, actor=request.user,
-            photo=photo, drop_photo=drop_photo,
         )
+        # Файлы прикладываем после того, как задание сохранилось: вложение
+        # без задания — это файл, на который никто не сошлётся.
+        if homework is not None:
+            homework_service.attach_files(
+                homework=homework,
+                uploads=request.FILES.getlist("files"),
+                actor=request.user,
+            )
     except ValidationError as exc:
-        # Сотня на модуль не резиновая. Показываем ровно то, что мешает,
-        # и оставляем введённое на экране — переписывать заново незачем.
+        # Сотня на модуль не резиновая, и не всякий файл можно приложить.
+        # Показываем ровно то, что помешало, и оставляем введённое
+        # на экране — переписывать заново незачем.
+        lesson.refresh_from_db()
         homework = getattr(lesson, "homework", None)
-        error = "; ".join(m for messages in exc.message_dict.values() for m in messages)
+        error = _first_message(exc)
 
     log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=lesson,
               change="homework_saved")
+    return _homework_form(
+        request, lesson, homework=homework, saved=not error, error=error,
+        draft={
+            "text": text,
+            "due_date": request.POST.get("due_date"),
+            "max_points": request.POST.get("max_points"),
+        },
+    )
+
+
+def _homework_form(request, lesson, *, homework=..., saved=False, error="", draft=None):
+    """
+    Блок домашнего задания целиком.
+
+    Один рендер на все действия с ним: сохранение, отказ, снятое вложение.
+    Разные ответы на один и тот же блок разъезжаются на второй же правке.
+    """
+    if homework is ...:
+        lesson.refresh_from_db()
+        homework = getattr(lesson, "homework", None)
     return render(
         request,
         "cabinet/teacher/partials/lesson_homework_form.html",
         {
             "lesson": lesson,
             "homework": homework,
-            "saved": not error,
+            "saved": saved,
             "error": error,
-            "draft": {"text": text, "due_date": request.POST.get("due_date"),
-                      "max_points": request.POST.get("max_points")},
+            "draft": draft or {},
             "previous_homework": previous_homework(lesson),
         },
     )
