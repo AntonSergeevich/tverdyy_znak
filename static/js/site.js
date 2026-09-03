@@ -54,6 +54,32 @@
     });
   });
 
+  // ─── Группы разделов в меню кабинета ─────────────────────────────────────
+  // Обработчик один на документ, а не на каждой кнопке: меню htmx подменяет
+  // целиком (hx-select-oob="#site-nav"), и привязка к узлам ушла бы вместе
+  // с ними после первого же перехода.
+  function closeGroups(except) {
+    document.querySelectorAll('.nav-group.is-open').forEach(function (group) {
+      if (group === except) return;
+      group.classList.remove('is-open');
+      var label = group.querySelector('[data-nav-group]');
+      if (label) label.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-nav-group]');
+    var group = button ? button.parentElement : null;
+    closeGroups(group);
+    if (!button) return;
+    var open = group.classList.toggle('is-open');
+    button.setAttribute('aria-expanded', String(open));
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeGroups(null);
+  });
+
   // ─── 100-балльная шкала ──────────────────────────────────────────────────
   document.querySelectorAll('[data-scale]').forEach(function (panel) {
     var input = panel.querySelector('input[type=range]');

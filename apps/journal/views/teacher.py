@@ -172,7 +172,6 @@ def lesson_journal(request, lesson_id):
 
 
 @login_required
-@role_required("teacher", "admin", "owner", "platform_admin")
 def rules(request):
     """
     Регламент оценивания — шпаргалка под рукой.
@@ -181,8 +180,21 @@ def rules(request):
     так, чтобы в него можно было заглянуть между занятиями. Места, где сам
     регламент говорит по-разному, отмечены прямо — педагог должен знать,
     где спросить, а не выбирать наугад.
+
+    Роль не проверяется намеренно. Сам регламент (п. 1.6) требует, чтобы с
+    критериями заранее были ознакомлены педагоги, ученики **и родители**:
+    закрывать документ от той стороны, ради которой он написан, бессмысленно.
+    Родителю и ученику показываются те же цифры, но без внутренней кухни —
+    ссылок на кнопки журнала и пометок о правках в самом документе.
     """
-    return render(request, "cabinet/teacher/rules.html", {})
+    return render(
+        request,
+        "cabinet/teacher/rules.html",
+        {
+            "for_staff": is_manager(request.user, request.organization)
+            or teacher_profile(request.user, request.organization) is not None
+        },
+    )
 
 
 @login_required

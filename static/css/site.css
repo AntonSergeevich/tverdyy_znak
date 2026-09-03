@@ -856,13 +856,40 @@ body.is-dialed { overflow: hidden; }
 
 /* ─── Кабинет ────────────────────────────────────────────────────────────── */
 .cabinet__body { padding: clamp(16px, 3vw, 32px) var(--pad-x); max-width: 1440px; margin: 0 auto; width: 100%; }
-.cabinet-nav { display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; min-width: 0; }
-.cabinet-nav::-webkit-scrollbar { display: none; }
+/* Меню кабинета. Раскрывающиеся группы нельзя обрезать по горизонтали,
+   поэтому overflow здесь видимый, а лишнее переносится на вторую строку. */
+.cabinet-nav { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .cabinet-nav a {
   min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px;
   border: 1px solid var(--line); color: var(--ink-2); font-size: 15px; background: var(--surface);
 }
 .cabinet-nav a[aria-current="page"] { border-color: var(--accent); color: var(--ink); }
+
+/* Группа разделов: одно название наверху, список — под ним. Открывается
+   наведением (мышь), фокусом (клавиатура) и нажатием (палец, см. site.js). */
+.nav-group { position: relative; display: inline-flex; }
+.nav-group__label {
+  min-height: 44px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 14px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink-2); font: inherit; font-size: 15px; cursor: pointer;
+}
+.nav-group.is-current > .nav-group__label { border-color: var(--accent); color: var(--ink); }
+.nav-group__chev { font-size: 11px; line-height: 1; color: var(--ink-3); }
+.nav-group__items {
+  position: absolute; top: 100%; left: 0; z-index: 30; min-width: 190px;
+  display: none; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .12);
+}
+.nav-group:hover > .nav-group__items,
+.nav-group:focus-within > .nav-group__items,
+.nav-group.is-open > .nav-group__items { display: flex; }
+.cabinet-nav .nav-group__items a {
+  border: 0; border-bottom: 1px solid var(--line); min-height: 44px;
+}
+.cabinet-nav .nav-group__items a:last-child { border-bottom: 0; }
+.cabinet-nav .nav-group__items a:hover { background: var(--mark); }
+.cabinet-nav .nav-group__items a[aria-current="page"] { color: var(--ink); background: var(--mark); }
 .page-title { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
 
 .stat-row { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -1019,6 +1046,19 @@ a.week__lesson--open .week__subject { text-decoration: underline; text-decoratio
   }
   .site-header.is-open .site-nav a:last-child,
   .site-header.is-open .cabinet-nav a:last-child { border-bottom: 0; }
+
+  /* В открытом бургере места по вертикали сколько угодно: прятать разделы
+     под второе нажатие незачем. Группа становится подзаголовком. */
+  .site-header.is-open .cabinet-nav .nav-group { display: block; }
+  .site-header.is-open .cabinet-nav .nav-group__label {
+    width: 100%; min-height: 40px; padding: 0 2px; border: 0;
+    font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); cursor: default;
+  }
+  .site-header.is-open .cabinet-nav .nav-group__chev { display: none; }
+  .site-header.is-open .cabinet-nav .nav-group__items {
+    position: static; display: flex; min-width: 0; border: 0; box-shadow: none;
+  }
 }
 
 @media (max-width: 640px) {

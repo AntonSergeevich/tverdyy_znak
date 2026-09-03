@@ -6,14 +6,29 @@
   пункта тоже жила в шаблонах и при переходе без перезагрузки не
   переставлялась — шапка ведь не менялась.
 
-  Теперь пункт подсвечивается по имени текущего маршрута, а сам блок
-  htmx подменяет вместе с содержимым (hx-select-oob в base_cabinet).
+  Теперь состав меню и подсветка приходят из контекст-процессора, а сам
+  блок htmx подменяет вместе с содержимым (hx-select-oob в base_cabinet).
+
+  У владельца пунктов набралось столько, что в строку они не помещались и
+  заезжали друг за друга. Близкое собрано в группы: наверху одно название,
+  разделы — в раскрывающемся списке. На телефоне раскрывать нечего:
+  бургер и так открыт во всю ширину, поэтому группа там просто подзаголовок
+  над своими пунктами (см. CSS).
 {% endcomment %}
-{% with current=request.resolver_match.url_name %}
 <nav class="cabinet-nav" id="site-nav" aria-label="Разделы кабинета">
-  {% for item in cabinet_menu %}
-    <a href="{{ item.url }}"
-       {% if item.name == current or current in item.also %}aria-current="page"{% endif %}>{{ item.label }}</a>
+  {% for entry in cabinet_menu %}
+    {% if entry.children %}
+      <div class="nav-group{% if entry.is_current %} is-current{% endif %}">
+        <button type="button" class="nav-group__label" data-nav-group
+                aria-expanded="false">{{ entry.label }}<span class="nav-group__chev" aria-hidden="true">▾</span></button>
+        <div class="nav-group__items">
+          {% for item in entry.children %}
+            <a href="{{ item.url }}"{% if item.is_current %} aria-current="page"{% endif %}>{{ item.label }}</a>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      <a href="{{ entry.url }}"{% if entry.is_current %} aria-current="page"{% endif %}>{{ entry.label }}</a>
+    {% endif %}
   {% endfor %}
 </nav>
-{% endwith %}

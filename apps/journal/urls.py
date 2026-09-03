@@ -40,8 +40,11 @@ urlpatterns = [
         teacher.module_plan_action, name="module_plan_action",
     ),
 
+    # Регламент оценивания смотрят все, включая родителей и учеников, —
+    # поэтому адрес не «педагогический».
+    path("reglament/", teacher.rules, name="rules"),
+
     # Календарно-тематическое планирование: приходит файлом, разбирается здесь
-    path("pedagog/reglament/", teacher.rules, name="rules"),
     path("pedagog/ktp/", ktp.plan_list, name="ktp_list"),
     path("pedagog/ktp/zagruzit/", ktp.plan_upload, name="ktp_upload"),
     path("pedagog/ktp/<uuid:plan_id>/", ktp.plan_detail, name="ktp_detail"),
