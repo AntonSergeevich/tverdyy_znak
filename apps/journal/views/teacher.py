@@ -30,12 +30,14 @@ from apps.journal.models import (
     GradeItem,
     GradeItemKind,
     Group,
+    Homework,
     HomeworkFile,
     Lesson,
     Module,
     Student,
     Subject,
 )
+from apps.journal.services import homework as homework_service
 from apps.journal.services import ktp as ktp_service
 from apps.journal.services import workload
 from apps.journal.services.grading import (
@@ -127,6 +129,17 @@ def _lesson_rows(lesson: Lesson):
     ]
 
 
+def _review_context(homework) -> dict:
+    """Блок проверки домашнего: состав группы и что с заданием у каждого."""
+    if homework is None:
+        return {}
+    return {
+        "homework": homework,
+        "review_rows": homework_service.review_rows(homework),
+        "counts": homework_service.review_counts(homework),
+    }
+
+
 @login_required
 @role_required("teacher", "admin", "owner", "platform_admin")
 def lesson_journal(request, lesson_id):
@@ -137,6 +150,7 @@ def lesson_journal(request, lesson_id):
     grade_item = getattr(lesson, "grade_item", None)
     budget = points_budget(lesson.module, lesson.subject, lesson.group)
     plan_entry = ktp_service.entry_for(lesson)
+    earlier = previous_homework(lesson)
 
     log_audit(action=AuditAction.VIEW_STUDENT, request=request, obj=lesson, scope="lesson_journal")
 
@@ -162,13 +176,99 @@ def lesson_journal(request, lesson_id):
                 subject=lesson.subject, group=lesson.group, exclude_lesson=lesson
             ),
             "previous_lesson": previous_lesson(lesson),
-            "previous_homework": previous_homework(lesson),
+            "previous_homework": earlier,
+            # Проверяют сегодня то, что задавали в прошлый раз, — поэтому
+            # список для проверки собран по прошлому занятию, а не по этому.
+            "review": _review_context(earlier),
+            "own_review": _review_context(getattr(lesson, "homework", None)),
             # Тема из КТП: если занятию сопоставлена строка плана, её текст
             # подставляется в поле. Не как подсказка сбоку, а прямо в поле —
             # план для того и составляли, чтобы не сочинять тему заново.
             "plan_entry": plan_entry,
         },
     )
+
+
+def _review_block(request, homework, *, error: str = ""):
+    """Ответ на проверку — блок целиком: меняется и строка, и счётчики над ней."""
+    return render(
+        request,
+        "cabinet/teacher/partials/homework_review.html",
+        {**_review_context(homework), "review_error": error},
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def homework_review(request, homework_id, student_id):
+    """
+    Проверка домашнего у одного ученика: зачтено или нужно доделать.
+
+    Здесь же и снятие проверки — пустым вердиктом. Промах пальцем по чужой
+    строке иначе остался бы навсегда, а исправить его было бы негде.
+
+    Отвечаем блоком целиком, а не строкой: над списком стоят счётчики
+    «ждут проверки» и «зачтено», и после каждой проверки они другие.
+    """
+    organization = request.organization
+    homework = get_object_or_404(
+        Homework.objects.select_related("lesson", "lesson__group"), pk=homework_id
+    )
+    lesson = get_lesson_or_403(request.user, organization, homework.lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    student = get_object_or_404(
+        Student.objects.filter(group_memberships__group=lesson.group_id).distinct(),
+        pk=student_id,
+    )
+    error = ""
+    try:
+        homework_service.review(
+            homework=homework,
+            student=student,
+            verdict=(request.POST.get("verdict") or "").strip(),
+            comment=request.POST.get("comment", ""),
+            actor=request.user,
+        )
+    except ValidationError as exc:
+        error = "; ".join(exc.messages)
+
+    log_audit(
+        action=AuditAction.VIEW_STUDENT, request=request, obj=student,
+        scope="homework_review",
+    )
+    return _review_block(request, homework, error=error)
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def homework_review_bulk(request, homework_id):
+    """
+    Зачесть всем, кто отметил «сделал».
+
+    У педагога в группе дюжина человек, и на большинстве тетрадей писать
+    нечего — там просто «сделано». Двенадцать нажатий подряд ради этого
+    и есть та причина, по которой проверку не ведут в системе вовсе.
+
+    Трогаем только отметившихся и только непроверенных: «зачесть всем»
+    не должно молча закрывать тех, кто ничего не сдавал, и не должно
+    перебивать уже поставленное «нужно доделать».
+    """
+    organization = request.organization
+    homework = get_object_or_404(
+        Homework.objects.select_related("lesson", "lesson__group"), pk=homework_id
+    )
+    lesson = get_lesson_or_403(request.user, organization, homework.lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    changed = homework_service.accept_marked(homework=homework, actor=request.user)
+    log_audit(
+        action=AuditAction.VIEW_STUDENT, request=request, obj=lesson,
+        scope="homework_review_bulk", extra={"changed": changed},
+    )
+    return _review_block(request, homework)
 
 
 @login_required

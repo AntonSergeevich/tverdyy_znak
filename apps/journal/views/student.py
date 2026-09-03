@@ -33,7 +33,7 @@ from apps.journal.models import (
 )
 from apps.journal.services.goals import path_of, set_steps, toggle_step
 from apps.journal.services.grading import get_scale
-from apps.journal.services.homework import mark_done, upcoming_homework
+from apps.journal.services.homework import homework_board, mark_done
 from apps.journal.views.parent import current_module, day_lessons
 
 
@@ -87,7 +87,7 @@ def student_home(request):
         if module
         else ModuleResult.objects.none()
     )
-    homework = upcoming_homework(student)
+    board = homework_board(student, module=module)
     today_mood = MoodEntry.objects.filter(student=student, day=timezone.localdate()).first()
     yesterday = timezone.localdate() - timedelta(days=1)
     yesterday_mood = MoodEntry.objects.filter(student=student, day=yesterday).first()
@@ -99,7 +99,7 @@ def student_home(request):
             "student": student,
             "module": module,
             "results": list(results),
-            "homework": list(homework),
+            "board": board,
             "today_lessons": list(day_lessons(student)),
             "scale": get_scale(organization),
             # Свои цели ученик видит целиком, включая скрытые. Но если
@@ -240,24 +240,31 @@ def homework_mark(request, homework_id):
     """
     Отметка «сделал» — ставит и снимает сам ученик.
 
-    Это не подтверждение выполнения и не заявка на проверку: задание
-    перестаёт висеть в списке, а педагог видит, сколько человек к занятию
-    готовились. Передумать можно в любой момент — отметка снимается тем же
-    касанием, каким ставилась.
+    Отвечаем всей доской, а не одной карточкой: нажатие переносит задание
+    из «Сделать» в «На проверке», а перенос между разделами подменой
+    одной карточки не изобразить — она осталась бы стоять там же,
+    и выглядело бы это ровно как раньше, когда кнопка ничего не делала.
     """
     student = _own_student(request)
     homework = get_object_or_404(
         Homework.objects.filter(lesson__group__memberships__student=student).distinct(),
         pk=homework_id,
     )
-    done = mark_done(
-        homework=homework, student=student, done=request.POST.get("done") == "1"
-    )
-    homework.done = done
+    error = ""
+    try:
+        mark_done(
+            homework=homework, student=student, done=request.POST.get("done") == "1"
+        )
+    except ValidationError as exc:
+        error = "; ".join(exc.messages)
+
     return render(
         request,
-        "cabinet/student/partials/homework_card.html",
-        {"item": homework},
+        "cabinet/student/partials/homework_board.html",
+        {
+            "board": homework_board(student, module=current_module(request.organization)),
+            "error": error,
+        },
     )
 
 

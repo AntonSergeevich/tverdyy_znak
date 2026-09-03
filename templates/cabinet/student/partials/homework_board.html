@@ -1,0 +1,61 @@
+{% load journal_extras %}
+{% comment %}
+  Домашние задания ученика — тремя разделами, а не одной кучей.
+
+  Раньше это был один список: ближайшее и просроченное за неделю,
+  обрезанное по десятому. Обрезание было молчаливым, и ребёнок не знал,
+  что заданий больше; несданное через неделю исчезало совсем. Отметка
+  «сделал» ничего не меняла — карточка оставалась на месте.
+
+  Теперь в глаза лезет только «Сделать», и он короткий по определению:
+  сданное уходит в «На проверке», закрытое — в свёрнутый архив. Ничего
+  не обрезается: задолженность не должна растворяться сама.
+
+  Подменяется целиком, а не по карточке: нажатие «Сделал» переносит
+  задание из раздела в раздел, и одной карточкой тут не отделаешься.
+{% endcomment %}
+<div id="homework-board">
+  {% if error %}<div class="message message--error" role="alert">{{ error }}</div>{% endif %}
+
+  {% if board.todo %}
+    <h3 class="hw-head">Сделать <span class="hw-count">{{ board.todo|length }}</span></h3>
+    <div class="stack">
+      {% for item in board.todo %}
+        {% include "cabinet/student/partials/homework_card.html" %}
+      {% endfor %}
+    </div>
+  {% elif board.review or board.checked %}
+    <p class="muted">Ничего не ждёт — всё сдано.</p>
+  {% else %}
+    <p class="muted">Ничего не задано.</p>
+  {% endif %}
+
+  {% if board.review %}
+    <h3 class="hw-head">На проверке <span class="hw-count">{{ board.review|length }}</span></h3>
+    <div class="stack">
+      {% for item in board.review %}
+        {% include "cabinet/student/partials/homework_card.html" %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if board.checked %}
+    {% comment %}
+      Свёрнуто: это архив, а не список дел. Но и не спрятано — счётчик на
+      виду, и «сколько уже закрыто» видно, не раскрывая.
+    {% endcomment %}
+    <details class="hw-archive">
+      <summary class="hw-head">Проверено <span class="hw-count">{{ board.checked_total }}</span></summary>
+      <div class="stack" style="margin-top:12px">
+        {% for item in board.checked %}
+          {% include "cabinet/student/partials/homework_card.html" %}
+        {% endfor %}
+      </div>
+      {% if board.checked_total > board.checked|length %}
+        <p class="small muted" style="margin-top:8px">
+          Показаны последние {{ board.checked|length }} из {{ board.checked_total }}.
+        </p>
+      {% endif %}
+    </details>
+  {% endif %}
+</div>

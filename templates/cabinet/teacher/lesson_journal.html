@@ -21,10 +21,36 @@
 </div>
 
 {% comment %}
+  Проверка домашнего — с прошлого занятия, а не с этого.
+
+  Так это и происходит: педагог задал в прошлый раз, сегодня собрал
+  тетради и заходит в занятие. Своё, только что заданное, проверять
+  обычно рано — оно ниже, под свёрнутой строкой.
+{% endcomment %}
+{% if review.homework %}
+  <section class="lesson-review" style="margin-top:28px">
+    <h2 class="label" style="font-size:18px;margin:0 0 4px">
+      Проверить домашнее с прошлого занятия
+    </h2>
+    {% include "cabinet/teacher/partials/homework_review.html" with homework=review.homework review_rows=review.review_rows counts=review.counts %}
+  </section>
+{% endif %}
+
+{% comment %}
   Список учеников — всегда, независимо от того, ставят за занятие баллы или
   нет. Что показать внутри, решает сам блок.
 {% endcomment %}
 {% include "cabinet/teacher/partials/journal_body.html" %}
+
+{% if own_review.homework %}
+  <details class="lesson-review hw-archive" style="margin-top:28px">
+    <summary class="hw-head" style="margin:0">
+      Проверка заданного сегодня
+      <span class="hw-count">{{ own_review.counts.waiting }}</span>
+    </summary>
+    {% include "cabinet/teacher/partials/homework_review.html" with homework=own_review.homework review_rows=own_review.review_rows counts=own_review.counts %}
+  </details>
+{% endif %}
 
 {% include "cabinet/teacher/partials/grade_dial.html" %}
 {% endblock %}

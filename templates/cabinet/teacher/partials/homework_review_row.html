@@ -1,0 +1,63 @@
+{% comment %}
+  Одна строка проверки: фамилия, состояние, комментарий и два решения.
+
+  Комментарий — обычное поле, а не всплывающее окно: педагог пишет одну
+  строку («второй пример переделай») и идёт дальше, а окно ради строки
+  стоит дороже, чем сама строка.
+{% endcomment %}
+{% with mark=row.mark %}
+<div class="review-row
+            {% if mark.is_accepted %}review-row--ok
+            {% elif mark.needs_redo %}review-row--redo
+            {% elif mark.is_done %}review-row--wait{% endif %}"
+     id="review-{{ homework.pk }}-{{ row.student.pk }}">
+  <span class="review-row__name">{{ row.student.short_name }}</span>
+
+  <span class="review-row__state">
+    {% if mark.is_accepted %}✓ зачтено
+    {% elif mark.needs_redo %}на доработке
+    {% elif mark.is_done %}отметил «сделал»
+    {% else %}<span class="muted">не отмечал</span>{% endif %}
+  </span>
+
+  <input class="input review-row__comment" type="text" name="comment"
+         maxlength="500" placeholder="комментарий ученику"
+         value="{{ mark.comment|default:'' }}"
+         aria-label="Комментарий для {{ row.student.short_name }}">
+
+  {% comment %}
+    hx-select="unset" hx-select-oob="unset" — на каждой кнопке, а не на
+    общей обёртке. Наследование htmx их подхватило бы и оттуда, но
+    сторожевой тест проверяет каждый запрос отдельно и прав: обёртку
+    однажды перепишут, а отмену унаследованного выреза не заметят —
+    и блок не обновится, а исчезнет.
+  {% endcomment %}
+  <span class="review-row__actions">
+    <button class="btn btn--sm{% if mark.is_accepted %} btn--quiet{% endif %}" type="button"
+            hx-post="{% url 'cabinet:homework_review' homework.pk row.student.pk %}"
+            hx-select="unset" hx-select-oob="unset"
+            hx-include="closest .review-row"
+            hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
+            hx-vals='{"verdict": "accepted"}'>
+      Зачтено
+    </button>
+    <button class="btn btn--sm btn--quiet" type="button"
+            hx-post="{% url 'cabinet:homework_review' homework.pk row.student.pk %}"
+            hx-select="unset" hx-select-oob="unset"
+            hx-include="closest .review-row"
+            hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
+            hx-vals='{"verdict": "redo"}'>
+      Доделать
+    </button>
+    {% if mark.is_checked %}
+      <button class="link-btn" type="button"
+              hx-post="{% url 'cabinet:homework_review' homework.pk row.student.pk %}"
+              hx-select="unset" hx-select-oob="unset"
+              hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
+              hx-vals='{"verdict": ""}'>
+        снять
+      </button>
+    {% endif %}
+  </span>
+</div>
+{% endwith %}

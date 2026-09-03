@@ -207,6 +207,9 @@ h2.h-display { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.05; text-wrap
 .btn--ghost:hover { background: transparent; color: var(--ink); border-color: var(--accent); }
 .btn--quiet { background: var(--surface); color: var(--ink); border-color: var(--line); font-weight: 500; }
 .btn--quiet:hover { background: var(--surface); color: var(--ink); border-color: var(--accent); }
+/* Мелкая кнопка — только там, где их в строке несколько подряд. Палец
+   всё равно должен попадать: 36px это нижняя граница, а не «поменьше». */
+.btn--sm { min-height: 36px; padding: 0 12px; font-size: 14px; }
 .btn[disabled], .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 
@@ -1211,6 +1214,72 @@ details.fieldset[open] > summary::after { content: ' −'; }
 /* Сделанное не прячем — гасим: задолженность и выполненное должны быть
    в одном списке, иначе непонятно, сколько всего задано. */
 .homework-card--done { border-left-color: var(--ok); opacity: .72; }
+/* Возвращённое на доработку — снова дело ученика, поэтому оно не гаснет,
+   а окрашено тревожно: это единственная карточка, требующая действия. */
+.homework-card--redo { border-left-color: var(--warn); }
+.homework-card--review { border-left-color: var(--grey); opacity: .85; }
+
+/* Разделы «Сделать», «На проверке», «Проверено» */
+.hw-head {
+  display: flex; align-items: center; gap: 10px; margin: 24px 0 8px;
+  font-family: 'Bebas Cyr', Impact, sans-serif; font-size: 17px;
+  letter-spacing: .04em; text-transform: uppercase; font-weight: 400;
+}
+.hw-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 22px; padding: 0 7px; font-size: 13px;
+  font-family: inherit; background: var(--mark); color: var(--ink-2);
+}
+.hw-archive > summary { cursor: pointer; list-style: none; }
+.hw-archive > summary::-webkit-details-marker { display: none; }
+.hw-archive > summary::after { content: '▾'; font-size: 13px; color: var(--ink-3); }
+.hw-archive[open] > summary::after { content: '▴'; }
+
+/* Состояние задания и слово педагога */
+.hw-state { margin-top: 10px; font-size: 14px; font-weight: 600; }
+.hw-state--ok { color: var(--ok); }
+.hw-state--wait { color: var(--ink-3); }
+.hw-note {
+  margin-top: 10px; padding: 10px 12px;
+  background: var(--mark); border-left: 3px solid var(--line-strong);
+}
+.hw-note--redo { border-left-color: var(--warn); }
+
+/* Проверка домашнего у педагога. Отдельной плашкой: ниже идёт список
+   учеников для баллов — те же фамилии, и без границы два списка
+   сливаются в один непонятный. */
+.lesson-review {
+  background: var(--surface); border: 1px solid var(--line);
+  padding: 16px clamp(12px, 2vw, 18px);
+}
+.review { margin-top: 12px; }
+.review__head {
+  display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;
+  align-items: flex-start; margin-bottom: 12px;
+}
+.review__counts { margin: 0; flex: 0 0 auto; }
+.review-list { display: flex; flex-direction: column; }
+.review-row {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+.review-row--ok { border-left: 3px solid var(--ok); padding-left: 10px; }
+.review-row--redo { border-left: 3px solid var(--warn); padding-left: 10px; }
+.review-row--wait { border-left: 3px solid var(--grey); padding-left: 10px; }
+.review-row__name { flex: 1 1 160px; font-weight: 600; }
+.review-row__state { flex: 0 0 auto; font-size: 14px; color: var(--ink-2); }
+.review-row__comment { flex: 2 1 220px; min-height: 36px; font-size: 14px; }
+.review-row__actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
+
+@media (max-width: 640px) {
+  /* На телефоне строка складывается: фамилия и состояние сверху, поле и
+     кнопки под ними. Иначе комментарий сжимается до двух букв. */
+  .review-row { align-items: stretch; }
+  .review-row__name { flex: 1 1 100%; }
+  .review-row__comment { flex: 1 1 100%; }
+  .review-row__actions { flex: 1 1 100%; }
+  .review-row__actions .btn { flex: 1 1 0; }
+}
 
 /* Вложения к заданию: картинка показывается, документ и таблица
    называются. По миниатюре задание узнают с одного взгляда, а по имени
@@ -1323,6 +1392,11 @@ details.fieldset[open] > summary::after { content: ' −'; }
    кнопка врёт о том, как кабинет выглядит у хозяина. Но видно, что они
    приглушены, а при нажатии сервер объяснит отказ. */
 body.is-readonly .btn:not(.btn--quiet):not([data-allowed]),
+/* Проверка домашнего — тоже действие за человека: в режиме просмотра
+   кнопки гаснут все, включая тихие. Сервер их всё равно отклонит, но
+   гасшая кнопка объясняет это до нажатия, а не после. */
+body.is-readonly .review-row__actions .btn,
+body.is-readonly .review-row__actions .link-btn,
 body.is-readonly .grade-chip { opacity: .72; }
 body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { position: relative; }
 

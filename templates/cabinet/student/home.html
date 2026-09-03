@@ -62,20 +62,12 @@
   <button class="btn" type="submit" style="flex:0 0 auto">Добавить</button>
 </form>
 
+{% comment %}
+  Задание — это текст, а не строчка в таблице: «§12, задачи 3–7 письменно»
+  в колонку не влезает, а именно его и надо прочитать.
+{% endcomment %}
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Домашние задания</h2>
-{% if homework %}
-  {% comment %}
-    Задание — это текст, а не строчка в таблице: «§12, задачи 3–7
-    письменно» в колонку не влезает, а именно его и надо прочитать.
-  {% endcomment %}
-  <div class="stack">
-    {% for item in homework %}
-      {% include "cabinet/student/partials/homework_card.html" %}
-    {% endfor %}
-  </div>
-{% else %}
-  <p class="muted">Ничего не задано.</p>
-{% endif %}
+{% include "cabinet/student/partials/homework_board.html" %}
 
 {% comment %}
   Не вся неделя, а только сегодня.

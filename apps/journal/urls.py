@@ -29,6 +29,16 @@ urlpatterns = [
     path("pedagog/zanyatie/<uuid:lesson_id>/ocenivanie/", teacher.lesson_toggle_graded, name="lesson_toggle_graded"),
     path("pedagog/zanyatie/<uuid:lesson_id>/tema/", teacher.lesson_topic_save, name="lesson_topic_save"),
     path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/", teacher.lesson_homework_save, name="lesson_homework_save"),
+    # Проверка домашнего: зачтено или нужно доделать. Там же, где педагог
+    # ставит баллы, — на занятии, отдельного экрана заводить не за чем.
+    path(
+        "pedagog/domashnee/<uuid:homework_id>/proverka/<uuid:student_id>/",
+        teacher.homework_review, name="homework_review",
+    ),
+    path(
+        "pedagog/domashnee/<uuid:homework_id>/zachest-vsem/",
+        teacher.homework_review_bulk, name="homework_review_bulk",
+    ),
     path("pedagog/domashnee/fayl/<uuid:file_id>/", teacher.homework_file, name="homework_file"),
     path("pedagog/domashnee/fayl/<uuid:file_id>/ubrat/", teacher.homework_file_remove, name="homework_file_remove"),
     path(

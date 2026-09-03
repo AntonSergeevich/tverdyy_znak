@@ -2,12 +2,24 @@
 {% comment %}
   Карточка задания в кабинете ученика.
 
-  Отметка «сделал» ставится и снимается самим учеником. Это не заявка на
-  проверку и не обещание: задание перестаёт мозолить глаза, а педагог перед
-  занятием видит, сколько человек к нему готовились. Передумать можно тем же
-  касанием — поэтому и «убрать отметку» рядом, а не спрятано.
+  Что показывать, решает состояние задания, а не отдельный флаг: одна и та
+  же карточка стоит в «Сделать», в «На проверке» и в «Проверено», и в
+  каждом разделе у неё своё окончание. Раньше карточка была одна на все
+  случаи, а «Сделал» только перекрашивал рамку — нажатие никуда не вело.
+
+  Отметку ученик снимает сам, пока задание не проверено: передумать он
+  имеет право. После проверки кнопки нет — иначе «проверено» ничего бы не
+  значило, и педагог смотрел бы одно и то же по второму разу.
+
+  Только чтение (`readonly`) — для родителя: он видит то же самое, но
+  нажимать за ребёнка нечего.
 {% endcomment %}
-<div class="card homework-card{% if item.is_overdue and not item.done %} homework-card--late{% endif %}{% if item.done %} homework-card--done{% endif %}"
+{% with mark=item.mark %}
+<div class="card homework-card
+            {% if mark.is_accepted %}homework-card--done
+            {% elif mark.needs_redo %}homework-card--redo
+            {% elif mark.is_done %}homework-card--review
+            {% elif item.is_overdue %}homework-card--late{% endif %}"
      id="homework-{{ item.pk }}">
   <p class="small muted">
     {{ item.lesson.subject.name }} · задано {{ item.lesson.starts_at|date:"d.m" }}
@@ -19,14 +31,40 @@
 
   {% include "cabinet/partials/homework_files.html" with files=item.files.all %}
 
-  <form style="margin-top:10px"
-        hx-post="{% url 'cabinet:homework_mark' item.pk %}"
-        hx-select="unset" hx-select-oob="unset"
-        hx-target="#homework-{{ item.pk }}" hx-swap="outerHTML">
-    {% csrf_token %}
-    <input type="hidden" name="done" value="{% if item.done %}0{% else %}1{% endif %}">
-    <button class="btn {% if item.done %}btn--quiet{% endif %}" type="submit">
-      {% if item.done %}✓ Сделано — убрать отметку{% else %}Сделал{% endif %}
-    </button>
-  </form>
+  {% comment %}
+    Слово педагога — там же, где задание, а не отдельным списком на другом
+    экране. Раньше комментарий видел только родитель, и понять, к чему он
+    относится, было нельзя.
+  {% endcomment %}
+  {% if mark.comment %}
+    <div class="hw-note{% if mark.needs_redo %} hw-note--redo{% endif %}">
+      <p class="small muted">
+        {% if mark.needs_redo %}Педагог просит доделать{% else %}Педагог{% endif %}
+        {% if mark.checked_at %} · {{ mark.checked_at|date:"d.m" }}{% endif %}
+      </p>
+      <p>{{ mark.comment|linebreaksbr }}</p>
+    </div>
+  {% endif %}
+
+  {% if mark.is_accepted %}
+    <p class="hw-state hw-state--ok">✓ Зачтено{% if mark.checked_at %} · {{ mark.checked_at|date:"d.m" }}{% endif %}</p>
+  {% elif mark.is_done and not mark.is_checked %}
+    <p class="hw-state hw-state--wait">Ждёт проверки педагога</p>
+  {% endif %}
+
+  {% if not readonly and not mark.is_accepted %}
+    <form style="margin-top:10px"
+          hx-post="{% url 'cabinet:homework_mark' item.pk %}"
+          hx-select="unset" hx-select-oob="unset"
+          hx-target="#homework-board" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="done" value="{% if mark.is_done and not mark.is_checked %}0{% else %}1{% endif %}">
+      <button class="btn {% if mark.is_done and not mark.is_checked %}btn--quiet{% endif %}" type="submit">
+        {% if mark.is_done and not mark.is_checked %}Убрать отметку
+        {% elif mark.needs_redo %}Доделал — отправить снова
+        {% else %}Сделал{% endif %}
+      </button>
+    </form>
+  {% endif %}
 </div>
+{% endwith %}

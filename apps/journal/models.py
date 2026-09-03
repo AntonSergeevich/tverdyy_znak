@@ -679,18 +679,44 @@ class HomeworkFile(TenantModel):
         return "файл"
 
 
+class HomeworkVerdict(models.TextChoices):
+    """Чем закончилась проверка. Третьего не дано — «посмотрел» это не ответ."""
+
+    ACCEPTED = "accepted", "зачтено"
+    REDO = "redo", "нужно доделать"
+
+
 class HomeworkMark(TenantModel):
     """
-    Отметка ученика «сделал».
+    Что происходит с домашним заданием у одного ученика.
 
-    Не оценка и не подтверждение: ребёнок отмечает сам, педагог видит
-    список отметившихся. Смысл в том, чтобы задание перестало висеть
-    в кабинете, а педагог перед занятием знал, сколько человек к нему
-    готовились, — а не в том, чтобы поймать на неправде.
+    Раньше здесь была только отметка «сделал»: строка есть — ребёнок
+    отметился. Отметка никуда не вела. Ученик нажимал кнопку, задание
+    оставалось висеть в списке, педагог видел один счётчик «отметили
+    трое» и не знал, кто именно, а ответа о проверке не приходило вовсе.
+    Для заданий без баллов — а их большинство — обратной связи не было
+    никакой: сделал или нет, посмотрели или нет, узнать было негде.
 
-    Отметка есть — значит, строка есть; сняли отметку — строку убрали.
-    Мягкое удаление здесь только мешало бы: снятую отметку нельзя было бы
-    поставить снова, а передумать ребёнок имеет полное право.
+    Теперь у задания есть состояние, и оно проходит через четыре точки:
+
+        задано → сделал → проверено: зачтено
+                            ↘ нужно доделать → (снова сделал)
+
+    Читается по двум отметкам времени: `done_at` ставит ученик, `checked_at`
+    — педагог. Пусто и там и там — задание просто задано, и строки обычно
+    нет вовсе. Строку заводит и педагог: тетрадь можно проверить и у того,
+    кто кнопку не нажимал, — работа в тетради от этого не исчезает.
+
+    Вердикт хранится отдельно от `checked_at`, а не выводится из него:
+    «проверено» и «зачтено» — разные вещи, и разница как раз в том, что
+    ученику делать дальше.
+
+    Комментарий переживает возврат на доработку намеренно. Ребёнок
+    отправляет заново — проверка снимается, а слова педагога остаются
+    на карточке: иначе непонятно, что именно доделывать.
+
+    Мягкого удаления нет: снятую отметку нельзя было бы поставить снова,
+    а передумать ребёнок имеет полное право — пока задание не проверено.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -700,19 +726,62 @@ class HomeworkMark(TenantModel):
     student = models.ForeignKey(
         Student, on_delete=models.CASCADE, related_name="homework_marks", verbose_name="ученик"
     )
+    done_at = models.DateTimeField("ученик отметил", null=True, blank=True)
+    checked_at = models.DateTimeField("педагог проверил", null=True, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="homework_checks", verbose_name="кто проверил",
+    )
+    verdict = models.CharField(
+        "итог проверки", max_length=16, choices=HomeworkVerdict.choices, blank=True
+    )
+    comment = models.TextField("что сказал педагог", blank=True)
 
     class Meta:
-        verbose_name = "отметка о выполнении"
-        verbose_name_plural = "отметки о выполнении"
+        verbose_name = "домашнее задание ученика"
+        verbose_name_plural = "домашние задания учеников"
         ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(
                 fields=["homework", "student"], name="uniq_homework_mark_per_student"
-            )
+            ),
+            # Проверка без итога — это «посмотрел и ничего не сказал»:
+            # ровно то состояние, из-за которого всё и затевалось.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(checked_at__isnull=True, verdict="")
+                    | models.Q(checked_at__isnull=False) & ~models.Q(verdict="")
+                ),
+                name="homework_mark_verdict_with_check",
+            ),
         ]
+        indexes = [models.Index(fields=["organization", "homework", "checked_at"])]
 
     def __str__(self) -> str:
-        return f"{self.student} сделал {self.homework_id}"
+        return f"{self.student} · {self.homework_id} · {self.state}"
+
+    @property
+    def is_done(self) -> bool:
+        return self.done_at is not None
+
+    @property
+    def is_checked(self) -> bool:
+        return self.checked_at is not None
+
+    @property
+    def is_accepted(self) -> bool:
+        return self.verdict == HomeworkVerdict.ACCEPTED
+
+    @property
+    def needs_redo(self) -> bool:
+        return self.verdict == HomeworkVerdict.REDO
+
+    @property
+    def state(self) -> str:
+        """Одно слово о том, где задание сейчас."""
+        if self.is_checked:
+            return self.get_verdict_display()
+        return "на проверке" if self.is_done else "задано"
 
 
 def thematic_plan_path(instance, filename: str) -> str:

@@ -28,7 +28,7 @@ from apps.journal.models import (
     Teacher,
 )
 from apps.journal.services.grading import get_scale
-from apps.journal.services.homework import upcoming_homework
+from apps.journal.services.homework import homework_board
 
 from apps.site_public.models import TeacherReview
 
@@ -124,7 +124,7 @@ def student_overview(request, student: Student) -> dict:
         "today_lessons": list(day_lessons(student)),
         # Что задано ребёнку. Родитель спрашивает об этом чаще, чем о
         # баллах, — а раньше в кабинете этого не было вовсе.
-        "homework": upcoming_homework(student),
+        "board": homework_board(student, module=module),
         "scale": get_scale(organization),
         "days_left": module.days_left if module else None,
     }

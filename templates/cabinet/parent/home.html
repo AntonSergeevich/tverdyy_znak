@@ -160,27 +160,21 @@
   <p class="muted">Сегодня занятий нет. Вся неделя — в разделе «Расписание».</p>
 {% endif %}
 
+{% comment %}
+  То же, что видит ребёнок, и теми же тремя разделами — но без кнопок:
+  отмечать «сделал» за него родитель не должен. Раньше здесь был плоский
+  список без единого признака того, сделано задание или нет, — то есть
+  ровно без того, ради чего родитель сюда и заходит.
+{% endcomment %}
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Что задано</h2>
-{% if homework %}
-  <div class="stack">
-    {% for item in homework %}
-      <div class="card homework-card{% if item.is_overdue %} homework-card--late{% endif %}">
-        <p class="small muted">
-          {{ item.lesson.subject.name }} · задано {{ item.lesson.starts_at|date:"d.m" }}
-          {% if item.due_date %} · сдать до {{ item.due_date|date:"d.m.Y" }}{% endif %}
-          {% if item.grade_item %} · на {{ item.grade_item.max_points|points }}
-            {{ item.grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
-        </p>
-        <p style="margin-top:6px">{{ item.text|linebreaksbr }}</p>
-        {% include "cabinet/partials/homework_files.html" with files=item.files.all %}
-      </div>
-    {% endfor %}
-  </div>
-{% else %}
-  <p class="muted">Ничего не задано.</p>
-{% endif %}
+{% include "cabinet/student/partials/homework_board.html" with readonly=1 %}
 
-<h2 class="label" style="font-size:18px;margin:32px 0 8px">Комментарии педагогов</h2>
+{% comment %}
+  Это комментарии к баллам, а не к домашнему: слово педагога о задании
+  теперь стоит на самой карточке задания, выше. Заголовок поэтому уточнён —
+  иначе два списка комментариев на одном экране не различить.
+{% endcomment %}
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Комментарии к баллам</h2>
 {% if comments %}
   <div class="stack">
     {% for grade in comments %}

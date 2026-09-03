@@ -22,6 +22,8 @@ from apps.journal.models import (
     Homework,
     HomeworkFile,
     HomeworkMark,
+    HomeworkVerdict,
+    Student,
 )
 from apps.journal.services.grading import validate_grade_item
 
@@ -116,53 +118,223 @@ def save_homework(*, lesson, text: str, due_date=None, max_points=None, actor=No
     return homework
 
 
-def upcoming_homework(student, *, limit: int = 10) -> list[Homework]:
-    """
-    Что задано: ближайшие задания и те, чей срок прошёл на днях.
+# ─── Состояние задания у ученика ────────────────────────────────────────────
+#
+# Задание живёт по кругу, а не «задано и забыто»:
+#
+#     задано → сделал → проверено: зачтено
+#                        ↘ нужно доделать → (снова сделал)
+#
+# Из этого следует раскладка кабинета: «Сделать» — то, что ещё на ученике,
+# включая возвращённое на доработку; «На проверке» — то, что уже не на нём;
+# «Проверено» — закрытое, и его можно свернуть.
 
-    Заданное неделю назад ещё показываем — его могли не сдать, а убирать
-    задолженность с глаз значит делать вид, что её нет.
-    """
-    since = timezone.localdate() - dt.timedelta(days=7)
-    items = list(
+# Насколько далеко назад смотрим, если модуля нет (лето, каникулы, ещё не
+# завели расписание). В обычное время границей служит модуль.
+FALLBACK_DAYS = 30
+
+# Сколько закрытых заданий показываем. Это архив, а не список дел: он
+# свёрнут, и бесконечно листать его незачем.
+DONE_LIMIT = 20
+
+
+def _visible_homework(student, module=None):
+    """Задания группы ученика за текущий модуль — общая основа для всех корзин."""
+    items = (
         Homework.objects.filter(lesson__group__memberships__student=student)
-        .filter(
-            models.Q(due_date__gte=since)
-            | models.Q(due_date__isnull=True, lesson__starts_at__date__gte=since)
-        )
         .select_related("lesson", "lesson__subject", "grade_item")
-        .order_by("due_date", "lesson__starts_at")
-        .distinct()[:limit]
+        .prefetch_related("files")
     )
-    # Отметки одним запросом, а не по одной на карточку.
-    done = set(
-        HomeworkMark.objects.filter(
-            student=student, homework__in=items
-        ).values_list("homework_id", flat=True)
-    )
+    if module is not None:
+        return items.filter(lesson__module=module).distinct()
+    since = timezone.localdate() - dt.timedelta(days=FALLBACK_DAYS)
+    return items.filter(lesson__starts_at__date__gte=since).distinct()
+
+
+def homework_board(student, *, module=None) -> dict:
+    """
+    Задания ученика, разложенные по состоянию.
+
+    Раньше здесь был один список: ближайшие задания и просроченные за
+    неделю, обрезанные по десятому. Обрезание было молчаливым — ребёнок
+    видел десять и не знал, что есть ещё, — а через неделю после срока
+    несданное исчезало совсем. Задолженность не должна растворяться
+    сама, поэтому «Сделать» теперь не обрезается вовсе.
+
+    Границей служит модуль, и это не техническое ограничение: по
+    регламенту домашнее досдаётся не позднее последнего дня зачётной
+    недели. Дальше баллы за модуль закрыты, и держать это в списке дел
+    значило бы предлагать сделать то, что уже ничего не изменит.
+    """
+    items = list(_visible_homework(student, module).order_by("due_date", "lesson__starts_at"))
+    marks = {
+        mark.homework_id: mark
+        for mark in HomeworkMark.objects.filter(student=student, homework__in=items)
+    }
+
+    todo, review, checked = [], [], []
     for item in items:
-        item.done = item.id in done
-    return items
+        item.mark = marks.get(item.id)
+        if item.mark is None or not item.mark.is_checked:
+            (review if item.mark and item.mark.is_done else todo).append(item)
+        elif item.mark.needs_redo:
+            # Вернули на доработку — снова дело ученика, а не архив.
+            todo.append(item)
+        else:
+            checked.append(item)
+
+    checked.sort(key=lambda item: item.mark.checked_at, reverse=True)
+    return {
+        "todo": todo,
+        "review": review,
+        "checked": checked[:DONE_LIMIT],
+        "checked_total": len(checked),
+    }
 
 
-def mark_done(*, homework: Homework, student, done: bool) -> bool:
+def upcoming_homework(student, *, module=None) -> list[Homework]:
+    """Всё, что ещё на ученике: не сдано или возвращено на доработку."""
+    return homework_board(student, module=module)["todo"]
+
+
+@transaction.atomic
+def mark_done(*, homework: Homework, student, done: bool) -> HomeworkMark | None:
     """
     Отметка ученика «сделал». Возвращает состояние после переклика.
 
-    Ставит и снимает сам ученик — это не подтверждение выполнения, а способ
-    убрать задание с глаз и показать педагогу, сколько человек готовились.
+    Ставит и снимает сам ученик, пока задание не проверено: передумать он
+    имеет полное право. После проверки снять нельзя — иначе «проверено»
+    перестало бы что-либо значить, и педагог проверял бы одно и то же
+    по второму разу.
+
+    Повторное «сделал» после возврата на доработку снимает проверку:
+    работа ушла заново, и педагогу её снова смотреть. Комментарий при
+    этом остаётся — по нему и доделывали.
     """
+    mark = HomeworkMark.objects.filter(homework=homework, student=student).first()
+
     if done:
-        HomeworkMark.objects.get_or_create(
+        if mark is None:
+            mark = HomeworkMark(
+                organization=homework.organization, homework=homework, student=student
+            )
+        mark.done_at = timezone.now()
+        mark.checked_at = None
+        mark.checked_by = None
+        mark.verdict = ""
+        mark.save()
+        return mark
+
+    if mark is None:
+        return None
+    if mark.is_checked:
+        raise ValidationError(
+            "Задание уже проверено — отметку снять нельзя. "
+            "Если что-то не так, скажите педагогу."
+        )
+    mark.delete()
+    return None
+
+
+@transaction.atomic
+def review(*, homework: Homework, student, verdict: str, comment: str = "", actor=None):
+    """
+    Проверка педагога: зачтено или нужно доделать.
+
+    Строка заводится и для того, кто кнопку «сделал» не нажимал: работу
+    приносят в тетради, и отсутствие нажатия — не отсутствие работы.
+
+    Пустой вердикт снимает проверку. Это не тонкость: промах пальцем по
+    строке чужого ученика иначе остался бы навсегда, а исправить его было
+    бы негде.
+    """
+    mark = HomeworkMark.objects.filter(homework=homework, student=student).first()
+    if mark is None:
+        mark = HomeworkMark(
             organization=homework.organization, homework=homework, student=student
         )
-        return True
-    HomeworkMark.objects.filter(homework=homework, student=student).delete()
-    return False
+
+    if not verdict:
+        if mark.pk is None:
+            return None
+        mark.checked_at = None
+        mark.checked_by = None
+        mark.verdict = ""
+        if not mark.is_done:
+            # Ни отметки ученика, ни проверки — строке незачем существовать.
+            mark.delete()
+            return None
+        mark.save()
+        return mark
+
+    if verdict not in HomeworkVerdict.values:
+        raise ValidationError("Итог проверки может быть только «зачтено» или «доделать».")
+
+    mark.verdict = verdict
+    mark.comment = (comment or "").strip()
+    mark.checked_at = timezone.now()
+    mark.checked_by = actor
+    mark.save()
+    return mark
+
+
+@transaction.atomic
+def accept_marked(*, homework: Homework, actor=None) -> int:
+    """
+    Зачесть всем, кто отметил «сделал» и ещё не проверен.
+
+    Трогаем только отметившихся и только непроверенных: «зачесть всем» не
+    должно молча закрывать тех, кто ничего не сдавал, и не должно
+    перебивать уже поставленное «нужно доделать» — иначе одно нажатие
+    отменяет работу, которую педагог только что сделал руками.
+
+    Возвращает, сколько строк изменилось.
+    """
+    return HomeworkMark.objects.filter(
+        homework=homework, done_at__isnull=False, checked_at__isnull=True
+    ).update(
+        verdict=HomeworkVerdict.ACCEPTED,
+        checked_at=timezone.now(),
+        checked_by=actor,
+        updated_at=timezone.now(),
+    )
+
+
+def review_rows(homework: Homework) -> list[dict]:
+    """
+    Ученики группы и состояние их домашнего — без запроса на строку.
+
+    Порядок тот же, что в журнале баллов: педагог смотрит на один и тот же
+    список фамилий на обоих экранах, и переучиваться ему не приходится.
+    """
+    students = list(
+        Student.objects.filter(group_memberships__group=homework.lesson.group_id)
+        .order_by("last_name", "first_name")
+        .distinct()
+    )
+    marks = {
+        mark.student_id: mark
+        for mark in HomeworkMark.objects.filter(homework=homework, student__in=students)
+    }
+    return [{"student": student, "mark": marks.get(student.id)} for student in students]
+
+
+def review_counts(homework: Homework) -> dict:
+    """Сколько отметилось, сколько ждёт проверки, сколько закрыто."""
+    marks = HomeworkMark.objects.filter(homework=homework)
+    checked = marks.filter(checked_at__isnull=False)
+    return {
+        "done": marks.filter(done_at__isnull=False).count(),
+        "waiting": marks.filter(done_at__isnull=False, checked_at__isnull=True).count(),
+        "accepted": checked.filter(verdict=HomeworkVerdict.ACCEPTED).count(),
+        "redo": checked.filter(verdict=HomeworkVerdict.REDO).count(),
+    }
 
 
 def done_by(homework: Homework, student) -> bool:
-    return HomeworkMark.objects.filter(homework=homework, student=student).exists()
+    return HomeworkMark.objects.filter(
+        homework=homework, student=student, done_at__isnull=False
+    ).exists()
 
 
 # ─── Вложения ───────────────────────────────────────────────────────────────

@@ -1,0 +1,66 @@
+{% load journal_extras public_extras %}
+{% comment %}
+  Проверка домашнего задания — списком группы.
+
+  Раньше педагог видел здесь одну строчку: «отметили „сделал“: 3 ученика».
+  Кто именно — негде, ответить ребёнку — нечем. Отметка ученика никуда
+  не вела, и для заданий без баллов обратной связи не было вовсе.
+
+  Список тот же и в том же порядке, что в журнале баллов: педагог смотрит
+  на одни и те же фамилии на обоих экранах, и переучиваться ему не надо.
+
+  Блок — не форма, и это принципиально. htmx на любом запросе, кроме GET,
+  прикладывает к нему ближайшую форму целиком: комментарий уехал бы не
+  тому ученику, ровно как когда-то уезжали баллы. К запросу идёт одна
+  строка — та, в которой нажали (hx-include="closest .review-row").
+{% endcomment %}
+<div id="homework-review-{{ homework.pk }}" class="review"
+     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  {% if review_error %}
+    <div class="message message--error" role="alert">{{ review_error }}</div>
+  {% endif %}
+
+  <div class="review__head">
+    <div>
+      <p class="small muted" style="margin:0">
+        Задано {{ homework.lesson.starts_at|date:"d.m" }}{% if homework.due_date %} · сдать до {{ homework.due_date|date:"d.m.Y" }}{% endif %}
+        {% if homework.grade_item %} · на {{ homework.grade_item.max_points|points }}
+          {{ homework.grade_item.max_points|plural:"балл,балла,баллов" }}{% endif %}
+      </p>
+      <p style="margin:4px 0 0">{{ homework.text|truncatechars:160 }}</p>
+    </div>
+    <p class="small muted review__counts">
+      Ждут проверки: <strong>{{ counts.waiting }}</strong> ·
+      зачтено: {{ counts.accepted }} · на доработке: {{ counts.redo }}
+    </p>
+  </div>
+
+  {% if counts.waiting %}
+    {% comment %}
+      На большинстве тетрадей писать нечего — там просто «сделано».
+      Двенадцать нажатий подряд ради этого и есть причина, по которой
+      проверку не ведут в системе вовсе.
+    {% endcomment %}
+    <button class="btn btn--quiet" type="button"
+            hx-post="{% url 'cabinet:homework_review_bulk' homework.pk %}"
+            hx-select="unset" hx-select-oob="unset"
+            hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
+            hx-confirm="Зачесть домашнее всем, кто отметил «сделал»?">
+      Зачесть всем, кто отметил ({{ counts.waiting }})
+    </button>
+  {% endif %}
+
+  <div class="review-list">
+    {% for row in review_rows %}
+      {% include "cabinet/teacher/partials/homework_review_row.html" %}
+    {% empty %}
+      <p class="muted">В этой группе пока нет учеников.</p>
+    {% endfor %}
+  </div>
+
+  <p class="small muted" style="margin-top:10px">
+    «Зачтено» закрывает задание — ученик увидит галочку и ваш комментарий.
+    «Доделать» возвращает его в список дел ребёнка вместе с тем, что вы
+    написали. Проверку можно снять, если нажали не в той строке.
+  </p>
+</div>

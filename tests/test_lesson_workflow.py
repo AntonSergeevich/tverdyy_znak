@@ -588,7 +588,11 @@ def test_a_student_cannot_mark_someone_elses_task(tenant_a, tenant_b, homework):
         assert not HomeworkMark.objects.filter(homework=homework).exists()
 
 
-def test_the_student_sees_the_button_and_the_teacher_sees_the_count(tenant_a, homework):
+def test_the_student_marks_it_and_the_teacher_sees_who(tenant_a, homework):
+    """
+    Раньше педагог видел здесь счётчик «отметили: 1» — и всё. Кто именно,
+    было негде, ответить ребёнку нечем.
+    """
     student = sign_in(tenant_a, tenant_a.student_user)
     body = student.get(reverse("cabinet:student_home")).content.decode()
     assert "Сделал" in body
@@ -599,7 +603,12 @@ def test_the_student_sees_the_button_and_the_teacher_sees_the_count(tenant_a, ho
     body = teacher.get(
         reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
     ).content.decode()
-    assert "Отметили «сделал»: 1" in body
+
+    assert tenant_a.student.short_name in body
+    assert "отметил «сделал»" in body
+    assert reverse(
+        "cabinet:homework_review", args=[homework.pk, tenant_a.student.pk]
+    ) in body
 
 
 # ─── Планирование модуля ────────────────────────────────────────────────────
