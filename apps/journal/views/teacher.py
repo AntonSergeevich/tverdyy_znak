@@ -32,6 +32,7 @@ from apps.journal.models import (
     Group,
     Homework,
     HomeworkFile,
+    HomeworkVerdict,
     Lesson,
     Module,
     Student,
@@ -133,10 +134,14 @@ def _review_context(homework) -> dict:
     """Блок проверки домашнего: состав группы и что с заданием у каждого."""
     if homework is None:
         return {}
+    lesson = homework.lesson
     return {
         "homework": homework,
         "review_rows": homework_service.review_rows(homework),
         "counts": homework_service.review_counts(homework),
+        # Сотня модуля — то, на что педагог смотрит, ставя балл: «четыре из
+        # пяти» без «а всего у него тридцать семь из ста» половина картинки.
+        "budget": points_budget(lesson.module, lesson.subject, lesson.group),
     }
 
 
@@ -238,6 +243,66 @@ def homework_review(request, homework_id, student_id):
         action=AuditAction.VIEW_STUDENT, request=request, obj=student,
         scope="homework_review",
     )
+    return _review_block(request, homework, error=error)
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def homework_grade(request, homework_id, student_id):
+    """
+    Балл за домашнее задание.
+
+    Ставить его было негде вовсе. Педагог заводил задание «сдать до
+    11.09, 5 баллов», сохранял — и в списке проверки видел только
+    «зачтено» и «доделать». Работа в модуле при этом создавалась, баллы
+    за неё числились распределёнными, а поставить их было нечем: экран
+    выставления был только у самого занятия.
+
+    Выставленный балл означает и проверку: педагог, написавший «4 из 5»,
+    задание посмотрел. Отдельно нажимать «зачтено» после этого было бы
+    работой ради формальности. Вернуть на доработку он по-прежнему может
+    — балл при этом остаётся, и после переделки его можно поправить.
+    """
+    organization = request.organization
+    homework = get_object_or_404(
+        Homework.objects.select_related("lesson", "lesson__group", "grade_item"),
+        pk=homework_id,
+    )
+    lesson = get_lesson_or_403(request.user, organization, homework.lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    if homework.grade_item is None:
+        raise PermissionDenied(
+            "Это задание без баллов. Чтобы оценивать его в баллах, "
+            "укажите их в поле «Баллы» у задания."
+        )
+
+    student = get_object_or_404(
+        Student.objects.filter(group_memberships__group=lesson.group_id).distinct(),
+        pk=student_id,
+    )
+    comment = request.POST.get("comment", "")
+    error = ""
+    try:
+        points = homework_service.parse_points(request.POST.get("points"))
+        set_grade(
+            student=student, grade_item=homework.grade_item, points=points,
+            actor=request.user, comment=comment, request=request,
+        )
+        # Балл снят — снимаем и проверку: «зачтено без балла» у задания
+        # на баллы читается как «проверено», а балла нет, и непонятно,
+        # потеряли его или не ставили.
+        homework_service.review(
+            homework=homework, student=student,
+            verdict=HomeworkVerdict.ACCEPTED if points is not None else "",
+            comment=comment, actor=request.user,
+        )
+    except (ValidationError, PermissionDenied) as exc:
+        error = getattr(exc, "message", None) or "; ".join(
+            getattr(exc, "messages", [str(exc)])
+        )
+
     return _review_block(request, homework, error=error)
 
 

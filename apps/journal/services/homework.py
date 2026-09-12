@@ -17,6 +17,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from apps.journal.models import (
+    Grade,
     GradeItem,
     GradeItemKind,
     Homework,
@@ -25,7 +26,7 @@ from apps.journal.models import (
     HomeworkVerdict,
     Student,
 )
-from apps.journal.services.grading import validate_grade_item
+from apps.journal.services.grading import student_module_points, validate_grade_item
 
 # Заголовок оценивания — начало текста задания: в списке «Задания модуля»
 # должно быть видно, о чём речь, а не «Домашняя работа» восемь раз подряд.
@@ -171,10 +172,21 @@ def homework_board(student, *, module=None) -> dict:
         mark.homework_id: mark
         for mark in HomeworkMark.objects.filter(student=student, homework__in=items)
     }
+    # Балл за задание — там же, где само задание. «На 5 баллов» без «и ты
+    # получил 4» — половина ответа, а вторую половину ученик искал в общей
+    # сумме за модуль и найти не мог.
+    grades = {
+        grade.grade_item_id: grade
+        for grade in Grade.objects.filter(
+            student=student,
+            grade_item__in=[item.grade_item_id for item in items if item.grade_item_id],
+        )
+    }
 
     todo, review, checked = [], [], []
     for item in items:
         item.mark = marks.get(item.id)
+        item.grade = grades.get(item.grade_item_id)
         if item.mark is None or not item.mark.is_checked:
             (review if item.mark and item.mark.is_done else todo).append(item)
         elif item.mark.needs_redo:
@@ -306,6 +318,12 @@ def review_rows(homework: Homework) -> list[dict]:
 
     Порядок тот же, что в журнале баллов: педагог смотрит на один и тот же
     список фамилий на обоих экранах, и переучиваться ему не приходится.
+
+    Если задание на баллы, в строке едет и балл. Его негде было поставить
+    вовсе: оценивание было только у самого занятия, а домашнее заводило
+    свою работу в модуле, к которой не вело ни одного экрана. Педагог
+    ставил «сдать до, 5 баллов», сохранял — и упирался в две кнопки
+    «зачтено» и «доделать», а пятёрку поставить было нечем.
     """
     students = list(
         Student.objects.filter(group_memberships__group=homework.lesson.group_id)
@@ -316,7 +334,29 @@ def review_rows(homework: Homework) -> list[dict]:
         mark.student_id: mark
         for mark in HomeworkMark.objects.filter(homework=homework, student__in=students)
     }
-    return [{"student": student, "mark": marks.get(student.id)} for student in students]
+    grades = {}
+    totals = {}
+    if homework.grade_item_id is not None:
+        grades = {
+            grade.student_id: grade
+            for grade in Grade.objects.filter(
+                grade_item=homework.grade_item, student__in=students
+            )
+        }
+        totals = student_module_points(
+            students=students,
+            module=homework.lesson.module,
+            subject=homework.lesson.subject,
+        )
+    return [
+        {
+            "student": student,
+            "mark": marks.get(student.id),
+            "grade": grades.get(student.id),
+            "module_total": totals.get(student.id, Decimal("0")),
+        }
+        for student in students
+    ]
 
 
 def review_counts(homework: Homework) -> dict:

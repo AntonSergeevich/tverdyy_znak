@@ -46,7 +46,17 @@
     </div>
   {% endif %}
 
-  {% if mark.is_accepted %}
+  {% if item.grade %}
+    {% comment %}
+      Балл — там же, где задание. «На 5 баллов» без «и ты получил 4» —
+      половина ответа, а вторую половину ученик искал в общей сумме за
+      модуль и найти не мог.
+    {% endcomment %}
+    <p class="hw-state hw-state--ok">
+      <strong class="numeral">{{ item.grade.points|points }}</strong>
+      из {{ item.grade_item.max_points|points }}{% if mark.checked_at %} · {{ mark.checked_at|date:"d.m" }}{% endif %}
+    </p>
+  {% elif mark.is_accepted %}
     <p class="hw-state hw-state--ok">✓ Зачтено{% if mark.checked_at %} · {{ mark.checked_at|date:"d.m" }}{% endif %}</p>
   {% elif mark.is_done and not mark.is_checked %}
     <p class="hw-state hw-state--wait">Ждёт проверки педагога</p>

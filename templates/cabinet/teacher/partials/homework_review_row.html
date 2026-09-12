@@ -5,12 +5,19 @@
   строку («второй пример переделай») и идёт дальше, а окно ради строки
   стоит дороже, чем сама строка.
 {% endcomment %}
-{% with mark=row.mark %}
+{% load journal_extras %}
+{% with mark=row.mark item=homework.grade_item %}
 <div class="review-row
             {% if mark.is_accepted %}review-row--ok
             {% elif mark.needs_redo %}review-row--redo
             {% elif mark.is_done %}review-row--wait{% endif %}"
-     id="review-{{ homework.pk }}-{{ row.student.pk }}">
+     id="review-{{ homework.pk }}-{{ row.student.pk }}"
+     data-student="{{ row.student.pk }}"
+     data-name="{{ row.student.short_name }}"
+     {% if item %}data-max="{{ item.max_points|machine_number }}"
+     data-module-total="{{ row.module_total|points }}"
+     data-module-limit="{{ budget.limit|points }}"
+     data-what="за это задание"{% endif %}>
   <span class="review-row__name">{{ row.student.short_name }}</span>
 
   <span class="review-row__state">
@@ -19,6 +26,32 @@
     {% elif mark.is_done %}отметил «сделал»
     {% else %}<span class="muted">не отмечал</span>{% endif %}
   </span>
+
+  {% comment %}
+    Задание на баллы — значит, в строке есть балл. Ползунок тот же, что в
+    журнале занятия: две разные механики для одного и того же числа на
+    соседних экранах путают сильнее, чем лишняя кнопка.
+
+    Раньше балл за домашнее поставить было нечем вовсе: работа в модуле
+    заводилась, баллы числились распределёнными, а экран выставления был
+    только у занятия.
+  {% endcomment %}
+  {% if item %}
+    <button class="grade-chip{% if row.grade %} grade-chip--set{% endif %}"
+            type="button" data-dial-open
+            aria-label="Балл за домашнее для {{ row.student.short_name }}, из {{ item.max_points|points }}">
+      <span class="grade-chip__value" data-chip-value>{% if row.grade %}{{ row.grade.points|points }}{% else %}—{% endif %}</span>
+      <span class="grade-chip__max">из {{ item.max_points|points }}</span>
+    </button>
+    <input type="hidden" name="points" data-points
+           value="{% if row.grade %}{{ row.grade.points|machine_number }}{% endif %}"
+           hx-post="{% url 'cabinet:homework_grade' homework.pk row.student.pk %}"
+           hx-select="unset" hx-select-oob="unset"
+           hx-trigger="change"
+           hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
+           hx-include="closest .review-row"
+           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  {% endif %}
 
   <input class="input review-row__comment" type="text" name="comment"
          maxlength="500" placeholder="комментарий ученику"

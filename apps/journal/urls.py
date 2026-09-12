@@ -36,6 +36,10 @@ urlpatterns = [
         teacher.homework_review, name="homework_review",
     ),
     path(
+        "pedagog/domashnee/<uuid:homework_id>/ball/<uuid:student_id>/",
+        teacher.homework_grade, name="homework_grade",
+    ),
+    path(
         "pedagog/domashnee/<uuid:homework_id>/zachest-vsem/",
         teacher.homework_review_bulk, name="homework_review_bulk",
     ),

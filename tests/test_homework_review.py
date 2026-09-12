@@ -157,6 +157,108 @@ def test_accept_all_touches_only_those_who_marked_and_are_unchecked(tenant_a, ho
         assert not HomeworkMark.objects.filter(homework=homework, student=silent).exists()
 
 
+# ─── Баллы за домашнее ──────────────────────────────────────────────────────
+
+@pytest.fixture
+def graded_homework(tenant_a):
+    """Задание на баллы — то самое «сдать до 11.09, 5 баллов»."""
+    from apps.journal.services.homework import save_homework
+
+    with organization_context(tenant_a.organization):
+        return save_homework(
+            lesson=tenant_a.lesson, text="§14, задачи 5–9",
+            due_date=dt.date(2026, 9, 11), max_points=5,
+        )
+
+
+def test_points_for_homework_can_actually_be_entered(tenant_a, graded_homework):
+    """
+    Главная жалоба педагога: задание заведено на 5 баллов, а поставить
+    их нечем — в строке только «зачтено» и «доделать».
+
+    Работа в модуле при этом создавалась, баллы за неё числились
+    распределёнными, но экран выставления был только у самого занятия.
+    """
+    from apps.journal.models import Grade
+
+    response = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:homework_grade", args=[graded_homework.pk, tenant_a.student.pk]),
+        {"points": "4", "comment": "аккуратно"},
+    )
+
+    assert response.status_code == 200
+    with organization_context(tenant_a.organization):
+        grade = Grade.objects.get(
+            grade_item=graded_homework.grade_item, student=tenant_a.student
+        )
+        assert grade.points == 4
+
+
+def test_a_grade_means_it_was_checked(tenant_a, graded_homework):
+    """Педагог, написавший «4 из 5», задание посмотрел — второй раз нажимать нечего."""
+    with organization_context(tenant_a.organization):
+        sign_in(tenant_a, tenant_a.teacher_user).post(
+            reverse("cabinet:homework_grade", args=[graded_homework.pk, tenant_a.student.pk]),
+            {"points": "4"},
+        )
+        mark = HomeworkMark.objects.get(homework=graded_homework, student=tenant_a.student)
+
+        assert mark.is_checked and mark.is_accepted
+
+
+def test_removing_the_grade_removes_the_check(tenant_a, graded_homework):
+    """
+    «Зачтено без балла» у задания на баллы читается как «проверено, а балл
+    потеряли»: непонятно, не ставили его или он пропал.
+    """
+    client = sign_in(tenant_a, tenant_a.teacher_user)
+    url = reverse("cabinet:homework_grade", args=[graded_homework.pk, tenant_a.student.pk])
+    client.post(url, {"points": "4"})
+    client.post(url, {"points": ""})
+
+    with organization_context(tenant_a.organization):
+        assert not HomeworkMark.objects.filter(
+            homework=graded_homework, student=tenant_a.student
+        ).exists()
+
+
+def test_the_student_sees_the_points_on_the_task(tenant_a, graded_homework):
+    """«На 5 баллов» без «и ты получил 4» — половина ответа."""
+    sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:homework_grade", args=[graded_homework.pk, tenant_a.student.pk]),
+        {"points": "4", "comment": "разбор верный"},
+    )
+
+    body = sign_in(tenant_a, tenant_a.student_user).get(
+        reverse("cabinet:student_home")
+    ).content.decode()
+
+    assert "разбор верный" in body
+    assert "из 5" in body
+
+
+def test_a_task_without_points_offers_no_dial(tenant_a, homework):
+    """Задание без баллов баллов и не получает — иначе сотня модуля поедет."""
+    response = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:homework_grade", args=[homework.pk, tenant_a.student.pk]),
+        {"points": "4"},
+    )
+
+    assert response.status_code in (302, 403)
+
+
+def test_the_row_carries_the_dial_when_there_are_points(tenant_a, graded_homework):
+    """Задание на баллы — значит, в строке проверки есть чем их поставить."""
+    teacher = sign_in(tenant_a, tenant_a.teacher_user)
+    body = teacher.get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert reverse(
+        "cabinet:homework_grade", args=[graded_homework.pk, tenant_a.student.pk]
+    ) in body
+
+
 # ─── Списки в кабинете ──────────────────────────────────────────────────────
 
 def test_unfinished_work_is_never_silently_cut(tenant_a):

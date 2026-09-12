@@ -87,8 +87,14 @@
 
   // ── Открытие и закрытие ───────────────────────────────────────────────────
 
-  function rows() {
-    return Array.prototype.slice.call(document.querySelectorAll('.journal-list .journal-row'));
+  // Соседи — внутри своего списка, а не по всей странице. На занятии
+  // списков теперь два: баллы за само занятие и проверка домашнего, — и
+  // «следующий ученик» должен вести по тому, в котором начали.
+  function rows(holder) {
+    var list = holder && (holder.closest('.journal-list') || holder.closest('.review-list'));
+    if (!list) return [];
+    var selector = list.classList.contains('review-list') ? '.review-row' : '.journal-row';
+    return Array.prototype.slice.call(list.querySelectorAll(selector));
   }
 
   function open(holder) {
@@ -101,16 +107,21 @@
     var raw = points && points.value !== '' ? parseFloat(points.value) : null;
 
     nameOut.textContent = holder.getAttribute('data-name') || '';
-    var index = rows().indexOf(holder);
+    var siblings = rows(holder);
+    var index = siblings.indexOf(holder);
     // Под фамилией — не порядковый номер, а то, ради чего сюда и смотрят:
     // сколько у ученика уже набрано в модуле и сколько можно дать сейчас.
     var total = holder.getAttribute('data-module-total');
     var limit = holder.getAttribute('data-module-limit');
     var where = index >= 0
-      ? 'ученик ' + (index + 1) + ' из ' + rows().length
+      ? 'ученик ' + (index + 1) + ' из ' + siblings.length
       : 'балл получат все, у кого его ещё нет';
+    // «За это занятие» или «за это задание»: подпись приходит из строки,
+    // потому что один и тот же ползунок ставит балл и за урок, и за
+    // домашнее, а называть домашнее занятием — сбивать с толку.
+    var what = holder.getAttribute('data-what') || 'за это занятие';
     subOut.textContent = total && limit
-      ? 'в модуле ' + total + ' из ' + limit + ' · за это занятие до ' + human(max) + ' · ' + where
+      ? 'в модуле ' + total + ' из ' + limit + ' · ' + what + ' до ' + human(max) + ' · ' + where
       : where;
     maxOut.textContent = human(max);
     commentField.value = comment ? comment.value : '';
@@ -120,7 +131,7 @@
     var single = index >= 0;
     sheet.querySelector('[data-dial-prev]').hidden = !single;
     sheet.querySelector('[data-dial-next]').hidden = !single;
-    sheet.querySelector('[data-dial-next-save]').hidden = !single || index === rows().length - 1;
+    sheet.querySelector('[data-dial-next-save]').hidden = !single || index === siblings.length - 1;
 
     lastBuzz = null;
     setValue(isNaN(raw) ? null : raw, { silent: true, exact: true });
@@ -181,7 +192,7 @@
     commit(holder);
 
     if (thenNext) {
-      var list = rows();
+      var list = rows(holder);
       var next = list[list.indexOf(holder) + 1];
       if (next) { open(next); return; }
     }
@@ -190,7 +201,7 @@
 
   function hop(delta) {
     if (!owner) return;
-    var list = rows();
+    var list = rows(owner);
     var next = list[list.indexOf(owner) + delta];
     if (next) open(next);
   }
@@ -296,13 +307,19 @@
     // Отметки в строках держим в согласии со скрытыми полями: после
     // восстановления несохранённого из памяти браузера значения в полях
     // уже другие, а цифра на кнопке осталась серверной.
-    document.querySelectorAll('.journal-row, #bulk-controls').forEach(chipText);
+    document.querySelectorAll('.journal-row, .review-row, #bulk-controls').forEach(chipText);
 
     document.querySelectorAll('[data-dial-open]').forEach(function (button) {
       if (button.dataset.wired === '1') return;
       button.dataset.wired = '1';
       button.addEventListener('click', function () {
-        var holder = button.closest('.journal-row') || button.closest('#bulk-controls');
+        // Строка проверки домашнего — такой же держатель балла, как строка
+        // журнала: те же data-max и скрытое поле, только адрес сохранения
+        // свой. Иначе за домашнее пришлось бы заводить второй способ
+        // вводить то же самое число.
+        var holder = button.closest('.journal-row')
+          || button.closest('.review-row')
+          || button.closest('#bulk-controls');
         if (holder) open(holder);
       });
     });
