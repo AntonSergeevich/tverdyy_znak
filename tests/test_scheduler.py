@@ -6,6 +6,7 @@ import datetime as dt
 import pytest
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.journal.models import Lesson
 from tests.conftest import PASSWORD
@@ -23,9 +24,17 @@ def admin_client(client, tenant_a):
 
 
 def _monday_inside_module(tenant):
-    day = tenant.module.starts_on
-    monday = day - dt.timedelta(days=day.weekday())
-    if monday < tenant.module.starts_on:
+    """
+    Понедельник рабочей недели внутри модуля — и не той, в которой мы сейчас.
+
+    Текущую неделю приходится пропускать: занятие из общей фикстуры стоит
+    на «сегодня», и стоит календарю дойти до этой недели, как копирование
+    и очистка начинают считать его вместе с созданными в тесте. Тесты
+    краснели не от кода, а от смены числа.
+    """
+    today = timezone.localdate()
+    monday = tenant.module.starts_on - dt.timedelta(days=tenant.module.starts_on.weekday())
+    while monday < tenant.module.starts_on or monday <= today <= monday + dt.timedelta(days=6):
         monday += dt.timedelta(days=7)
     return monday
 
