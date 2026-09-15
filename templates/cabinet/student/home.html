@@ -11,22 +11,7 @@
 <h2 class="label" style="font-size:18px;margin:24px 0 8px">Мои баллы</h2>
 {% if results %}
   {% for result in results %}
-    <div class="subject-row">
-      <div class="subject-row__head">
-        <span style="font-weight:600">{{ result.subject.name }}</span>
-        <span>
-          <span class="subject-row__points">{{ result.total_points|points }}</span><span class="muted">/ 100</span>
-          <span class="level {{ result.level|level_class }}" style="margin-left:10px">{{ result.get_level_display }}</span>
-        </span>
-      </div>
-      <div class="progress">
-        <div class="progress__fill {% if result.level == 'failed' %}progress__fill--failed{% elif result.level == 'advanced' %}progress__fill--advanced{% endif %}"
-             style="width:{{ result.total_points|percent_of:100 }}%"></div>
-      </div>
-      {% if result.gap_to_next_level %}
-        <span class="small muted">до следующего уровня — {{ result.gap_to_next_level|points }} баллов</span>
-      {% endif %}
-    </div>
+    {% include "cabinet/partials/subject_points.html" %}
   {% endfor %}
 {% else %}
   <div class="empty-state"><p class="empty-state__title">Баллов в этом модуле пока нет</p>

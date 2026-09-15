@@ -1,0 +1,109 @@
+{% load journal_extras public_extras %}
+{% comment %}
+  Баллы по предмету — и из чего они сложились.
+
+  Итог без слагаемых не объясняет ничего: «60 из 100» — и непонятно, за
+  какое занятие балл, за какую домашнюю, где недобрал и что ещё впереди.
+  Спорить с такой суммой нечем, а регламент требует обратного: критерии
+  известны заранее, результат разбирают с педагогом.
+
+  Раскрывается по нажатию и свёрнуто по умолчанию: главный экран — это
+  «сколько у меня», а «из чего» смотрят, когда возник вопрос.
+
+  Один блок на кабинет ученика и кабинет родителя. Родителю показываем то
+  же самое: у него тот же вопрос и то же право знать ответ.
+{% endcomment %}
+<details class="subject-row">
+  <summary class="subject-row__summary">
+    <div class="subject-row__head">
+      <span style="font-weight:600">{{ result.subject.name }}</span>
+      <span>
+        <span class="subject-row__points">{{ result.total_points|points }}</span><span class="muted">/ 100</span>
+        {# Уровень передаётся цветом И текстом — цвет не единственный носитель смысла. #}
+        <span class="level {{ result.level|level_class }}" style="margin-left:10px">{{ result.get_level_display }}</span>
+      </span>
+    </div>
+    <div class="progress">
+      <div class="progress__fill {% if result.level == 'failed' %}progress__fill--failed{% elif result.level == 'advanced' %}progress__fill--advanced{% endif %}"
+           style="width:{{ result.total_points|percent_of:100 }}%"></div>
+    </div>
+    <span class="subject-row__note">
+      {% if result.gap_to_next_level %}
+        <span class="small muted">до следующего уровня — {{ result.gap_to_next_level|points }} баллов</span>
+      {% endif %}
+      <span class="small subject-row__toggle">за что →</span>
+    </span>
+    {% if not result.is_passed %}
+      {% comment %}
+        По регламенту меньше 50 баллов — обязательная пересдача зачёта и
+        контрольной. Ученику это знать нужнее, чем кому бы то ни было:
+        раньше строка была только в кабинете родителя.
+      {% endcomment %}
+      <span class="small" style="color:var(--warn)">
+        Незачёт: на каникулярной неделе нужны консультации, чтобы добрать баллы.
+      </span>
+    {% endif %}
+  </summary>
+
+  {% with rows=result.breakdown %}
+    {% if rows %}
+      <div class="table-wrap">
+        <table class="data breakdown">
+          <thead>
+            <tr><th>Работа</th><th>Когда</th><th class="breakdown__points">Балл</th></tr>
+          </thead>
+          <tbody>
+            {% for row in rows.rows %}
+              <tr class="{% if not row.is_graded %}breakdown__row--ahead{% endif %}">
+                <td>
+                  <span class="breakdown__kind">{{ row.item.get_kind_display }}</span>
+                  <span class="breakdown__what">{{ row.what }}</span>
+                  {% if row.grade.comment %}
+                    <span class="breakdown__note">{{ row.grade.comment }}</span>
+                  {% endif %}
+                </td>
+                <td class="small muted">{% if row.when %}{{ row.when|date:"d.m" }}{% else %}—{% endif %}</td>
+                <td class="breakdown__points numeral">
+                  {% if row.is_graded %}
+                    <strong>{{ row.grade.points|points }}</strong><span class="muted"> / {{ row.item.max_points|points }}</span>
+                  {% else %}
+                    {% comment %}
+                      Работа ещё впереди. Это не потерянные баллы, и
+                      выглядеть как ноль она не должна.
+                    {% endcomment %}
+                    <span class="muted">— / {{ row.item.max_points|points }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2"><strong>Набрано</strong></td>
+              <td class="breakdown__points numeral">
+                <strong>{{ rows.earned|points }}</strong><span class="muted"> / {{ rows.planned|points }}</span>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% if not rows.matches_total %}
+        <p class="small" style="margin-top:8px;color:var(--warn)">
+          По работам здесь собрано {{ rows.earned|points }}, а итог за модуль —
+          {{ result.total_points|points }}. Так бывает, когда часть баллов
+          перенесли из прежнего журнала, не расписывая по работам. Спросите
+          педагога, если разница непонятна.
+        </p>
+      {% endif %}
+      <p class="small muted" style="margin-top:8px">
+        Прочерк — работа ещё впереди, баллы за неё не потеряны.
+        Как считают каждую, написано в разделе
+        <a href="{% url 'cabinet:rules' %}">«Как оценивают»</a>.
+      </p>
+    {% else %}
+      <p class="muted" style="margin-top:12px">
+        По этому предмету работы в модуле ещё не расписаны.
+      </p>
+    {% endif %}
+  {% endwith %}
+</details>

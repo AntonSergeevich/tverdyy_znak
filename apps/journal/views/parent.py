@@ -27,7 +27,7 @@ from apps.journal.models import (
     Student,
     Teacher,
 )
-from apps.journal.services.grading import get_scale
+from apps.journal.services.grading import get_scale, with_breakdown
 from apps.journal.services.homework import homework_board
 
 from apps.site_public.models import TeacherReview
@@ -116,7 +116,9 @@ def student_overview(request, student: Student) -> dict:
         "total_percent": int(earned / possible * 100) if possible else 0,
         "passed_count": sum(1 for row in current if row.is_passed),
         "subjects_count": len(current),
-        "results": list(results),
+        # Родителю — то же самое: у него тот же вопрос «за что балл»
+        # и то же право знать ответ.
+        "results": with_breakdown(results, student=student, module=module),
         "history": list(history),
         "dynamics": dynamics,
         "comments": list(comments),

@@ -357,6 +357,106 @@ def student_module_points(*, students, module, subject) -> dict:
     return {row["student_id"]: row["total"] or ZERO for row in rows}
 
 
+def grade_breakdown(*, student, module) -> dict:
+    """
+    Из чего сложились баллы: каждая работа модуля и балл за неё.
+
+    Ученик видел только итог — «60 из 100» — и не мог узнать, за что
+    именно. Сумма без слагаемых не объясняет ничего и спорить с ней
+    нечем: непонятно, где недобрал, что ещё впереди и какую работу
+    пересдавать. Регламент требует обратного — критерии известны заранее,
+    а результат разбирают с педагогом.
+
+    Работы без балла показываются тоже, и это половина смысла: «зачёт,
+    25 баллов, ещё не было» объясняет, почему в модуле пока шестьдесят,
+    а не то, что ученик потерял сорок.
+
+    Один запрос на все предметы: список открывается на главной, и запрос
+    на строку превратил бы её в полсотни. Возвращается словарь по предмету
+    — чтобы разложить его рядом с итогами, а не искать в шаблоне.
+    """
+    if module is None:
+        return {}
+
+    items = list(
+        GradeItem.objects.filter(module=module, group__memberships__student=student)
+        .select_related("subject", "lesson", "homework")
+        .order_by("subject__position", "subject__name", "position", "due_date", "created_at")
+        .distinct()
+    )
+    grades = {
+        grade.grade_item_id: grade
+        for grade in Grade.objects.filter(student=student, grade_item__in=items)
+    }
+
+    by_subject: dict = {}
+    for item in items:
+        grade = grades.get(item.id)
+        bucket = by_subject.setdefault(
+            item.subject_id,
+            {"subject": item.subject, "rows": [], "earned": ZERO, "planned": ZERO},
+        )
+        bucket["rows"].append(
+            {
+                "item": item,
+                "grade": grade,
+                "what": _what_it_was(item),
+                "when": _when_it_was(item),
+                "is_graded": grade is not None,
+            }
+        )
+        bucket["planned"] += item.max_points
+        if grade is not None:
+            bucket["earned"] += grade.points
+    return by_subject
+
+
+def with_breakdown(results, *, student, module) -> list:
+    """
+    Разложить итоги по предметам вместе с тем, из чего они сложились.
+
+    Сшиваем здесь, а не в шаблоне: поиск по словарю с переменным ключом
+    шаблону недоступен, и ради него пришлось бы заводить фильтр, который
+    нужен ровно в одном месте.
+    """
+    results = list(results)
+    by_subject = grade_breakdown(student=student, module=module)
+    for result in results:
+        bucket = by_subject.get(result.subject_id)
+        result.breakdown = bucket
+        # Итог за модуль и сумма по работам обязаны сходиться — но у
+        # перенесённой истории и у итогов, проставленных до того, как
+        # работы завели, баллов по работам нет вовсе. Показать под
+        # шестьюдесятью ноль и промолчать — худшее из возможного:
+        # ребёнок решит, что баллы пропали. Говорим прямо.
+        if bucket is not None:
+            bucket["matches_total"] = bucket["earned"] == result.total_points
+    return results
+
+
+def _what_it_was(item: GradeItem) -> str:
+    """
+    Название работы так, как её помнит ученик.
+
+    «Работа на уроке» восемь раз подряд — не ответ на вопрос «за что»:
+    занятие вспоминают по теме, а домашнее — по тексту задания.
+    """
+    homework = getattr(item, "homework", None)
+    if homework is not None and homework.text:
+        return homework.text
+    lesson = item.lesson
+    if lesson is not None and lesson.topic:
+        return lesson.topic
+    return item.title or item.get_kind_display()
+
+
+def _when_it_was(item: GradeItem):
+    lesson = item.lesson
+    if lesson is not None:
+        return lesson.local_date
+    return item.due_date
+
+
 # ─── Выставление балла ──────────────────────────────────────────────────────
 def _can_backdate(user, organization) -> bool:
     return bool(user and (user.is_superuser or user.has_role(organization, Role.OWNER)))

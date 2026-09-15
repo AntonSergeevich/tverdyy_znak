@@ -917,6 +917,37 @@ body.is-dialed { overflow: hidden; }
 .subject-row__head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .subject-row__points { font-family: 'Bebas Cyr', Impact, sans-serif; font-size: 24px; }
 
+/* Строка предмета раскрывается: итог — на виду, «из чего он сложился» —
+   по нажатию. Свой треугольник убираем, свой ставим справа: стандартный
+   маркер прилипает к левому краю и на строке в две линии смотрится
+   оторванным от неё. */
+details.subject-row > summary {
+  display: flex; flex-direction: column; gap: 8px;
+  cursor: pointer; list-style: none;
+}
+details.subject-row > summary::-webkit-details-marker { display: none; }
+.subject-row__note { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.subject-row__toggle { margin-left: auto; color: var(--accent); white-space: nowrap; }
+details.subject-row[open] .subject-row__toggle::after { content: ' ↑'; }
+details.subject-row:not([open]) .subject-row__toggle::after { content: ''; }
+details.subject-row[open] > summary { margin-bottom: 8px; }
+
+/* Из чего сложился балл */
+.breakdown td, .breakdown th { vertical-align: top; }
+.breakdown__points { text-align: right; white-space: nowrap; }
+.breakdown__kind {
+  display: block; font-size: 12px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.breakdown__what { display: block; }
+.breakdown__note {
+  display: block; margin-top: 4px; font-size: 14px; color: var(--ink-2);
+  border-left: 2px solid var(--line-strong); padding-left: 8px;
+}
+/* Работа ещё впереди — это не ноль и выглядеть как ноль не должна. */
+.breakdown__row--ahead td { opacity: .6; }
+.breakdown tfoot td { border-top: 1px solid var(--line-strong); }
+
 .journal-list { display: flex; flex-direction: column; gap: 2px; background: var(--line); }
 .journal-row { background: var(--surface); padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .journal-row__name { flex: 1 1 180px; font-weight: 600; }

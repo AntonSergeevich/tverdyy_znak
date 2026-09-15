@@ -32,7 +32,7 @@ from apps.journal.models import (
     Student,
 )
 from apps.journal.services.goals import path_of, set_steps, toggle_step
-from apps.journal.services.grading import get_scale
+from apps.journal.services.grading import get_scale, with_breakdown
 from apps.journal.services.homework import homework_board, mark_done
 from apps.journal.views.parent import current_module, day_lessons
 
@@ -98,7 +98,9 @@ def student_home(request):
         {
             "student": student,
             "module": module,
-            "results": list(results),
+            # Итоги и то, из чего они сложились: сумма без слагаемых не
+            # объясняет ничего — «60 из 100», и за что, узнать негде.
+            "results": with_breakdown(results, student=student, module=module),
             "board": board,
             "today_lessons": list(day_lessons(student)),
             "scale": get_scale(organization),
