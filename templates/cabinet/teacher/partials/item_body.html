@@ -1,0 +1,71 @@
+{% load journal_extras %}
+{% comment %}
+  Список учеников для одной работы модуля.
+
+  Отдельным файлом, потому что групповое выставление обновляет весь
+  список сразу — по одной строке тут не отделаешься.
+
+  Строка — не форма, и это принципиально. htmx на любом запросе, кроме
+  GET, прикладывает к нему всю ближайшую форму целиком; пока строки
+  лежали внутри <form>, балл одного ученика увозил поля всех сразу.
+{% endcomment %}
+<div id="item-body">
+  {% if bulk_error %}
+    <div class="message message--error" role="alert">{{ bulk_error }}</div>
+  {% elif bulk_changed %}
+    <div class="message">Поставлено баллов: {{ bulk_changed }}.</div>
+  {% endif %}
+
+  {% if not rows %}
+    <div class="empty-state" style="margin-top:16px">
+      <p class="empty-state__title">Учеников в этой группе пока нет</p>
+      <p>
+        Список берётся из состава группы «{{ item.group.name }}» — отдельно
+        для работы его вести не нужно.
+      </p>
+      {% if can_manage %}
+        <p style="margin-top:12px">
+          <a class="btn" href="{% url 'cabinet:students' %}">Открыть список учеников</a>
+        </p>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="bulk-grade" id="bulk-controls"
+         data-name="Всем ученикам" data-max="{{ item.max_points|machine_number }}"
+         data-what="за эту работу">
+      <span class="bulk-grade__label">Поставить всем</span>
+      <button class="grade-chip" type="button" data-dial-open data-dial-bulk
+              aria-label="Балл всем ученикам, из {{ item.max_points|points }}">
+        <span class="grade-chip__value" data-chip-value>—</span>
+        <span class="grade-chip__max">из {{ item.max_points|points }}</span>
+      </button>
+      <input type="hidden" name="points" data-points value="">
+
+      <label class="checkbox" style="font-size:14px">
+        <input type="checkbox" name="overwrite" value="1">
+        Перезаписать уже выставленные
+      </label>
+      <button class="btn btn--quiet" type="button"
+              hx-post="{{ bulk_url }}"
+              hx-select="unset" hx-select-oob="unset"
+              hx-include="#bulk-controls input"
+              hx-target="#item-body" hx-swap="outerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        Поставить
+      </button>
+    </div>
+
+    <div class="journal-list" style="margin-top:16px" data-journal data-key="{{ item.pk }}"
+         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+      {% for row in rows %}
+        {% include "cabinet/teacher/partials/grade_row.html" with dial_what="за эту работу" %}
+      {% endfor %}
+    </div>
+
+    <p class="small muted" style="margin-top:12px">
+      Балл ставится кругом: нажмите на отметку у фамилии и ведите пальцем.
+      Сохраняется само. Если пропадёт сеть, введённое останется на устройстве
+      и уйдёт на сервер, когда связь вернётся.
+    </p>
+  {% endif %}
+</div>

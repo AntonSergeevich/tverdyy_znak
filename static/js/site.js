@@ -366,6 +366,19 @@
     return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
+  // 422 — наш способ сказать «не приняли, вот блок обратно с причиной».
+  // htmx на 4xx по умолчанию не подменяет ничего, и строка журнала
+  // оставалась висеть со словом «сохраняем…», хотя балл не сохранён:
+  // педагог видел вечное «сохраняем» вместо «больше максимума».
+  // Ответ на 422 всегда содержит тот же блок с текстом ошибки — его и
+  // ставим на место; тост при этом не нужен, причина уже в строке.
+  document.body.addEventListener('htmx:beforeSwap', function (event) {
+    if (event.detail.xhr && event.detail.xhr.status === 422) {
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
+    }
+  });
+
   document.body.addEventListener('htmx:responseError', function (event) {
     var xhr = event.detail.xhr || {};
     var said = fromResponse(xhr);

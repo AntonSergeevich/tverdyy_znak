@@ -13,6 +13,7 @@ from django.db import models
 from django.db.models import Prefetch
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
@@ -21,6 +22,7 @@ from apps.core.audit import AuditAction, log_audit
 from apps.journal.access import (
     accessible_groups,
     assert_can_grade,
+    get_grade_item_or_403,
     get_lesson_or_403,
     is_manager,
     teacher_profile,
@@ -97,15 +99,18 @@ def today(request):
     )
 
 
-def _lesson_rows(lesson: Lesson):
+def _grade_rows(*, grade_item, group, module, subject):
     """
-    Ученики группы, их баллы за занятие и итог по модулю — без запроса на строку.
+    Ученики группы, их баллы за работу и итог по модулю — без запроса на строку.
 
     Итог здесь не для красоты: «пять из пяти» без «а всего у него тридцать
     семь из ста» — половина картинки. Педагог ставит балл, глядя на оба
     числа сразу.
+
+    Одна функция на журнал занятия и на журнал отдельной работы:
+    проверочная и зачёт считаются точно так же, и расходиться этим двум
+    спискам незачем.
     """
-    grade_item = getattr(lesson, "grade_item", None)
     grades = {}
     if grade_item is not None:
         grades = {
@@ -113,13 +118,11 @@ def _lesson_rows(lesson: Lesson):
             for grade in Grade.objects.filter(grade_item=grade_item).select_related("student")
         }
     students = list(
-        Student.objects.filter(group_memberships__group=lesson.group)
+        Student.objects.filter(group_memberships__group=group)
         .order_by("last_name", "first_name")
         .distinct()
     )
-    totals = student_module_points(
-        students=students, module=lesson.module, subject=lesson.subject
-    )
+    totals = student_module_points(students=students, module=module, subject=subject)
     return [
         {
             "student": student,
@@ -128,6 +131,32 @@ def _lesson_rows(lesson: Lesson):
         }
         for student in students
     ]
+
+
+def _lesson_rows(lesson: Lesson):
+    return _grade_rows(
+        grade_item=getattr(lesson, "grade_item", None),
+        group=lesson.group, module=lesson.module, subject=lesson.subject,
+    )
+
+
+def _item_rows(item: GradeItem):
+    return _grade_rows(
+        grade_item=item, group=item.group, module=item.module, subject=item.subject,
+    )
+
+
+def _item_context(request, item: GradeItem, **extra) -> dict:
+    return {
+        "item": item,
+        "grade_item": item,
+        "rows": _item_rows(item),
+        "budget": points_budget(item.module, item.subject, item.group),
+        "can_manage": is_manager(request.user, request.organization),
+        "save_url": reverse("cabinet:item_grade_save", args=[item.pk]),
+        "bulk_url": reverse("cabinet:item_grade_bulk", args=[item.pk]),
+        **extra,
+    }
 
 
 def _review_context(homework) -> dict:
@@ -512,6 +541,7 @@ def grade_save(request, lesson_id):
         {
             "lesson": lesson,
             "grade_item": grade_item,
+            "save_url": reverse("cabinet:grade_save", args=[lesson.pk]),
             "row": {
                 "student": student,
                 "grade": grade,
@@ -522,6 +552,130 @@ def grade_save(request, lesson_id):
             "saved": not error,
         },
         status=422 if error else 200,
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+def item_journal(request, item_id):
+    """
+    Журнал одной работы модуля: проверочной, контрольной, зачёта.
+
+    Такого экрана не было вовсе, и это дыра в шестьдесят баллов из ста.
+    Работу можно было завести в плане модуля — а выставить за неё баллы
+    негде: выставление жило только у занятия, потом появилось у домашнего,
+    а проверочная, контрольная и зачёт не привязаны ни к тому, ни к
+    другому. Вместе это 25 + 15 + 10 + 10 баллов: больше половины модуля,
+    и закрывается модуль как раз зачётом.
+
+    Список тот же и ведёт себя так же, как в занятии: те же круги, тот же
+    ползунок, то же «поставить всем». Педагогу нечего переучивать.
+    """
+    organization = request.organization
+    item = get_grade_item_or_403(request.user, organization, item_id)
+
+    log_audit(
+        action=AuditAction.VIEW_STUDENT, request=request, obj=item, scope="item_journal"
+    )
+    return render(request, "cabinet/teacher/item_journal.html", _item_context(request, item))
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def item_grade_save(request, item_id):
+    """Балл одного ученика за работу модуля — той же строкой, что в занятии."""
+    organization = request.organization
+    item = get_grade_item_or_403(request.user, organization, item_id)
+    student = get_object_or_404(
+        Student.objects.filter(group_memberships__group=item.group).distinct(),
+        pk=request.POST.get("student"),
+    )
+
+    raw = (request.POST.get("points") or "").strip().replace(",", ".")
+    comment = (request.POST.get("comment") or "").strip()
+    error = ""
+    grade = None
+    try:
+        points = Decimal(raw) if raw else None
+    except InvalidOperation:
+        points, error = None, "Балл должен быть числом."
+
+    if not error:
+        try:
+            grade = set_grade(
+                student=student, grade_item=item, points=points,
+                actor=request.user, comment=comment, request=request,
+            )
+        except (ValidationError, PermissionDenied) as exc:
+            error = _first_message(exc)
+            grade = Grade.objects.filter(grade_item=item, student=student).first()
+
+    totals = student_module_points(
+        students=[student], module=item.module, subject=item.subject
+    )
+    return render(
+        request,
+        "cabinet/teacher/partials/grade_row.html",
+        {
+            "grade_item": item,
+            "save_url": reverse("cabinet:item_grade_save", args=[item.pk]),
+            "dial_what": "за эту работу",
+            "row": {
+                "student": student,
+                "grade": grade,
+                "module_total": totals.get(student.id, Decimal("0")),
+            },
+            "budget": points_budget(item.module, item.subject, item.group),
+            "error": error,
+            "saved": not error,
+        },
+        status=422 if error else 200,
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def item_grade_bulk(request, item_id):
+    """
+    Поставить один балл всем за работу модуля.
+
+    Кому балл уже стоит, по умолчанию не трогаем: перезаписать проверенную
+    работу молча — худшее, что может сделать «удобная» кнопка.
+    """
+    organization = request.organization
+    item = get_grade_item_or_403(request.user, organization, item_id)
+
+    raw = (request.POST.get("points") or "").strip().replace(",", ".")
+    overwrite = request.POST.get("overwrite") == "1"
+    try:
+        points = Decimal(raw)
+    except InvalidOperation:
+        points = None
+
+    error = ""
+    changed = 0
+    if points is None:
+        error = "Балл должен быть числом."
+    else:
+        for row in _item_rows(item):
+            if row["grade"] is not None and not overwrite:
+                continue
+            try:
+                set_grade(
+                    student=row["student"], grade_item=item, points=points,
+                    actor=request.user, comment="", request=request,
+                )
+                changed += 1
+            except (ValidationError, PermissionDenied) as exc:
+                error = _first_message(exc)
+                break
+
+    return render(
+        request,
+        "cabinet/teacher/partials/item_body.html",
+        _item_context(request, item, bulk_error=error, bulk_changed=changed),
     )
 
 

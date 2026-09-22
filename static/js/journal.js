@@ -14,7 +14,7 @@
     if (form.dataset.ready === '1') return;
     form.dataset.ready = '1';
 
-    var storageKey = 'tz-journal-' + form.getAttribute('data-lesson');
+    var storageKey = 'tz-journal-' + form.getAttribute('data-key');
     var queue = load();
 
     function load() {
@@ -61,11 +61,18 @@
       var row = event.detail.elt.closest('[data-student]');
       if (!row) return;
       var studentId = row.getAttribute('data-student');
-      if (event.detail.successful && event.detail.xhr && event.detail.xhr.status < 400) {
+      var status = (event.detail.xhr || {}).status;
+      if (event.detail.successful && event.detail.xhr && status < 400) {
         delete queue[studentId];
         persist();
-      } else if (!event.detail.xhr || event.detail.xhr.status === 0) {
+      } else if (!event.detail.xhr || status === 0) {
         setState(row, 'state--offline', 'нет сети — отправим позже');
+      } else if (status >= 400 && status < 500) {
+        // Сервер отказал по существу: больше максимума, не тот ученик.
+        // Повторять нечего — иначе очередь будет вечно досылать то, что
+        // уже отвергнуто, а причина приехала вместе с новой строкой.
+        delete queue[studentId];
+        persist();
       }
     });
 

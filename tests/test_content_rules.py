@@ -634,6 +634,52 @@ def admin_client_for_rules(client, tenant_a):
         yield client
 
 
+def test_links_inside_a_partial_do_not_inherit_its_target():
+    """
+    Ссылка внутри блока с hx-target наследует и target, и swap.
+
+    На <body> кабинета висит hx-boost="true", поэтому переход по ссылке
+    перехватывает htmx. Если ссылка лежит внутри формы или дива, у которых
+    свой hx-target, целая страница уезжает в этот блок: снаружи выглядит
+    как открывшийся экран, внутри — две страницы сразу. Так открывался
+    журнал работы из плана модуля, и заголовок на нём оставался чужой.
+
+    Лечится hx-boost="false" (обычный переход) или своим hx-target на
+    ссылке. Проверка следит, чтобы про это не забыли снова.
+    """
+    import pathlib
+    import re
+
+    # Здесь ссылки наследуют target нарочно: переключение недели отвечает
+    # целой страницей, и вырезают из неё именно сетку расписания.
+    inherits_on_purpose = {"cabinet/manage/schedule_builder.html"}
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "templates" / "cabinet"
+    offenders = []
+    for path in sorted(root.rglob("*.html")):
+        if str(path.relative_to(root.parent)) in inherits_on_purpose:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for block in re.finditer(
+            r"<(form|div|span)\b[^>]*hx-target[^>]*>(.*?)</\1>", text, re.S
+        ):
+            inner = block.group(2)
+            for link in re.finditer(r"<a\b[^>]*>", inner, re.S):
+                attrs = link.group(0)
+                href = re.search(r'href="([^"]*)"', attrs)
+                if not href or href.group(1).startswith("#"):
+                    continue
+                if "hx-boost" in attrs or "hx-target" in attrs or "_blank" in attrs:
+                    continue
+                line = text[: block.start(2) + link.start()].count("\n") + 1
+                offenders.append(f"{path.relative_to(root.parent)}:{line}")
+
+    assert not offenders, (
+        'Ссылка внутри блока с hx-target: страница уедет в этот блок. '
+        f'Нужен hx-boost="false" или свой hx-target. {offenders}'
+    )
+
+
 def test_partial_htmx_requests_cancel_the_inherited_selection():
     """
     На <body> кабинета висят hx-select="#main" и hx-select-oob="#site-nav",

@@ -10,6 +10,7 @@
   Отдельным файлом, потому что групповое выставление обновляет весь
   список сразу — по одной строке тут не отделаешься.
 {% endcomment %}
+{% url 'cabinet:grade_save' lesson.pk as lesson_save_url %}
 <div id="journal-body"{% if oob %} hx-swap-oob="true"{% endif %}>
   {% if bulk_error %}
     <div class="message message--error">{{ bulk_error }}</div>
@@ -93,10 +94,10 @@
       ставили. Теперь к запросу идёт ровно одна строка — та, в которой
       нажали.
     {% endcomment %}
-    <div class="journal-list" style="margin-top:16px" data-journal data-lesson="{{ lesson.pk }}"
+    <div class="journal-list" style="margin-top:16px" data-journal data-key="{{ lesson.pk }}"
          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
       {% for row in rows %}
-        {% include "cabinet/teacher/partials/grade_row.html" %}
+        {% include "cabinet/teacher/partials/grade_row.html" with save_url=lesson_save_url %}
       {% endfor %}
     </div>
 

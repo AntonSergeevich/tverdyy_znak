@@ -1,0 +1,53 @@
+{% extends "cabinet/base_cabinet.html" %}{% load journal_extras public_extras %}
+{% block cabinet_title %}{{ item.title|default:item.get_kind_display }}{% endblock %}
+
+{% block content %}
+{% comment %}
+  Журнал одной работы модуля: проверочной, контрольной, зачёта.
+
+  Такого экрана не было вовсе, и это была дыра в шестьдесят баллов из ста.
+  Работу можно было завести в плане модуля — а выставить за неё баллы
+  негде: выставление жило только у занятия, потом появилось у домашнего,
+  а проверочная, контрольная и зачёт не привязаны ни к тому, ни к другому.
+
+  Экран намеренно похож на журнал занятия до мелочей: те же круги, тот же
+  ползунок, то же «поставить всем». Переучиваться педагогу нечему.
+{% endcomment %}
+<p class="small muted" style="margin-bottom:8px">
+  <a href="{% url 'cabinet:module_plan' item.module.pk item.subject.pk item.group.pk %}">← План модуля</a>
+</p>
+
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">
+      {{ item.title|default:item.get_kind_display }}
+    </h1>
+    <p class="muted">
+      {{ item.get_kind_display|capfirst }} · {{ item.subject.name }} ·
+      {{ item.group.name }} · {{ item.module }}
+      {% if item.due_date %} · {{ item.due_date|date:"d.m.Y" }}{% endif %}
+    </p>
+  </div>
+</div>
+
+<div class="lesson-switch">
+  <div class="lesson-switch__text">
+    <p class="lesson-switch__state">
+      Максимум за работу — <strong>{{ item.max_points|points }}</strong>
+      {{ item.max_points|plural:"балл,балла,баллов" }}
+    </p>
+    <p class="small muted" style="margin:0">
+      В модуле распределено {{ budget.distributed|points }} из {{ budget.limit|points }} баллов.
+      {% if item.lesson_id %}
+        Эта работа закреплена за занятием
+        <a href="{% url 'cabinet:lesson_journal' item.lesson_id %}">{{ item.lesson.starts_at|date:"d.m H:i" }}</a>
+        — баллы можно ставить и там.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{% include "cabinet/teacher/partials/item_body.html" %}
+
+{% include "cabinet/teacher/partials/grade_dial.html" %}
+{% endblock %}

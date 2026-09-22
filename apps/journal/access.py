@@ -8,10 +8,10 @@
 from __future__ import annotations
 
 from django.core.exceptions import PermissionDenied
-from django.db.models import QuerySet
+from django.db.models import Exists, OuterRef, QuerySet
 
 from apps.accounts.models import ORG_MANAGER_ROLES, Role
-from apps.journal.models import Group, Lesson, Student, Teacher
+from apps.journal.models import GradeItem, Group, Lesson, Student, Teacher
 
 
 def is_manager(user, organization) -> bool:
@@ -93,3 +93,42 @@ def accessible_groups(user, organization) -> QuerySet[Group]:
     if profile is not None:
         return base.filter(lessons__teacher=profile).distinct()
     return base.none()
+
+
+def accessible_grade_items(user, organization) -> QuerySet[GradeItem]:
+    """
+    Работы модуля, баллы по которым пользователю можно выставлять.
+
+    Проверочная, контрольная и зачёт не привязаны ни к какому занятию —
+    у них нет ни педагога, ни даты в расписании. Поэтому право считаем
+    по занятиям: работу ведёт тот, у кого в этом модуле есть занятия по
+    этому предмету у этой группы.
+
+    Связка проверяется целиком, одним подзапросом. Три отдельных фильтра
+    дали бы доступ педагогу, который ведёт этот предмет другой группе,
+    а эту группу — по другому предмету: каждое условие выполнено,
+    а нужного занятия нет.
+    """
+    base = GradeItem.objects.filter(organization=organization).select_related(
+        "module", "subject", "group", "lesson"
+    )
+    if user is None or not user.is_authenticated:
+        return base.none()
+    if is_manager(user, organization):
+        return base
+    profile = teacher_profile(user, organization)
+    if profile is None:
+        return base.none()
+    mine = Lesson.objects.filter(
+        organization=organization, teacher=profile,
+        module=OuterRef("module_id"), subject=OuterRef("subject_id"),
+        group=OuterRef("group_id"),
+    )
+    return base.filter(Exists(mine))
+
+
+def get_grade_item_or_403(user, organization, item_id) -> GradeItem:
+    item = accessible_grade_items(user, organization).filter(pk=item_id).first()
+    if item is None:
+        raise PermissionDenied("Баллы по этой работе выставляет другой педагог.")
+    return item

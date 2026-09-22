@@ -27,6 +27,13 @@ urlpatterns = [
     path("pedagog/zanyatie/<uuid:lesson_id>/ball/", teacher.grade_save, name="grade_save"),
     path("pedagog/zanyatie/<uuid:lesson_id>/vsem/", teacher.grade_bulk, name="grade_bulk"),
     path("pedagog/zanyatie/<uuid:lesson_id>/ocenivanie/", teacher.lesson_toggle_graded, name="lesson_toggle_graded"),
+
+    # Журнал отдельной работы модуля: проверочная, контрольная, зачёт.
+    # Они не привязаны ни к занятию, ни к домашнему — и до этого экрана
+    # выставить за них баллы было негде.
+    path("pedagog/rabota/<uuid:item_id>/", teacher.item_journal, name="item_journal"),
+    path("pedagog/rabota/<uuid:item_id>/ball/", teacher.item_grade_save, name="item_grade_save"),
+    path("pedagog/rabota/<uuid:item_id>/vsem/", teacher.item_grade_bulk, name="item_grade_bulk"),
     path("pedagog/zanyatie/<uuid:lesson_id>/tema/", teacher.lesson_topic_save, name="lesson_topic_save"),
     path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/", teacher.lesson_homework_save, name="lesson_homework_save"),
     # Проверка домашнего: зачтено или нужно доделать. Там же, где педагог

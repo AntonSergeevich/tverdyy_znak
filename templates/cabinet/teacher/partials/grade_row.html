@@ -10,10 +10,15 @@
   Поля при этом остаются обычными полями формы, просто скрытыми: их
   отправляет htmx, из них же журнал восстанавливает несохранённое после
   обрыва сети. Панель только вписывает в них значение.
+
+  Адрес сохранения приходит снаружи (save_url): одна и та же строка стоит
+  в журнале занятия и в журнале отдельной работы — проверочной, зачёта.
+  Две копии разошлись бы на первой же правке.
 {% endcomment %}
 <div class="journal-row" data-student="{{ row.student.pk }}" id="row-{{ row.student.pk }}"
      data-name="{{ row.student.short_name }}"
      data-max="{{ grade_item.max_points|machine_number }}"
+     data-what="{{ dial_what|default:'за это занятие' }}"
      data-module-total="{{ row.module_total|points }}"
      data-module-limit="{{ budget.limit|points }}">
   <span class="journal-row__name">
@@ -30,7 +35,7 @@
 
   <input type="hidden" name="points" data-points
          value="{% if row.grade %}{{ row.grade.points|machine_number }}{% endif %}"
-         hx-post="{% url 'cabinet:grade_save' lesson.pk %}"
+         hx-post="{{ save_url }}"
          hx-select="unset" hx-select-oob="unset"
          hx-trigger="change, resend"
          hx-target="#row-{{ row.student.pk }}"

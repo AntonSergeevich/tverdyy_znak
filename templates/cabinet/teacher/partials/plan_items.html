@@ -59,15 +59,40 @@
           <button class="btn btn--quiet" type="submit" name="action" value="delete_item">Удалить</button>
         </div>
 
+        {% comment %}
+          Путь к выставлению баллов — с той же строки, где работу завели.
+          Раньше его не было ни здесь, ни где-либо ещё: проверочную,
+          контрольную и зачёт можно было создать, а поставить за них баллы
+          негде. Это шестьдесят баллов из ста.
+
+          Свободное место под занятие — исключение: балл за него ставится
+          в самом занятии, когда оно это место займёт.
+
+          ВАЖНО. hx-boost="false" на ссылках обязателен. Они лежат внутри
+          формы с hx-target="#plan-items", а htmx наследует target и swap
+          всем, что внутри: перехваченный переход подменял бы не середину
+          страницы, а список работ — целая страница уезжала в один его
+          блок. Снаружи это выглядит как открывшийся журнал, внутри — как
+          две страницы сразу; заметно становится на первой же мелочи.
+        {% endcomment %}
         {% if item.lesson_id %}
           <p class="plan-row__note small muted">
             Место занято занятием
-            <a href="{% url 'cabinet:lesson_journal' item.lesson_id %}">{{ item.lesson.starts_at|date:"d.m H:i" }}</a>.
+            <a href="{% url 'cabinet:lesson_journal' item.lesson_id %}"
+               hx-boost="false">{{ item.lesson.starts_at|date:"d.m H:i" }}</a>.
+            Баллы можно ставить там или
+            <a href="{% url 'cabinet:item_journal' item.pk %}"
+               hx-boost="false">списком по работе</a>.
           </p>
         {% elif item.kind == "lesson" %}
           <p class="plan-row__note small muted">
             Свободное место под занятие: баллы отложены, занятие выберется позже —
             в самом занятии кнопкой «Сделать с оцениванием».
+          </p>
+        {% else %}
+          <p class="plan-row__note small">
+            <a href="{% url 'cabinet:item_journal' item.pk %}"
+               hx-boost="false">Выставить баллы за эту работу →</a>
           </p>
         {% endif %}
       </form>
