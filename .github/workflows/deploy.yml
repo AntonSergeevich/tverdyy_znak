@@ -77,11 +77,38 @@ jobs:
           fi
 
       - name: Ключ SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          # Ключ, вставленный в секрет с Windows, приходит с \r в конце
+          # каждой строки и нередко без перевода строки после END. OpenSSH
+          # отвечает на это «error in libcrypto» — ровно так падали все
+          # выкаты с первого дня. Убираем \r и ставим перевод строки в конце.
+          printf '%s\n' "$KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+          # Проверяем, что ключ вообще читается, ещё до сервера. Иначе
+          # «ключ битый» и «ключа нет на сервере» выглядят одинаково —
+          # одним «Permission denied», и понять, что чинить, нельзя.
+          # -P '' — ключ с паролем здесь не годится: вводить его некому.
+          if ! ssh-keygen -y -P '' -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub 2> /tmp/key-error; then
+            echo "Секрет DEPLOY_SSH_KEY не читается как приватный ключ OpenSSH:" >&2
+            cat /tmp/key-error >&2
+            echo "Нужен приватный ключ целиком — от строки" >&2
+            echo "  -----BEGIN OPENSSH PRIVATE KEY-----" >&2
+            echo "до строки" >&2
+            echo "  -----END OPENSSH PRIVATE KEY-----" >&2
+            echo "без пароля. Не файл .pub и не .ppk из PuTTY." >&2
+            exit 1
+          fi
+          # Отпечаток — не секрет. По нему видно, тот ли это ключ, что
+          # лежит на сервере в ~/.ssh/authorized_keys.
+          echo "Ключ читается. Отпечаток:"
+          ssh-keygen -lf ~/.ssh/id_ed25519.pub
+
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
 
       - name: Выкатываю
         env:
@@ -95,4 +122,8 @@ jobs:
           # Если короткая команда на сервере ещё не установлена (симлинк
           # ставит provision.sh), зовём скрипт по полному пути — выкат не
           # должен зависеть от того, дошли ли руки до симлинка.
-          ssh "$USER@$HOST" "command -v tz-deploy >/dev/null && tz-deploy '$BRANCH' || bash /srv/tverdyy-znak/deploy/scripts/pull-and-deploy.sh '$BRANCH'"
+          # BatchMode: без него ssh после отказа по ключу пробует пароль,
+          # и в логе появляются бессмысленные «please try again».
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 \
+            "$USER@$HOST" \
+            "command -v tz-deploy >/dev/null && tz-deploy '$BRANCH' || bash /srv/tverdyy-znak/deploy/scripts/pull-and-deploy.sh '$BRANCH'"
