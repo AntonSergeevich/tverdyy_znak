@@ -129,6 +129,100 @@ def test_the_student_sees_the_points_in_the_breakdown(tenant_a, quiz):
     assert "разбор верный" in body
 
 
+# ─── Путь от занятия ────────────────────────────────────────────────────────
+
+def test_the_lesson_shows_the_works_of_the_module(tenant_a, quiz):
+    """
+    «Мы писали словарный диктант на уроке» — значит, и искать будут в уроке.
+    План модуля педагог не открывает, и до этого списка проверочная была
+    видна только там.
+    """
+    body = sign_in(tenant_a, tenant_a.teacher_user).get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert "Проверочная по причастиям" in body
+    assert reverse("cabinet:item_journal", args=[quiz.pk]) in body
+
+
+def test_the_lesson_points_at_where_separate_works_live(tenant_a):
+    """
+    Педагог, который провёл на уроке диктант, смотрит в список учеников,
+    видит «без баллов» и решает, что больше ставить негде.
+    """
+    body = sign_in(tenant_a, tenant_a.teacher_user).get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert "отдельные работы модуля" in body
+    assert "Проверочные, контрольная и зачёт" in body
+
+
+def test_a_work_is_created_from_the_lesson_and_opens_at_once(tenant_a):
+    """Завести и сразу выставлять — один шаг там, где педагог уже стоит."""
+    from apps.journal.models import GradeItem
+
+    response = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:lesson_work_add", args=[tenant_a.lesson.pk]),
+        {"title": "Словарный диктант", "kind": "quiz", "max_points": "5"},
+    )
+
+    with organization_context(tenant_a.organization):
+        item = GradeItem.objects.get(title="Словарный диктант")
+        assert item.max_points == 5
+        assert item.kind == GradeItemKind.QUIZ
+        assert item.lesson_id is None
+        assert response.status_code == 302
+        assert response.headers["Location"] == reverse(
+            "cabinet:item_journal", args=[item.pk]
+        )
+
+
+def test_a_work_that_does_not_fit_the_hundred_is_refused_with_a_reason(tenant_a):
+    """Сотня модуля не резиновая, и отказ должен объяснять, сколько осталось."""
+    from apps.journal.models import GradeItem
+
+    response = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:lesson_work_add", args=[tenant_a.lesson.pk]),
+        {"title": "Слишком дорогая", "kind": "test", "max_points": "200"},
+        follow=True,
+    )
+
+    with organization_context(tenant_a.organization):
+        assert not GradeItem.objects.filter(title="Слишком дорогая").exists()
+    assert "лимит" in " ".join(str(m) for m in response.context["messages"]).lower()
+
+
+def test_work_on_the_lesson_is_not_created_as_a_separate_work(tenant_a):
+    """
+    За работу на уроке баллы ставятся в самом занятии. Завести её ещё и
+    отдельной строкой значило бы дважды занять одно и то же место в сотне.
+    """
+    from apps.journal.models import GradeItem
+
+    sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:lesson_work_add", args=[tenant_a.lesson.pk]),
+        {"title": "Работа на уроке", "kind": "lesson", "max_points": "5"},
+    )
+
+    with organization_context(tenant_a.organization):
+        assert not GradeItem.objects.filter(title="Работа на уроке").exists()
+
+
+def test_the_lesson_says_plainly_that_the_check_is_about_homework(tenant_a):
+    """«Проверка заданного сегодня» читалась как проверка чего угодно."""
+    from apps.journal.services.homework import save_homework
+
+    with organization_context(tenant_a.organization):
+        save_homework(lesson=tenant_a.lesson, text="§14")
+
+    body = sign_in(tenant_a, tenant_a.teacher_user).get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+
+    assert "Проверить домашнее, заданное сегодня" in body
+
+
 # ─── Права ──────────────────────────────────────────────────────────────────
 
 def test_a_stranger_cannot_grade_someone_elses_work(tenant_a, tenant_b, quiz):

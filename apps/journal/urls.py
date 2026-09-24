@@ -28,6 +28,13 @@ urlpatterns = [
     path("pedagog/zanyatie/<uuid:lesson_id>/vsem/", teacher.grade_bulk, name="grade_bulk"),
     path("pedagog/zanyatie/<uuid:lesson_id>/ocenivanie/", teacher.lesson_toggle_graded, name="lesson_toggle_graded"),
 
+    # Завести работу прямо из занятия: диктант писали на уроке, значит
+    # и заводят его там, а не на экране планирования модуля.
+    path(
+        "pedagog/zanyatie/<uuid:lesson_id>/rabota/",
+        teacher.lesson_work_add, name="lesson_work_add",
+    ),
+
     # Журнал отдельной работы модуля: проверочная, контрольная, зачёт.
     # Они не привязаны ни к занятию, ни к домашнему — и до этого экрана
     # выставить за них баллы было негде.

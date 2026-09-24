@@ -1,0 +1,88 @@
+{% load journal_extras public_extras %}
+{% comment %}
+  Работы модуля — рядом с занятием.
+
+  Проверочная, контрольная и зачёт оцениваются не через занятие, и их
+  место — план модуля. Но педагог туда не ходит: диктант писали на уроке,
+  значит и баллы за него ищут в уроке. На экране занятия было видно
+  только домашнее и работу на уроке, и вопрос «а проверочную-то как
+  выставить» возникал снова и снова — справедливо.
+
+  Поэтому список работ и форма «завести работу» стоят здесь. Это тот же
+  список, что в плане модуля; план остаётся местом, где раскладывают
+  сотню, а здесь — то же самое под рукой.
+{% endcomment %}
+<section class="lesson-works" style="margin-top:28px">
+  <h2 class="label" style="font-size:18px;margin:0 0 4px">
+    Проверочные, контрольная и зачёт
+  </h2>
+  <p class="small muted" style="max-width:72ch;margin:0 0 12px">
+    Это работы модуля: они не привязаны к занятию, и баллы за них ставятся
+    списком по работе. Здесь же можно завести новую — например, словарный
+    диктант, который писали на этом уроке.
+  </p>
+
+  {% if module_works %}
+    <div class="works-list">
+      {% for row in module_works %}
+        <a class="works-row" href="{% url 'cabinet:item_journal' row.item.pk %}"
+           hx-boost="false">
+          <span class="works-row__name">
+            {{ row.item.title|default:row.item.get_kind_display }}
+            <span class="small muted">{{ row.item.get_kind_display }}{% if row.item.due_date %} · {{ row.item.due_date|date:"d.m" }}{% endif %}</span>
+          </span>
+          <span class="works-row__max small muted">
+            до {{ row.item.max_points|points }}
+            {{ row.item.max_points|plural:"балла,баллов,баллов" }}
+          </span>
+          <span class="works-row__state {% if row.filled == row.total and row.total %}works-row__state--done{% endif %}">
+            {% if row.filled %}выставлено {{ row.filled }} из {{ row.total }}
+            {% else %}баллов ещё нет{% endif %}
+          </span>
+          <span class="works-row__go" aria-hidden="true">→</span>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted" style="margin-bottom:12px">
+      Отдельных работ в этом модуле пока нет.
+    </p>
+  {% endif %}
+
+  {% comment %}
+    Обычная форма, без htmx: после создания уходим на журнал работы, а не
+    подменяем кусок этой страницы. hx-boost="false" обязателен — иначе
+    переход перехватит htmx и ответ уедет в середину занятия.
+  {% endcomment %}
+  <form class="grid grid--tight works-add" method="post" hx-boost="false"
+        action="{% url 'cabinet:lesson_work_add' lesson.pk %}"
+        style="margin-top:16px;align-items:flex-end">
+    {% csrf_token %}
+    <div class="field">
+      <label for="work-title">Название работы</label>
+      <input class="input" type="text" id="work-title" name="title"
+             placeholder="Словарный диктант" required>
+    </div>
+    <div class="field">
+      <label for="work-kind">Тип</label>
+      <select class="input" id="work-kind" name="kind">
+        <option value="quiz">проверочная работа</option>
+        <option value="test">контрольная работа</option>
+        <option value="credit">зачёт</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="work-points">Баллы</label>
+      <input class="input" type="text" inputmode="decimal" id="work-points"
+             name="max_points" value="10">
+    </div>
+    <button class="btn" type="submit" style="flex:0 0 auto">
+      Завести и выставить баллы
+    </button>
+  </form>
+  <p class="small muted" style="margin-top:8px">
+    В модуле распределено {{ budget.distributed|points }} из {{ budget.limit|points }} баллов,
+    осталось {{ budget.remaining|points }}. Всю раскладку сотни можно посмотреть
+    в <a href="{% url 'cabinet:module_plan' lesson.module.pk lesson.subject.pk lesson.group.pk %}">плане модуля</a>.
+  </p>
+</section>

@@ -1276,6 +1276,28 @@ details.fieldset[open] > summary::after { content: ' −'; }
 }
 .hw-note--redo { border-left-color: var(--warn); }
 
+/* Работы модуля рядом с занятием: проверочная, контрольная, зачёт.
+   Строка целиком — ссылка: попасть пальцем в слово «выставить» на
+   телефоне труднее, чем в строку. */
+.lesson-works {
+  background: var(--surface); border: 1px solid var(--line);
+  padding: 16px clamp(12px, 2vw, 18px);
+}
+.works-list { display: flex; flex-direction: column; }
+.works-row {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline;
+  padding: 12px 0; border-top: 1px solid var(--line);
+  color: var(--ink); text-decoration: none;
+}
+.works-row:first-child { border-top: 0; }
+.works-row:hover, .works-row:focus-visible { background: var(--mark); }
+.works-row__name { flex: 1 1 220px; font-weight: 600; display: grid; gap: 1px; }
+.works-row__name .small { font-weight: 400; }
+.works-row__max { flex: 0 0 auto; }
+.works-row__state { flex: 0 0 auto; font-size: 14px; color: var(--ink-3); }
+.works-row__state--done { color: var(--ok); }
+.works-row__go { flex: 0 0 auto; color: var(--ink-3); font-size: 18px; line-height: 1; }
+
 /* Проверка домашнего у педагога. Отдельной плашкой: ниже идёт список
    учеников для баллов — те же фамилии, и без границы два списка
    сливаются в один непонятный. */

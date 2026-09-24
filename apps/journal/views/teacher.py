@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models
@@ -159,6 +160,44 @@ def _item_context(request, item: GradeItem, **extra) -> dict:
     }
 
 
+def _module_works(lesson: Lesson) -> list[dict]:
+    """
+    Работы модуля, которые оцениваются не через занятие: проверочные,
+    контрольная, зачёт.
+
+    Их место — план модуля, и педагог туда не ходит. Он ходит в занятие:
+    диктант писали на уроке, значит и баллы за него ищут в уроке. Поэтому
+    список работ показывается здесь же — вместе с тем, сколько по каждой
+    уже выставлено, чтобы было видно недоделанное.
+
+    Свободные места под занятия сюда не попадают: за них балл ставится
+    в самом занятии, и отдельная ссылка только путала бы.
+    """
+    items = list(
+        GradeItem.objects.filter(
+            module=lesson.module, subject=lesson.subject, group=lesson.group,
+            lesson__isnull=True,
+        )
+        .exclude(kind=GradeItemKind.LESSON)
+        .exclude(homework__isnull=False)
+        .order_by("position", "due_date", "created_at")
+    )
+    if not items:
+        return []
+    total = (
+        Student.objects.filter(group_memberships__group=lesson.group).distinct().count()
+    )
+    filled = dict(
+        Grade.objects.filter(grade_item__in=items)
+        .values_list("grade_item")
+        .annotate(count=models.Count("id"))
+    )
+    return [
+        {"item": item, "filled": filled.get(item.id, 0), "total": total}
+        for item in items
+    ]
+
+
 def _review_context(homework) -> dict:
     """Блок проверки домашнего: состав группы и что с заданием у каждого."""
     if homework is None:
@@ -214,6 +253,9 @@ def lesson_journal(request, lesson_id):
             # Проверяют сегодня то, что задавали в прошлый раз, — поэтому
             # список для проверки собран по прошлому занятию, а не по этому.
             "review": _review_context(earlier),
+            # Проверочные, контрольная и зачёт — рядом, а не на экране
+            # планирования, куда педагог не заходит.
+            "module_works": _module_works(lesson),
             "own_review": _review_context(getattr(lesson, "homework", None)),
             # Тема из КТП: если занятию сопоставлена строка плана, её текст
             # подставляется в поле. Не как подсказка сбоку, а прямо в поле —
@@ -553,6 +595,61 @@ def grade_save(request, lesson_id):
         },
         status=422 if error else 200,
     )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def lesson_work_add(request, lesson_id):
+    """
+    Завести работу прямо из занятия и сразу открыть её журнал.
+
+    «Мы писали словарный диктант, хочу выставить оценки» — вот весь путь,
+    который должен быть. Раньше он шёл через экран планирования модуля:
+    найти его, добавить строку, сохранить, вернуться, нажать ссылку. Пять
+    шагов на чужом экране вместо одного там, где педагог уже стоит.
+
+    Обычная форма, без htmx: после создания мы уходим на другую страницу,
+    а не подменяем кусок этой. Ошибку показываем сообщением и возвращаем
+    на занятие — набранное ничего не стоит повторить, а вот молча уронить
+    введённое в никуда стоит дорого.
+    """
+    organization = request.organization
+    lesson = get_lesson_or_403(request.user, organization, lesson_id)
+    assert_can_grade(request.user, organization, lesson)
+
+    kind = request.POST.get("kind") or GradeItemKind.QUIZ
+    if kind == GradeItemKind.LESSON:
+        messages.error(
+            request,
+            "Баллы за работу на уроке ставятся в самом занятии — "
+            "кнопкой «Сделать с оцениванием».",
+        )
+        return redirect("cabinet:lesson_journal", lesson_id=lesson.pk)
+
+    item = GradeItem(
+        organization=organization, module=lesson.module, subject=lesson.subject,
+        group=lesson.group, kind=kind,
+        title=(request.POST.get("title") or "").strip(),
+        max_points=homework_service.parse_points(request.POST.get("max_points")),
+        due_date=lesson.local_date,
+    )
+    if item.max_points is None:
+        messages.error(request, "Укажите, на сколько баллов работа.")
+        return redirect("cabinet:lesson_journal", lesson_id=lesson.pk)
+
+    try:
+        validate_grade_item(item)
+        item.save()
+    except ValidationError as exc:
+        messages.error(request, _first_message(exc))
+        return redirect("cabinet:lesson_journal", lesson_id=lesson.pk)
+
+    log_audit(
+        action=AuditAction.VIEW_STUDENT, request=request, obj=item,
+        scope="lesson_work_add",
+    )
+    return redirect("cabinet:item_journal", item_id=item.pk)
 
 
 @login_required

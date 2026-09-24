@@ -42,10 +42,17 @@
 {% endcomment %}
 {% include "cabinet/teacher/partials/journal_body.html" %}
 
+{% include "cabinet/teacher/partials/lesson_works.html" %}
+
 {% if own_review.homework %}
   <details class="lesson-review hw-archive" style="margin-top:28px">
     <summary class="hw-head" style="margin:0">
-      Проверка заданного сегодня
+      {% comment %}
+        Раньше здесь стояло «Проверка заданного сегодня» — и читалось как
+        проверка чего угодно, в том числе проверочной работы. Говорим прямо,
+        что речь о домашнем задании.
+      {% endcomment %}
+      Проверить домашнее, заданное сегодня
       <span class="hw-count">{{ own_review.counts.waiting }}</span>
     </summary>
     {% include "cabinet/teacher/partials/homework_review.html" with homework=own_review.homework review_rows=own_review.review_rows counts=own_review.counts %}
