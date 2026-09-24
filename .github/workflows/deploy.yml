@@ -96,6 +96,50 @@ jobs:
           if ! ssh-keygen -y -P '' -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub 2> /tmp/key-error; then
             echo "Секрет DEPLOY_SSH_KEY не читается как приватный ключ OpenSSH:" >&2
             cat /tmp/key-error >&2
+
+            # Что именно лежит в секрете — приметами, без содержимого.
+            # Печатать сам ключ нельзя, а «не читается» не говорит, что
+            # чинить: вставили .pub, ключ PuTTY, обрезанный кусок или
+            # положили не в Secrets, а в Variables и секрет остался старым.
+            clean=$(printf '%s' "$KEY" | tr -d '\r')
+            echo "" >&2
+            echo "Что в секрете (сам ключ не показывается):" >&2
+            echo "  строк: $(printf '%s\n' "$clean" | wc -l), символов: ${#clean}" >&2
+            echo "  (у рабочего ключа ed25519 обычно 7 строк и около 400 символов)" >&2
+            case "$clean" in
+              "")
+                echo "  → секрет пустой" >&2 ;;
+              "-----BEGIN OPENSSH PRIVATE KEY-----"*)
+                echo "  → начало правильное: BEGIN OPENSSH PRIVATE KEY" >&2 ;;
+              "-----BEGIN"*)
+                echo "  → ключ в старом формате PEM (RSA/EC), а не OpenSSH" >&2 ;;
+              ssh-ed25519\ *|ssh-rsa\ *|ecdsa-sha2-*)
+                echo "  → это ПУБЛИЧНЫЙ ключ (.pub). Нужен файл без .pub" >&2 ;;
+              PuTTY-User-Key-File*)
+                echo "  → это ключ PuTTY (.ppk). Нужен ключ OpenSSH" >&2 ;;
+              \"*|\'*)
+                echo "  → ключ вставлен в кавычках — кавычки надо убрать" >&2 ;;
+              " "*|"	"*)
+                echo "  → перед ключом пробелы — вставлено с отступом" >&2 ;;
+              *)
+                echo "  → начинается не с BEGIN: скопировано не с начала" >&2 ;;
+            esac
+            # Про конец говорим только о том, что начиналось как ключ:
+            # у .pub и PuTTY строки END нет и быть не должно, и слово
+            # «обрезан» там увело бы не туда.
+            case "$clean" in
+              *"-----BEGIN"*"-----END OPENSSH PRIVATE KEY-----"*)
+                echo "  → конец на месте: END OPENSSH PRIVATE KEY" >&2 ;;
+              *"-----BEGIN"*)
+                echo "  → строки END нет: ключ обрезан при копировании" >&2 ;;
+            esac
+            case "$clean" in
+              *ENCRYPTED*|*aes256-ctr*|*bcrypt*)
+                echo "  → ключ запаролен — нужен ключ без пароля" >&2 ;;
+            esac
+            echo "" >&2
+            echo "Кладётся в Settings → Secrets and variables → Actions →" >&2
+            echo "вкладка Secrets (не Variables) → Repository secrets." >&2
             echo "Нужен приватный ключ целиком — от строки" >&2
             echo "  -----BEGIN OPENSSH PRIVATE KEY-----" >&2
             echo "до строки" >&2
