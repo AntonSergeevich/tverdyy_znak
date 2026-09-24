@@ -239,7 +239,18 @@ Actions ходит на сервер по SSH, поэтому ему нужен 
 **1. Создать ключ (на своей машине):**
 
 ```powershell
-ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\tz_deploy -N '""' -C "github-actions"
+ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\tz_deploy -C "github-actions"
+```
+
+На вопросы о пароле (passphrase) — **дважды просто Enter**. Пароль задавать
+нельзя: вводить его в GitHub Actions некому.
+
+Раньше здесь стояло `-N '""'`, и это ловушка: в новых версиях PowerShell
+оно передаёт не пустой пароль, а буквально две кавычки, и ключ получается
+запароленным. Нажать Enter — единственный способ, который одинаково
+работает везде.
+
+```powershell
 type $env:USERPROFILE\.ssh\tz_deploy.pub | ssh tz@85.198.66.41 "cat >> ~/.ssh/authorized_keys"
 ```
 
@@ -254,12 +265,32 @@ Settings → Secrets and variables → Actions → раздел **Repository sec
 
 | Имя | Значение |
 |---|---|
-| `DEPLOY_SSH_KEY` | содержимое `tz_deploy` **без .pub**, целиком, включая строки `BEGIN`/`END` |
+| `DEPLOY_SSH_KEY` | содержимое `tz_deploy` **без .pub**, целиком, включая строки `BEGIN`/`END` (как скопировать — ниже) |
 | `DEPLOY_HOST` | `85.198.66.41` |
 | `DEPLOY_USER` | `tz` |
 
 Приватный ключ в репозиторий не коммитится и в логах Actions не виден —
 GitHub затирает значения секретов в выводе.
+
+**Как скопировать ключ, чтобы он не испортился.** Не из окна PowerShell:
+консоль переносит длинные строки и выделение захватывает лишнее. Так:
+
+```powershell
+notepad $env:USERPROFILE\.ssh\tz_deploy
+```
+
+В Блокноте — Ctrl+A, Ctrl+C, и вставить в поле секрета. Файл должен
+начинаться строкой `-----BEGIN OPENSSH PRIVATE KEY-----` и кончаться
+`-----END OPENSSH PRIVATE KEY-----`. Если открылась одна длинная строка,
+начинающаяся с `ssh-ed25519` — это `.pub`, не тот файл.
+
+Если ключ в секрете испорчен, выкат упадёт на шаге «Ключ SSH» с текстом
+«Секрет DEPLOY_SSH_KEY не читается как приватный ключ». Если ключ
+читается, в логе будет его отпечаток — сверьте его с тем, что на сервере:
+
+```bash
+ssh-keygen -lf ~/.ssh/authorized_keys    # на сервере, под пользователем tz
+```
 
 **3. Проверить:** вкладка Actions → «Тесты и выкат» → Run workflow.
 
