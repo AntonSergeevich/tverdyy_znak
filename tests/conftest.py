@@ -51,10 +51,21 @@ def _build_tenant(slug: str, host: str, suffix: str) -> Tenant:
     )
     OrganizationDomain.objects.create(organization=organization, host=host, is_primary=True)
 
+    # Год и модуль — вокруг сегодняшнего дня, а не числами в календаре.
+    #
+    # Модуль был зашит как 01.09–02.10.2026, и 3 октября «текущего модуля»
+    # в тестах не стало бы: кабинеты, разбивка баллов и домашнее читают
+    # именно текущий модуль, и десятки тестов покраснели бы разом — без
+    # единой правки кода. Красный тест останавливает выкат, так что это
+    # был выключатель продакшена с таймером. Занятие из фикстуры стоит на
+    # «сегодня», поэтому модуль обязан это «сегодня» накрывать всегда.
+    today = timezone.localdate()
+
     with organization_context(organization):
         year = AcademicYear.objects.create(
-            organization=organization, title="2026/27",
-            starts_on=dt.date(2026, 9, 1), ends_on=dt.date(2027, 5, 21), is_current=True,
+            organization=organization, title="Учебный год",
+            starts_on=today - dt.timedelta(days=60),
+            ends_on=today + dt.timedelta(days=240), is_current=True,
         )
         GradingScale.objects.create(organization=organization, academic_year=None)
         subject = Subject.objects.create(
@@ -62,7 +73,8 @@ def _build_tenant(slug: str, host: str, suffix: str) -> Tenant:
         )
         module = Module.objects.create(
             organization=organization, academic_year=year, kind=ModuleKind.MODULE,
-            number=1, starts_on=dt.date(2026, 9, 1), ends_on=dt.date(2026, 10, 2),
+            number=1, starts_on=today - dt.timedelta(days=21),
+            ends_on=today + dt.timedelta(days=21),
         )
         group = Group.objects.create(
             organization=organization, academic_year=year, name=f"Класс {suffix}", grade_level=9

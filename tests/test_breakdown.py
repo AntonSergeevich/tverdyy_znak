@@ -15,12 +15,20 @@ from decimal import Decimal
 import pytest
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.tenancy import organization_context
 from apps.journal.models import GradeItem, GradeItemKind
 from apps.journal.services.grading import grade_breakdown, set_grade
 from apps.journal.services.homework import save_homework
 from tests.conftest import PASSWORD
+
+# Сроки — от сегодняшнего дня, а не числом в календаре. Балл задним
+# числом ставится только в течение 14 дней от даты работы, и тест с
+# зашитой датой краснеет сам собой, когда календарь уходит вперёд, —
+# а красный тест останавливает выкат.
+SOON = timezone.localdate() + dt.timedelta(days=7)
+
 
 
 def sign_in(tenant, user):
@@ -41,7 +49,7 @@ def works(tenant_a):
             organization=tenant_a.organization, module=tenant_a.module,
             subject=tenant_a.subject, group=tenant_a.group,
             kind=GradeItemKind.CREDIT, title="Зачёт по модулю", max_points=25,
-            due_date=dt.date(2026, 9, 30),
+            due_date=SOON,
         )
         ahead = GradeItem.objects.create(
             organization=tenant_a.organization, module=tenant_a.module,

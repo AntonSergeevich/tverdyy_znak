@@ -250,7 +250,11 @@ def test_scheduled_lesson_appears_in_teacher_cabinet(admin_client, client, tenan
         reverse("accounts:login"),
         {"username": tenant_a.teacher_user.email, "password": PASSWORD},
     )
-    today = dt.date.today()
+    # Те же часы, что у приложения: dt.date.today() — это дата сервера
+    # в UTC, а неделю кабинет считает по Красноярску (+7). С 17:00 UTC
+    # это уже разные дни, и в ночь на понедельник смещение недели
+    # разъезжалось на единицу.
+    today = timezone.localdate()
     this_monday = today - dt.timedelta(days=today.weekday())
     week_offset = (monday - this_monday).days // 7
     body = client.get(reverse("cabinet:schedule"), {"n": week_offset}).content.decode()

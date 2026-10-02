@@ -22,11 +22,19 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.tenancy import organization_context
 from apps.journal.models import Homework, HomeworkMark, HomeworkVerdict, Lesson
 from apps.journal.services import homework as service
 from tests.conftest import PASSWORD
+
+# Сроки — от сегодняшнего дня, а не числом в календаре. Балл задним
+# числом ставится только в течение 14 дней от даты работы, и тест с
+# зашитой датой краснеет сам собой, когда календарь уходит вперёд, —
+# а красный тест останавливает выкат.
+SOON = timezone.localdate() + dt.timedelta(days=7)
+
 
 
 def sign_in(tenant, user):
@@ -44,7 +52,7 @@ def homework(tenant_a):
     with organization_context(tenant_a.organization):
         return Homework.objects.create(
             organization=tenant_a.organization, lesson=tenant_a.lesson,
-            text="§12, задачи 3–7", due_date=dt.date(2026, 9, 10),
+            text="§12, задачи 3–7", due_date=SOON,
         )
 
 
@@ -167,7 +175,7 @@ def graded_homework(tenant_a):
     with organization_context(tenant_a.organization):
         return save_homework(
             lesson=tenant_a.lesson, text="§14, задачи 5–9",
-            due_date=dt.date(2026, 9, 11), max_points=5,
+            due_date=SOON, max_points=5,
         )
 
 
