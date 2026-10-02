@@ -45,6 +45,7 @@ from apps.journal.services import homework as homework_service
 from apps.journal.services import ktp as ktp_service
 from apps.journal.services import workload
 from apps.journal.services.grading import (
+    GradesInTheWay,
     create_default_structure,
     disable_lesson_grading,
     enable_lesson_grading,
@@ -498,13 +499,23 @@ def lesson_toggle_graded(request, lesson_id):
     make_graded = request.POST.get("is_graded") == "1"
     error = ""
     note = ""
+    blocking = []
     try:
         switch = (
             enable_lesson_grading(lesson, actor=request.user)
             if make_graded
-            else disable_lesson_grading(lesson)
+            else disable_lesson_grading(
+                lesson,
+                # Снять вместе с баллами — только по явному второму нажатию,
+                # с подтверждением и числом баллов перед глазами.
+                drop_grades=request.POST.get("drop_grades") == "1",
+                actor=request.user, request=request,
+            )
         )
         note = switch.note
+    except GradesInTheWay as exc:
+        error = "; ".join(m for msgs in exc.message_dict.values() for m in msgs)
+        blocking = exc.grades
     except ValidationError as exc:
         error = "; ".join(m for msgs in exc.message_dict.values() for m in msgs)
 
@@ -528,6 +539,7 @@ def lesson_toggle_graded(request, lesson_id):
             ).count(),
             "error": error,
             "note": note,
+            "blocking_grades": blocking,
         },
     )
 

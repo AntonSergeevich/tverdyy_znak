@@ -312,20 +312,58 @@ def enable_lesson_grading(lesson, *, actor=None) -> GradingSwitch:
     return GradingSwitch(item=item, note=note, released=released)
 
 
+class GradesInTheWay(ValidationError):
+    """
+    Снять оценивание мешают выставленные баллы — и вот чьи.
+
+    Отказ без имён был тупиком: «сначала удалите выставленные баллы»,
+    педагог удаляет, видит пустые круги — а снять всё равно нельзя.
+    Мешал то ли ноль (в круге есть кнопка «0», и ноль — это тоже балл),
+    то ли балл ученика, которого в списке уже нет: из группы его
+    перевели, а балл за занятие остался. Ни того, ни другого на экране
+    не видно, поэтому называем поимённо.
+    """
+
+    def __init__(self, grades):
+        self.grades = list(grades)
+        who = ", ".join(
+            f"{grade.student.short_name} — {_fmt(grade.points)}" for grade in self.grades
+        )
+        super().__init__(
+            {"lesson": f"За это занятие ещё стоят баллы: {who}."}
+        )
+
+
 @transaction.atomic
-def disable_lesson_grading(lesson) -> GradingSwitch:
+def disable_lesson_grading(
+    lesson, *, drop_grades: bool = False, actor=None, request=None
+) -> GradingSwitch:
     """
     Снять оценивание с занятия.
 
     Баллы не пропадают, а возвращаются в план модуля свободным местом:
     сотня разложена один раз, и снятое оценивание не должно её обеднять.
-    Занятие с выставленными баллами не снимается — сначала уберите баллы.
+
+    Занятие с выставленными баллами молча не снимается: так легко
+    потерять чужую работу. Но и тупиком это быть не должно — педагог,
+    который решил, что этот урок без оценки, имеет право снять его
+    вместе с баллами. Для этого есть drop_grades: баллы удаляются тем же
+    путём, что и по одному (мягко, с записью в журнал действий и
+    пересчётом итогов модуля), — и восстановить их можно.
     """
     item = GradeItem.objects.filter(lesson=lesson).first()
     if item is not None:
-        if Grade.objects.filter(grade_item=item).exists():
-            raise ValidationError(
-                {"lesson": "Сначала удалите выставленные баллы за это занятие."}
+        grades = list(
+            Grade.objects.filter(grade_item=item)
+            .select_related("student")
+            .order_by("student__last_name", "student__first_name")
+        )
+        if grades and not drop_grades:
+            raise GradesInTheWay(grades)
+        for grade in grades:
+            set_grade(
+                student=grade.student, grade_item=item, points=None,
+                actor=actor, request=request,
             )
         item.lesson = None
         item.due_date = None
@@ -334,10 +372,13 @@ def disable_lesson_grading(lesson) -> GradingSwitch:
 
     lesson.is_graded = False
     lesson.save(update_fields=["is_graded", "updated_at"])
-    return GradingSwitch(
-        item=None,
-        note="Баллы вернулись в план модуля свободным местом." if item else "",
-    )
+    note = "Баллы вернулись в план модуля свободным местом." if item else ""
+    if item is not None and drop_grades and grades:
+        note = (
+            f"Оценивание снято, баллы за занятие удалены: {len(grades)}. "
+            + note
+        )
+    return GradingSwitch(item=None, note=note)
 
 
 def student_module_points(*, students, module, subject) -> dict:

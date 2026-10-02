@@ -1383,6 +1383,17 @@ details.fieldset[open] > summary::after { content: ' −'; }
   padding: 14px clamp(12px, 2vw, 18px);
 }
 .lesson-switch__text { flex: 1 1 260px; min-width: 0; }
+
+/* Выход из отказа «сначала удалите баллы»: кто мешает — в тексте
+   ошибки выше, а здесь объяснение про ноль и кнопка «снять с баллами». */
+.grading-blocked {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  justify-content: space-between; margin: -4px 0 12px;
+  padding: 12px clamp(12px, 2vw, 18px);
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+}
+.grading-blocked p { flex: 1 1 320px; }
 .lesson-switch__state { margin: 0 0 2px; font-size: 16px; }
 .lesson-switch form { flex: 0 0 auto; }
 .lesson-switch .btn { min-height: 44px; }

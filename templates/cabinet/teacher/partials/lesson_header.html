@@ -20,12 +20,43 @@
 {% if error %}
   <div class="form-error" role="alert">
     {{ error }}
-    {% if budget.remaining <= 0 %}
+    {% if budget.remaining <= 0 and not blocking_grades %}
       <a href="{% url 'cabinet:module_plan' lesson.module.pk lesson.subject.pk lesson.group.pk %}">
         Освободить баллы в плане модуля
       </a>
     {% endif %}
   </div>
+
+  {% if blocking_grades %}
+    {% comment %}
+      Снять оценивание мешают баллы — и раньше на этом всё заканчивалось.
+      Педагог «удалял» баллы, видел пустоту и упирался в тот же отказ:
+      мешал ноль (в круге есть кнопка «0», и ноль — тоже балл) или балл
+      ученика, которого в списке больше нет.
+
+      Теперь видно поимённо, кто мешает, и есть выход одним нажатием —
+      с подтверждением и числом баллов перед глазами. Удаление мягкое
+      и попадает в журнал действий: вернуть можно.
+    {% endcomment %}
+    <div class="grading-blocked">
+      <p class="small" style="margin:0">
+        Ноль — это тоже выставленный балл. Чтобы убрать балл, в круге
+        нажмите «Убрать балл», а не «0». Или снимите оценивание вместе
+        со всеми баллами за это занятие:
+      </p>
+      <form hx-post="{% url 'cabinet:lesson_toggle_graded' lesson.pk %}"
+            hx-select="unset" hx-select-oob="unset"
+            hx-target="#lesson-header" hx-swap="innerHTML"
+            hx-confirm="Удалить баллы за это занятие ({{ blocking_grades|length }}) и сделать его без оценивания?">
+        {% csrf_token %}
+        <input type="hidden" name="is_graded" value="0">
+        <input type="hidden" name="drop_grades" value="1">
+        <button class="btn btn--quiet btn--danger" type="submit">
+          Снять оценивание и удалить баллы ({{ blocking_grades|length }})
+        </button>
+      </form>
+    </div>
+  {% endif %}
 {% endif %}
 
 {% if note %}

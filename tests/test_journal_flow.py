@@ -134,7 +134,12 @@ def test_teacher_saves_lesson_topic(client, tenant_a):
     assert tenant_a.lesson.topic == "Квадратные уравнения"
 
 
-def test_cannot_unmark_lesson_with_existing_grades(client, tenant_a, graded_lesson):
+def test_cannot_unmark_lesson_with_existing_grades_silently(client, tenant_a, graded_lesson):
+    """
+    Молча снять оценивание с занятия, где стоят баллы, нельзя — потеряется
+    чужая работа. Но отказ должен называть, чьи баллы мешают: без имён это
+    был тупик.
+    """
     login(client, tenant_a, tenant_a.teacher_user)
     client.post(
         reverse("cabinet:grade_save", args=[tenant_a.lesson.pk]),
@@ -143,9 +148,97 @@ def test_cannot_unmark_lesson_with_existing_grades(client, tenant_a, graded_less
     response = client.post(
         reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]), {"is_graded": "0"}
     )
-    assert "Сначала удалите выставленные баллы" in response.content.decode()
+    body = response.content.decode()
+    assert "За это занятие ещё стоят баллы" in body
+    assert tenant_a.student.short_name in body
     tenant_a.lesson.refresh_from_db()
     assert tenant_a.lesson.is_graded is True
+
+
+def test_a_zero_is_named_as_a_grade_that_blocks(client, tenant_a, graded_lesson):
+    """
+    Жалоба Юлии: «удалила баллы, а без оценивания не делает». В круге
+    есть кнопка «0», и ноль — это тоже балл. Отказ должен показать ноль
+    и объяснить, чем ноль отличается от «Убрать балл».
+    """
+    login(client, tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:grade_save", args=[tenant_a.lesson.pk]),
+        {"student": str(tenant_a.student.pk), "points": "0"},
+    )
+    body = client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]), {"is_graded": "0"}
+    ).content.decode()
+
+    assert f"{tenant_a.student.short_name} — 0" in body
+    assert "Ноль — это тоже выставленный балл" in body
+    assert 'name="drop_grades"' in body
+
+
+def test_grading_can_be_removed_together_with_the_grades(client, tenant_a, graded_lesson):
+    """
+    Педагог решил, что этот урок без оценки, — у него должен быть выход,
+    а не обход по одному ученику. Удаление мягкое: балл можно вернуть.
+    """
+    from apps.journal.models import Grade, GradeItem
+
+    login(client, tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:grade_save", args=[tenant_a.lesson.pk]),
+        {"student": str(tenant_a.student.pk), "points": "4"},
+    )
+    response = client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]),
+        {"is_graded": "0", "drop_grades": "1"},
+    )
+
+    assert "Оценивание снято, баллы за занятие удалены: 1" in response.content.decode()
+    tenant_a.lesson.refresh_from_db()
+    assert tenant_a.lesson.is_graded is False
+    with organization_context(tenant_a.organization):
+        assert not Grade.objects.filter(student=tenant_a.student).exists()
+        # Мягко: в базе балл остался, просто помечен удалённым.
+        assert Grade.all_objects.filter(
+            student=tenant_a.student, deleted_at__isnull=False
+        ).exists()
+        # Место в сотне вернулось в план модуля, а не пропало.
+        assert GradeItem.objects.filter(
+            module=tenant_a.module, subject=tenant_a.subject, group=tenant_a.group,
+            lesson__isnull=True, kind="lesson",
+        ).exists()
+
+
+def test_a_grade_of_a_student_who_left_the_group_also_blocks_and_is_named(
+    client, tenant_a, graded_lesson
+):
+    """
+    Ученика перевели в другую группу — в списке занятия его больше нет,
+    а балл за занятие остался. Убрать его из круга невозможно: круга нет.
+    Такой балл должен называться в отказе и удаляться вместе с остальными.
+    """
+    from apps.journal.models import Grade, GroupMembership
+
+    login(client, tenant_a, tenant_a.teacher_user)
+    client.post(
+        reverse("cabinet:grade_save", args=[tenant_a.lesson.pk]),
+        {"student": str(tenant_a.student.pk), "points": "5"},
+    )
+    with organization_context(tenant_a.organization):
+        GroupMembership.objects.filter(student=tenant_a.student).delete()
+
+    body = client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]), {"is_graded": "0"}
+    ).content.decode()
+    assert tenant_a.student.short_name in body
+
+    client.post(
+        reverse("cabinet:lesson_toggle_graded", args=[tenant_a.lesson.pk]),
+        {"is_graded": "0", "drop_grades": "1"},
+    )
+    tenant_a.lesson.refresh_from_db()
+    assert tenant_a.lesson.is_graded is False
+    with organization_context(tenant_a.organization):
+        assert not Grade.objects.filter(student=tenant_a.student).exists()
 
 
 def test_empty_points_removes_grade(client, tenant_a, graded_lesson):
