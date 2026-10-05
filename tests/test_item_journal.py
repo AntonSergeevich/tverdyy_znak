@@ -231,6 +231,146 @@ def test_the_lesson_says_plainly_that_the_check_is_about_homework(tenant_a):
     assert "Проверить домашнее, заданное сегодня" in body
 
 
+# ─── Удаление работы ────────────────────────────────────────────────────────
+
+def test_a_work_without_grades_is_deleted_from_its_page(tenant_a, quiz):
+    """Лишнюю работу удаляют там же, где на неё смотрят, — не только в плане."""
+    from apps.journal.models import GradeItem
+
+    response = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:item_delete", args=[quiz.pk]),
+        {"from": str(tenant_a.lesson.pk)},
+    )
+
+    # Вернули туда, откуда пришли, — на занятие, а не в план модуля.
+    assert response.status_code == 302
+    assert response.headers["Location"] == reverse(
+        "cabinet:lesson_journal", args=[tenant_a.lesson.pk]
+    )
+    with organization_context(tenant_a.organization):
+        assert not GradeItem.objects.filter(pk=quiz.pk).exists()
+        # Мягко: строка в базе осталась.
+        assert GradeItem.all_objects.filter(pk=quiz.pk, deleted_at__isnull=False).exists()
+
+
+def test_a_work_with_grades_names_who_has_them(tenant_a, quiz):
+    """
+    «Сначала удалите баллы» без имён — тупик: дубль «зачёта» с одним
+    баллом висел в списке работ навсегда.
+    """
+    from apps.journal.models import GradeItem
+    from apps.journal.services.grading import set_grade
+
+    with organization_context(tenant_a.organization):
+        set_grade(student=tenant_a.student, grade_item=quiz, points=Decimal("0"))
+
+    body = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:item_delete", args=[quiz.pk]),
+    ).content.decode()
+
+    assert "По этой работе ещё стоят баллы" in body
+    assert f"{tenant_a.student.short_name} — 0" in body
+    assert 'name="drop_grades"' in body
+    with organization_context(tenant_a.organization):
+        assert GradeItem.objects.filter(pk=quiz.pk).exists()
+
+
+def test_a_work_is_deleted_with_its_grades_softly_and_totals_recount(tenant_a, quiz):
+    """
+    ТЗ 9.5: оценку нельзя терять физически. Раньше удаление работы стирало
+    её баллы каскадом. Теперь и работа, и баллы — с отметкой удаления.
+    """
+    from apps.journal.models import Grade, GradeItem, ModuleResult
+    from apps.journal.services.grading import set_grade
+
+    with organization_context(tenant_a.organization):
+        set_grade(student=tenant_a.student, grade_item=quiz, points=Decimal("8"))
+        assert ModuleResult.objects.get(
+            student=tenant_a.student, module=tenant_a.module, subject=tenant_a.subject
+        ).total_points == Decimal("8")
+
+    sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse("cabinet:item_delete", args=[quiz.pk]), {"drop_grades": "1"},
+    )
+
+    with organization_context(tenant_a.organization):
+        assert not GradeItem.objects.filter(pk=quiz.pk).exists()
+        assert not Grade.objects.filter(grade_item=quiz).exists()
+        # Физически всё на месте.
+        assert GradeItem.all_objects.filter(pk=quiz.pk).exists()
+        assert Grade.all_objects.filter(grade_item_id=quiz.pk).exists()
+        # Итог модуля пересчитан: удалённый балл больше не считается.
+        assert ModuleResult.objects.get(
+            student=tenant_a.student, module=tenant_a.module, subject=tenant_a.subject
+        ).total_points == Decimal("0")
+
+
+def test_a_deleted_work_frees_its_place_in_the_hundred(tenant_a, quiz):
+    from apps.journal.services.grading import points_budget
+
+    with organization_context(tenant_a.organization):
+        before = points_budget(tenant_a.module, tenant_a.subject, tenant_a.group).distributed
+
+    sign_in(tenant_a, tenant_a.teacher_user).post(reverse("cabinet:item_delete", args=[quiz.pk]))
+
+    with organization_context(tenant_a.organization):
+        after = points_budget(tenant_a.module, tenant_a.subject, tenant_a.group).distributed
+    assert before - after == Decimal("10")
+
+
+def test_a_deleted_work_leaves_the_lesson_list_and_the_student_breakdown(tenant_a, quiz):
+    sign_in(tenant_a, tenant_a.teacher_user).post(reverse("cabinet:item_delete", args=[quiz.pk]))
+
+    lesson_page = sign_in(tenant_a, tenant_a.teacher_user).get(
+        reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk])
+    ).content.decode()
+    student_page = sign_in(tenant_a, tenant_a.student_user).get(
+        reverse("cabinet:student_home")
+    ).content.decode()
+
+    assert "Проверочная по причастиям" not in lesson_page
+    assert "Проверочная по причастиям" not in student_page
+
+
+def test_the_plan_names_who_blocks_deletion(tenant_a, quiz):
+    """В плане модуля одна кнопка на строку — говорим, чьи баллы и куда идти."""
+    from apps.journal.services.grading import set_grade
+
+    with organization_context(tenant_a.organization):
+        set_grade(student=tenant_a.student, grade_item=quiz, points=Decimal("3"))
+
+    body = sign_in(tenant_a, tenant_a.teacher_user).post(
+        reverse(
+            "cabinet:module_plan_action",
+            args=[tenant_a.module.pk, tenant_a.subject.pk, tenant_a.group.pk],
+        ),
+        {"action": "delete_item", "item": str(quiz.pk)},
+    ).content.decode()
+
+    assert f"{tenant_a.student.short_name} — 3" in body
+    assert "на её странице" in body
+
+
+def test_the_work_page_leads_back_to_the_lesson(tenant_a, quiz):
+    body = sign_in(tenant_a, tenant_a.teacher_user).get(
+        reverse("cabinet:item_journal", args=[quiz.pk]) + f"?from={tenant_a.lesson.pk}"
+    ).content.decode()
+
+    assert reverse("cabinet:lesson_journal", args=[tenant_a.lesson.pk]) in body
+
+
+def test_a_stranger_cannot_delete_a_work(tenant_a, tenant_b, quiz):
+    from apps.journal.models import GradeItem
+
+    response = sign_in(tenant_b, tenant_b.teacher_user).post(
+        reverse("cabinet:item_delete", args=[quiz.pk]),
+    )
+
+    assert response.status_code in (302, 403, 404)
+    with organization_context(tenant_a.organization):
+        assert GradeItem.objects.filter(pk=quiz.pk).exists()
+
+
 # ─── Права ──────────────────────────────────────────────────────────────────
 
 def test_a_stranger_cannot_grade_someone_elses_work(tenant_a, tenant_b, quiz):

@@ -905,13 +905,19 @@ DEFAULT_STRUCTURE = {
 }
 
 
-class GradeItem(TenantModel):
+class GradeItem(SoftDeleteTenantModel):
     """
     Оцениваемый элемент модуля по конкретному предмету и группе.
 
     Сумма max_points всех элементов одной связки (модуль, предмет, группа)
     не может превышать module_max_points — проверяется в сервисе и
     в GradeItem.clean().
+
+    Удаляется мягко, как и сами оценки. Раньше удаление работы стирало
+    её строку из базы, а вместе с ней каскадом — все баллы за неё, в том
+    числе уже помеченные удалёнными. ТЗ 9.5 этого не допускает: оценку
+    нельзя терять физически. Теперь удалённая работа и её баллы остаются
+    в базе с отметкой времени и восстанавливаются вместе.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -942,6 +948,32 @@ class GradeItem(TenantModel):
 
     def __str__(self) -> str:
         return self.title or self.get_kind_display()
+
+    def delete(self, using=None, keep_parents=False):
+        """
+        Удалить мягко — вместе с баллами за работу, с пересчётом итогов.
+
+        Баллы убираются здесь, а не в каждом месте, где удаляют работу:
+        мест несколько (снятое домашнее, задание без баллов, удаление из
+        плана), и забыть в одном значило бы оставить «живые» баллы у
+        удалённой работы — они продолжили бы считаться в итоге модуля.
+
+        all_objects, а не objects: удаление может идти и вне контекста
+        организации, а там objects честно возвращает пустоту.
+        """
+        from apps.journal.services.grading import recalculate_module_result
+
+        grades = list(
+            Grade.all_objects.filter(grade_item=self, deleted_at__isnull=True)
+            .select_related("student")
+        )
+        now = timezone.now()
+        Grade.all_objects.filter(pk__in=[grade.pk for grade in grades]).update(
+            deleted_at=now, updated_at=now
+        )
+        super().delete(using=using, keep_parents=keep_parents)
+        for student in {grade.student for grade in grades}:
+            recalculate_module_result(student=student, subject=self.subject, module=self.module)
 
     def clean(self):
         from apps.journal.services.grading import validate_grade_item

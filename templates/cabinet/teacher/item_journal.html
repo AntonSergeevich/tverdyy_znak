@@ -14,7 +14,15 @@
   ползунок, то же «поставить всем». Переучиваться педагогу нечему.
 {% endcomment %}
 <p class="small muted" style="margin-bottom:8px">
-  <a href="{% url 'cabinet:module_plan' item.module.pk item.subject.pk item.group.pk %}">← План модуля</a>
+  {% if back_lesson %}
+    {% comment %}
+      Назад — туда, откуда пришли. Педагог открывает работу из занятия,
+      и стрелка в план модуля выкидывала его на экран, где он не был.
+    {% endcomment %}
+    <a href="{% url 'cabinet:lesson_journal' back_lesson.pk %}">← Занятие {{ back_lesson.starts_at|date:"d.m" }}</a>
+    ·
+  {% endif %}
+  <a href="{% url 'cabinet:module_plan' item.module.pk item.subject.pk item.group.pk %}">План модуля</a>
 </p>
 
 <div class="page-title">
@@ -48,6 +56,46 @@
 </div>
 
 {% include "cabinet/teacher/partials/item_body.html" %}
+
+{% if can_delete %}
+  {% comment %}
+    Удалить работу — здесь, а не только в плане модуля, куда педагог не
+    ходит. Лишний дубль «зачёта» с одним баллом раньше висел в списке
+    навсегда: в плане с баллами не удалялось, а здесь кнопки не было.
+
+    С баллами — вторым нажатием: сначала говорим, чьи они, и только
+    потом даём удалить вместе с ними, с подтверждением и счётом.
+    Удаление мягкое: работа и баллы остаются в базе и восстанавливаются.
+
+    Обычные формы, без htmx: после удаления уходим на другую страницу.
+  {% endcomment %}
+  <section class="item-delete" id="item-delete">
+    {% if delete_error %}
+      <div class="form-error" role="alert">{{ delete_error }}</div>
+      <p class="small" style="margin:8px 0">
+        Ноль — это тоже выставленный балл. Можно убрать баллы по одному
+        («Убрать балл» в круге) или удалить работу вместе с ними:
+      </p>
+      <form method="post" hx-boost="false" action="{% url 'cabinet:item_delete' item.pk %}"
+            onsubmit="return confirm('Удалить работу «{{ item.title|default:item.get_kind_display|escapejs }}» вместе с баллами ({{ blocking_grades|length }})?');">
+        {% csrf_token %}
+        {% if back_lesson %}<input type="hidden" name="from" value="{{ back_lesson.pk }}">{% endif %}
+        <input type="hidden" name="drop_grades" value="1">
+        <button class="btn btn--quiet btn--danger" type="submit">
+          Удалить работу и баллы ({{ blocking_grades|length }})
+        </button>
+      </form>
+    {% else %}
+      <form method="post" hx-boost="false" action="{% url 'cabinet:item_delete' item.pk %}"
+            onsubmit="return confirm('Удалить работу «{{ item.title|default:item.get_kind_display|escapejs }}»?');">
+        {% csrf_token %}
+        {% if back_lesson %}<input type="hidden" name="from" value="{{ back_lesson.pk }}">{% endif %}
+        <button class="btn btn--quiet btn--danger" type="submit">Удалить эту работу</button>
+        <span class="small muted">— если завели по ошибке или дублем. Место в сотне освободится.</span>
+      </form>
+    {% endif %}
+  </section>
+{% endif %}
 
 {% include "cabinet/teacher/partials/grade_dial.html" %}
 {% endblock %}

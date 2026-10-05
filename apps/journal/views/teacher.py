@@ -47,6 +47,7 @@ from apps.journal.services import workload
 from apps.journal.services.grading import (
     GradesInTheWay,
     create_default_structure,
+    delete_work,
     disable_lesson_grading,
     enable_lesson_grading,
     free_lesson_slots,
@@ -148,7 +149,34 @@ def _item_rows(item: GradeItem):
     )
 
 
+def _came_from_lesson(request, item: GradeItem) -> Lesson | None:
+    """
+    Занятие, с которого педагог открыл работу, — чтобы вернуть его туда же.
+
+    Педагог работает из занятия, а не из плана модуля. Стрелка «назад»
+    и переход после удаления, ведущие в план модуля, выкидывали его на
+    экран, где он не был. Занятие берём только из той же связки
+    модуль-предмет-группа и только доступное ему: подставить в адрес
+    чужое занятие и уйти туда не выйдет.
+    """
+    lesson_id = request.GET.get("from") or request.POST.get("from")
+    if not lesson_id:
+        return None
+    try:
+        lesson = get_lesson_or_403(request.user, request.organization, lesson_id)
+    except (PermissionDenied, ValidationError, ValueError):
+        return None
+    same_pair = (
+        lesson.module_id == item.module_id
+        and lesson.subject_id == item.subject_id
+        and lesson.group_id == item.group_id
+    )
+    return lesson if same_pair else None
+
+
 def _item_context(request, item: GradeItem, **extra) -> dict:
+    from apps.journal.models import Homework
+
     return {
         "item": item,
         "grade_item": item,
@@ -157,6 +185,10 @@ def _item_context(request, item: GradeItem, **extra) -> dict:
         "can_manage": is_manager(request.user, request.organization),
         "save_url": reverse("cabinet:item_grade_save", args=[item.pk]),
         "bulk_url": reverse("cabinet:item_grade_bulk", args=[item.pk]),
+        "back_lesson": _came_from_lesson(request, item),
+        # Работа занятия или домашнего удаляется там, где ею управляют.
+        "can_delete": not item.lesson_id
+        and not Homework.objects.filter(grade_item=item).exists(),
         **extra,
     }
 
@@ -692,6 +724,60 @@ def item_journal(request, item_id):
 @login_required
 @role_required("teacher", "admin", "owner", "platform_admin")
 @require_http_methods(["POST"])
+def item_delete(request, item_id):
+    """
+    Удалить работу — со страницы самой работы.
+
+    Раньше удалить можно было только в плане модуля, куда педагог не
+    ходит, и с баллами — нельзя вовсе: «Сначала удалите баллы», без
+    слова о том, чьи. Лишний дубль «зачёта» с одним выставленным баллом
+    оставался висеть в списке работ навсегда.
+
+    С баллами — только вторым нажатием и с подтверждением, где назван
+    их счёт. После удаления возвращаем туда, откуда пришли: на занятие,
+    если пришли с него, иначе в план модуля.
+    """
+    organization = request.organization
+    item = get_grade_item_or_403(request.user, organization, item_id)
+    back = _came_from_lesson(request, item)
+    title = item.title or item.get_kind_display()
+
+    try:
+        removed = delete_work(
+            item, drop_grades=request.POST.get("drop_grades") == "1",
+            actor=request.user, request=request,
+        )
+    except GradesInTheWay as exc:
+        return render(
+            request,
+            "cabinet/teacher/item_journal.html",
+            _item_context(
+                request, item,
+                delete_error=_first_message(exc), blocking_grades=exc.grades,
+            ),
+        )
+    except ValidationError as exc:
+        messages.error(request, _first_message(exc))
+        url = reverse("cabinet:item_journal", args=[item.pk])
+        return redirect(f"{url}?from={back.pk}" if back else url)
+
+    messages.success(
+        request,
+        f"Работа «{title}» удалена"
+        + (f" вместе с баллами: {removed}" if removed else "")
+        + ". Её место в сотне модуля освободилось.",
+    )
+    if back is not None:
+        return redirect("cabinet:lesson_journal", lesson_id=back.pk)
+    return redirect(
+        "cabinet:module_plan",
+        module_id=item.module_id, subject_id=item.subject_id, group_id=item.group_id,
+    )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
 def item_grade_save(request, item_id):
     """Балл одного ученика за работу модуля — той же строкой, что в занятии."""
     organization = request.organization
@@ -899,10 +985,16 @@ def module_plan_action(request, module_id, subject_id, group_id):
                 GradeItem.objects.filter(module=module, subject=subject, group=group),
                 pk=request.POST.get("item"),
             )
-            if Grade.objects.filter(grade_item=item).exists():
-                error = "По этой работе уже есть баллы. Сначала удалите их."
-            else:
-                item.delete()
+            try:
+                delete_work(item, actor=request.user, request=request)
+            except GradesInTheWay as exc:
+                # Здесь не удаляем вместе с баллами: в строке плана одна
+                # кнопка, и второе нажатие с подтверждением в неё не
+                # помещается. Говорим, чьи баллы, и куда идти.
+                error = (
+                    f"{_first_message(exc)} Удалить работу вместе с баллами "
+                    "можно на её странице — ссылка «Выставить баллы» в строке."
+                )
     except (ValidationError, InvalidOperation) as exc:
         error = _first_message(exc) if isinstance(exc, ValidationError) else "Введите число баллов."
 

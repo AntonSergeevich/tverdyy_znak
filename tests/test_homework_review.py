@@ -255,6 +255,28 @@ def test_a_task_without_points_offers_no_dial(tenant_a, homework):
     assert response.status_code in (302, 403)
 
 
+def test_making_homework_ungraded_does_not_leave_live_points_behind(tenant_a, graded_homework):
+    """
+    Задание сделали без баллов — его работа удаляется. Раньше каскад
+    стирал баллы физически, а итог модуля не пересчитывался и продолжал
+    их считать. Теперь баллы уходят мягко, и итог пересчитан.
+    """
+    from apps.journal.models import Grade, ModuleResult
+    from apps.journal.services.grading import set_grade
+    from apps.journal.services.homework import save_homework
+
+    with organization_context(tenant_a.organization):
+        item = graded_homework.grade_item
+        set_grade(student=tenant_a.student, grade_item=item, points=4)
+        save_homework(lesson=tenant_a.lesson, text="§14, задачи 5–9", max_points=None)
+
+        assert not Grade.objects.filter(grade_item=item).exists()
+        assert Grade.all_objects.filter(grade_item_id=item.pk).exists()
+        assert ModuleResult.objects.get(
+            student=tenant_a.student, module=tenant_a.module, subject=tenant_a.subject
+        ).total_points == 0
+
+
 def test_the_row_carries_the_dial_when_there_are_points(tenant_a, graded_homework):
     """Задание на баллы — значит, в строке проверки есть чем их поставить."""
     teacher = sign_in(tenant_a, tenant_a.teacher_user)

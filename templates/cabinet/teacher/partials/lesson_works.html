@@ -25,7 +25,7 @@
   {% if module_works %}
     <div class="works-list">
       {% for row in module_works %}
-        <a class="works-row" href="{% url 'cabinet:item_journal' row.item.pk %}"
+        <a class="works-row" href="{% url 'cabinet:item_journal' row.item.pk %}?from={{ lesson.pk }}"
            hx-boost="false">
           <span class="works-row__name">
             {{ row.item.title|default:row.item.get_kind_display }}

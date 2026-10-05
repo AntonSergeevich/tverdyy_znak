@@ -1276,6 +1276,13 @@ details.fieldset[open] > summary::after { content: ' −'; }
 }
 .hw-note--redo { border-left-color: var(--warn); }
 
+/* Удаление работы — внизу её страницы, отдельно от баллов: рядом со
+   списком учеников кнопка «удалить» читалась бы как «удалить балл». */
+.item-delete {
+  margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line);
+}
+.item-delete form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
 /* Работы модуля рядом с занятием: проверочная, контрольная, зачёт.
    Строка целиком — ссылка: попасть пальцем в слово «выставить» на
    телефоне труднее, чем в строку. */

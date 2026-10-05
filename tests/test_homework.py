@@ -184,7 +184,10 @@ def test_dropping_the_points_drops_the_grade_item(teacher_client, tenant_a):
 
     homework = Homework.all_objects.get(lesson=lesson)
     assert homework.grade_item is None
-    assert not GradeItem.all_objects.filter(pk=item_id).exists()
+    # Работа уходит из живых, но остаётся в базе с отметкой удаления:
+    # вместе с ней мягко ушли баллы, а оценки по ТЗ 9.5 физически не теряют.
+    assert not GradeItem.all_objects.filter(pk=item_id, deleted_at__isnull=True).exists()
+    assert GradeItem.all_objects.filter(pk=item_id, deleted_at__isnull=False).exists()
 
 
 def test_empty_text_removes_the_homework(teacher_client, tenant_a):
@@ -204,7 +207,7 @@ def test_empty_text_removes_the_homework(teacher_client, tenant_a):
     assert response.status_code == 200
     assert "убрано" in response.content.decode()
     assert not Homework.all_objects.filter(lesson=lesson).exists()
-    assert not GradeItem.all_objects.filter(pk=item_id).exists()
+    assert not GradeItem.all_objects.filter(pk=item_id, deleted_at__isnull=True).exists()
 
 
 def test_a_stranger_cannot_touch_someone_elses_lesson(db, tenant_a, tenant_b):

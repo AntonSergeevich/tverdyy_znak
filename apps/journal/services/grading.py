@@ -63,8 +63,11 @@ def points_budget(module, subject, group, *, exclude_item_id=None) -> PointsBudg
     """Сколько из 100 баллов уже распределено по связке модуль-предмет-группа."""
     organization = module.organization
     scale = get_scale(organization, module.academic_year)
+    # all_objects — чтобы не зависеть от текущей организации в контексте;
+    # удалённые работы места в сотне не занимают.
     qs = GradeItem.all_objects.filter(
-        organization=organization, module=module, subject=subject, group=group
+        organization=organization, module=module, subject=subject, group=group,
+        deleted_at__isnull=True,
     )
     if exclude_item_id:
         qs = qs.exclude(pk=exclude_item_id)
@@ -127,7 +130,8 @@ def create_default_structure(module, subject, group, *, actor=None) -> list[Grad
         )
 
     if GradeItem.all_objects.filter(
-        organization=module.organization, module=module, subject=subject, group=group
+        organization=module.organization, module=module, subject=subject, group=group,
+        deleted_at__isnull=True,
     ).exists():
         raise ValidationError("Структура для этого модуля уже создана.")
 
@@ -324,14 +328,12 @@ class GradesInTheWay(ValidationError):
     не видно, поэтому называем поимённо.
     """
 
-    def __init__(self, grades):
+    def __init__(self, grades, *, about: str = "За это занятие"):
         self.grades = list(grades)
         who = ", ".join(
             f"{grade.student.short_name} — {_fmt(grade.points)}" for grade in self.grades
         )
-        super().__init__(
-            {"lesson": f"За это занятие ещё стоят баллы: {who}."}
-        )
+        super().__init__({"lesson": f"{about} ещё стоят баллы: {who}."})
 
 
 @transaction.atomic
@@ -379,6 +381,60 @@ def disable_lesson_grading(
             + note
         )
     return GradingSwitch(item=None, note=note)
+
+
+@transaction.atomic
+def delete_work(item: GradeItem, *, drop_grades: bool = False, actor=None, request=None) -> int:
+    """
+    Удалить работу модуля: проверочную, контрольную, зачёт, лишний дубль.
+
+    Удаление мягкое — и работы, и её баллов. Раньше строка работы
+    стиралась из базы, а каскадом с ней — все баллы, включая уже
+    помеченные удалёнными. ТЗ 9.5 этого не допускает: оценку нельзя
+    терять физически. Теперь всё остаётся в базе с одной отметкой
+    времени и восстанавливается вместе.
+
+    С баллами молча не удаляется: отказ называет поимённо, у кого они
+    стоят, а удалить вместе с ними можно только явным вторым нажатием.
+
+    Работы, привязанные к занятию или к домашнему заданию, здесь не
+    удаляются: ими управляют там, и удаление отсюда оставило бы занятие
+    «с оцениванием» без места под баллы.
+
+    Возвращает, сколько баллов удалено вместе с работой.
+    """
+    from apps.journal.models import Homework
+
+    if item.lesson_id:
+        raise ValidationError(
+            {"item": "Это место занято занятием: оценивание снимается в самом занятии."}
+        )
+    if Homework.objects.filter(grade_item=item).exists():
+        raise ValidationError(
+            {"item": "Это баллы за домашнее задание: они убираются у самого задания."}
+        )
+
+    grades = list(
+        Grade.objects.filter(grade_item=item)
+        .select_related("student")
+        .order_by("student__last_name", "student__first_name")
+    )
+    if grades and not drop_grades:
+        raise GradesInTheWay(grades, about="По этой работе")
+
+    for grade in grades:
+        set_grade(
+            student=grade.student, grade_item=item, points=None,
+            actor=actor, request=request,
+        )
+    item.delete()
+    log_audit(
+        action=AuditAction.WORK_DELETED, request=request,
+        organization=item.organization, actor=actor, obj=item,
+        title=item.title or item.get_kind_display(),
+        max_points=_fmt(item.max_points), grades_removed=len(grades),
+    )
+    return len(grades)
 
 
 def student_module_points(*, students, module, subject) -> dict:
@@ -627,7 +683,7 @@ def recalculate_module_result(*, student: Student, subject: Subject, module: Mod
     planned = (
         GradeItem.all_objects.filter(
             organization=organization, module=module, subject=subject,
-            group__memberships__student=student,
+            group__memberships__student=student, deleted_at__isnull=True,
         )
         .distinct()
         .aggregate(total=Sum("max_points"))["total"]
