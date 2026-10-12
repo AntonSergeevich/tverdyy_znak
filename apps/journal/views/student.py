@@ -32,7 +32,7 @@ from apps.journal.models import (
     Student,
 )
 from apps.journal.services.goals import path_of, set_steps, toggle_step
-from apps.journal.services.grading import get_scale, with_breakdown
+from apps.journal.services.grading import get_scale, past_modules, with_breakdown
 from apps.journal.services.homework import homework_board, mark_done
 from apps.journal.views.parent import current_module, day_lessons
 
@@ -87,6 +87,7 @@ def student_home(request):
         if module
         else ModuleResult.objects.none()
     )
+    current_results = with_breakdown(results, student=student, module=module)
     board = homework_board(student, module=module)
     today_mood = MoodEntry.objects.filter(student=student, day=timezone.localdate()).first()
     yesterday = timezone.localdate() - timedelta(days=1)
@@ -100,7 +101,12 @@ def student_home(request):
             "module": module,
             # Итоги и то, из чего они сложились: сумма без слагаемых не
             # объясняет ничего — «60 из 100», и за что, узнать негде.
-            "results": with_breakdown(results, student=student, module=module),
+            "results": current_results,
+            # Прошлые модули: со сменой модуля их итоги пропадали с экрана.
+            # Пока в новом модуле баллов нет, только что закончившийся
+            # раскрыт сразу — иначе ребёнок видит пустоту на месте баллов.
+            "past": past_modules(student=student, current=module),
+            "open_latest": not current_results,
             "board": board,
             "today_lessons": list(day_lessons(student)),
             "scale": get_scale(organization),

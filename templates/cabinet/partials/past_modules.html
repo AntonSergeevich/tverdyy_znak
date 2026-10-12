@@ -1,0 +1,43 @@
+{% load journal_extras %}
+{% comment %}
+  Итоги закончившихся модулей.
+
+  Кабинет показывал баллы только текущего модуля, и со сменой модуля всё
+  набранное за прошлый исчезало с экрана. Данные были на месте — смотреть
+  их было негде. А в каникулярную неделю они нужнее всего: как раз тогда
+  добирают незачёты, и ребёнку надо видеть, по какому предмету и сколько
+  не хватило.
+
+  Каждый модуль раскрывается, внутри — те же строки предметов с разбивкой
+  «за что», что и у текущего. Пока в новом модуле баллов нет, только что
+  закончившийся открыт сразу: иначе первое, что видит ребёнок после смены
+  модуля, — пустота на месте своих баллов.
+{% endcomment %}
+{% if past %}
+  <h2 class="label" style="font-size:18px;margin:32px 0 8px">Прошлые модули</h2>
+  {% for entry in past %}
+    <details class="past-module"{% if forloop.first and open_latest %} open{% endif %}>
+      <summary class="past-module__summary">
+        <span class="past-module__title">
+          {{ entry.module }}
+          <span class="small muted">{{ entry.module.starts_on|date:"d.m" }}—{{ entry.module.ends_on|date:"d.m.Y" }}</span>
+        </span>
+        <span class="past-module__totals small">
+          {% for result in entry.results %}
+            <span class="past-module__total">{{ result.subject.name }} <strong>{{ result.total_points|points }}</strong></span>
+          {% endfor %}
+        </span>
+        {% if entry.failed %}
+          <span class="small" style="color:var(--warn)">
+            Незачёт: {% for result in entry.failed %}{{ result.subject.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          </span>
+        {% endif %}
+      </summary>
+      <div class="past-module__body">
+        {% for result in entry.results %}
+          {% include "cabinet/partials/subject_points.html" %}
+        {% endfor %}
+      </div>
+    </details>
+  {% endfor %}
+{% endif %}

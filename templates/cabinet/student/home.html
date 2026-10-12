@@ -15,8 +15,10 @@
   {% endfor %}
 {% else %}
   <div class="empty-state"><p class="empty-state__title">Баллов в этом модуле пока нет</p>
-    <p>Они появятся после первых оцениваемых занятий.</p></div>
+    <p>Они появятся после первых оцениваемых занятий.{% if past %} Итоги прошлых модулей — ниже.{% endif %}</p></div>
 {% endif %}
+
+{% include "cabinet/partials/past_modules.html" %}
 
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Как день</h2>
 <div id="mood-block">{% include "cabinet/student/partials/mood.html" %}</div>

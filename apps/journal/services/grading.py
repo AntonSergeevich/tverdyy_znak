@@ -25,6 +25,7 @@ from apps.journal.models import (
     GradingScale,
     Level,
     Module,
+    ModuleKind,
     ModuleResult,
     Student,
     Subject,
@@ -552,6 +553,48 @@ def _when_it_was(item: GradeItem):
     if lesson is not None:
         return lesson.local_date
     return item.due_date
+
+
+def past_modules(*, student, current) -> list[dict]:
+    """
+    Закончившиеся модули с итогами ученика — свежие сверху.
+
+    Кабинет показывал баллы только текущего модуля. Модуль сменился —
+    и всё, что ребёнок набрал за прошлый, пропало с экрана: данные на
+    месте, а посмотреть их негде. Хуже всего это в каникулярную неделю:
+    по регламенту как раз тогда добирают незачёты на консультациях,
+    а какой предмет не сдан и на сколько не хватило — не видно.
+
+    Граница — начало текущего модуля, а не сегодняшний день: в
+    каникулярную неделю «текущим» считается уже следующий модуль, и
+    только что закончившийся должен попасть сюда, а не пропасть между
+    двумя блоками.
+
+    Разбивка «за что» — та же, что у текущего модуля: итог без слагаемых
+    за прошлый модуль объясняет не больше, чем за нынешний.
+    """
+    border = current.starts_on if current is not None else timezone.localdate()
+    rows = list(
+        ModuleResult.objects.filter(
+            student=student,
+            module__kind=ModuleKind.MODULE,
+            module__starts_on__lt=border,
+        )
+        .select_related("subject", "module")
+        .order_by("-module__starts_on", "subject__position", "subject__name")
+    )
+
+    by_module: dict = {}
+    for result in rows:
+        by_module.setdefault(result.module_id, {"module": result.module, "results": []})[
+            "results"
+        ].append(result)
+    for entry in by_module.values():
+        entry["results"] = with_breakdown(
+            entry["results"], student=student, module=entry["module"]
+        )
+        entry["failed"] = [r for r in entry["results"] if not r.is_passed]
+    return list(by_module.values())
 
 
 # ─── Выставление балла ──────────────────────────────────────────────────────

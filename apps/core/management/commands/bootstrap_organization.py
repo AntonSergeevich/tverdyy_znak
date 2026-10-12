@@ -188,15 +188,15 @@ class Command(BaseCommand):
                     grade_level=None,
                 )
 
+            # Пороги — не здесь, а в умолчаниях модели: они и есть регламент
+            # (зачёт и базовый уровень от 50, продвинутый от 70, высокий от
+            # 85). Здесь стояли прежние 60/60/70/80: миграция 0010 перевела
+            # на регламент шкалы, созданные до неё, а эта команда продолжала
+            # заводить новые по-старому — и ребёнок с 55 баллами получал
+            # «незачёт», хотя по регламенту это базовый уровень.
             GradingScale.objects.get_or_create(
                 organization=organization, academic_year=None, name="Основная шкала",
-                defaults={
-                    "module_max_points": Decimal("100.00"),
-                    "pass_from": Decimal("60.00"),
-                    "base_from": Decimal("60.00"),
-                    "elevated_from": Decimal("70.00"),
-                    "advanced_from": Decimal("80.00"),
-                },
+                defaults={"module_max_points": Decimal("100.00")},
             )
 
             for position, (question, answer) in enumerate(FAQ, start=1):
