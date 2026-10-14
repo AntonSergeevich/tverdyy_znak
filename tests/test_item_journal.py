@@ -242,11 +242,12 @@ def test_a_work_without_grades_is_deleted_from_its_page(tenant_a, quiz):
         {"from": str(tenant_a.lesson.pk)},
     )
 
-    # Вернули туда, откуда пришли, — на занятие, а не в план модуля.
+    # Вернули туда, откуда пришли, — на занятие, а не в план модуля,
+    # и сразу на вкладку «Работы»: там эта работа и стояла.
     assert response.status_code == 302
     assert response.headers["Location"] == reverse(
         "cabinet:lesson_journal", args=[tenant_a.lesson.pk]
-    )
+    ) + "?vkladka=raboty"
     with organization_context(tenant_a.organization):
         assert not GradeItem.objects.filter(pk=quiz.pk).exists()
         # Мягко: строка в базе осталась.

@@ -76,6 +76,10 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     is_active = models.BooleanField("активен", default=True)
     is_staff = models.BooleanField("доступ в админку Django", default=False)
     last_activity_at = models.DateTimeField("последняя активность", null=True, blank=True)
+    # Последняя версия, про которую человек уже знает: окно «Что нового»
+    # показывается один раз на версию. Не в браузере, а здесь — иначе,
+    # закрыв окно на компьютере, его увидят ещё раз на телефоне.
+    release_seen = models.CharField("видел обновление", max_length=20, blank=True, default="")
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = []

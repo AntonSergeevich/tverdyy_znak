@@ -8,7 +8,50 @@
   <span class="muted">{% if module %}{{ module }} · до конца {{ module.days_left }} дн.{% endif %}</span>
 </div>
 
-<h2 class="label" style="font-size:18px;margin:24px 0 8px">Мои баллы</h2>
+{% comment %}
+  Порядок — по тому, зачем открывают кабинет: что сегодня и что задано,
+  потом баллы, потом цели. Раньше сверху стояли баллы и цели, а
+  «Сегодня» и домашнее — в самом низу, под тремя экранами прокрутки.
+  «Как день» — одной строкой сразу под приветствием: это одно нажатие.
+{% endcomment %}
+<h2 class="label" style="font-size:18px;margin:20px 0 8px">Как день?</h2>
+<div id="mood-block">{% include "cabinet/student/partials/mood.html" %}</div>
+
+{% comment %}
+  Не вся неделя, а только сегодня.
+
+  Неделя целиком здесь дублировала раздел «Расписание», причём в худшем
+  виде: плоская таблица без разбивки по дням, без аудитории и педагога. То,
+  ради чего на главную заходят утром, — «что сегодня и во сколько», — умещается
+  в несколько строк. За остальным есть отдельный экран.
+{% endcomment %}
+<div class="page-head-row" style="margin:28px 0 8px">
+  <h2 class="label" style="font-size:18px;margin:0">Сегодня</h2>
+  <a class="small" href="{% url 'cabinet:schedule' %}">Всё расписание →</a>
+</div>
+{% if today_lessons %}
+  <ul class="today-strip">
+    {% for lesson in today_lessons %}
+      <li class="today-strip__item">
+        <span class="numeral today-strip__time">{{ lesson.starts_at|time:"H:i" }}</span>
+        <span class="today-strip__what">
+          <span class="today-strip__subject">{{ lesson.subject.name }}</span>
+          {% if lesson.topic %}<span class="small muted">{{ lesson.topic }}</span>{% endif %}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">Сегодня занятий нет. Вся неделя — в разделе «Расписание».</p>
+{% endif %}
+{% comment %}
+  Задание — это текст, а не строчка в таблице: «§12, задачи 3–7 письменно»
+  в колонку не влезает, а именно его и надо прочитать.
+{% endcomment %}
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Домашние задания</h2>
+{% include "cabinet/student/partials/homework_board.html" %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Мои баллы</h2>
 {% if results %}
   {% for result in results %}
     {% include "cabinet/partials/subject_points.html" %}
@@ -19,9 +62,6 @@
 {% endif %}
 
 {% include "cabinet/partials/past_modules.html" %}
-
-<h2 class="label" style="font-size:18px;margin:32px 0 8px">Как день</h2>
-<div id="mood-block">{% include "cabinet/student/partials/mood.html" %}</div>
 
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Мои цели</h2>
 <p class="small muted" style="max-width:70ch;margin-bottom:12px">
@@ -49,38 +89,4 @@
   <button class="btn" type="submit" style="flex:0 0 auto">Добавить</button>
 </form>
 
-{% comment %}
-  Задание — это текст, а не строчка в таблице: «§12, задачи 3–7 письменно»
-  в колонку не влезает, а именно его и надо прочитать.
-{% endcomment %}
-<h2 class="label" style="font-size:18px;margin:32px 0 8px">Домашние задания</h2>
-{% include "cabinet/student/partials/homework_board.html" %}
-
-{% comment %}
-  Не вся неделя, а только сегодня.
-
-  Неделя целиком здесь дублировала раздел «Расписание», причём в худшем
-  виде: плоская таблица без разбивки по дням, без аудитории и педагога. То,
-  ради чего на главную заходят утром, — «что сегодня и во сколько», — умещается
-  в несколько строк. За остальным есть отдельный экран.
-{% endcomment %}
-<div class="page-head-row" style="margin:32px 0 8px">
-  <h2 class="label" style="font-size:18px;margin:0">Сегодня</h2>
-  <a class="small" href="{% url 'cabinet:schedule' %}">Всё расписание →</a>
-</div>
-{% if today_lessons %}
-  <ul class="today-strip">
-    {% for lesson in today_lessons %}
-      <li class="today-strip__item">
-        <span class="numeral today-strip__time">{{ lesson.starts_at|time:"H:i" }}</span>
-        <span class="today-strip__what">
-          <span class="today-strip__subject">{{ lesson.subject.name }}</span>
-          {% if lesson.topic %}<span class="small muted">{{ lesson.topic }}</span>{% endif %}
-        </span>
-      </li>
-    {% endfor %}
-  </ul>
-{% else %}
-  <p class="muted">Сегодня занятий нет. Вся неделя — в разделе «Расписание».</p>
-{% endif %}
 {% endblock %}

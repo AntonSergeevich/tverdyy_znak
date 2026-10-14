@@ -14,6 +14,7 @@ from apps.journal.views import (
     student,
     subjects as subjects_views,
     teacher,
+    updates,
 )
 
 app_name = "cabinet"
@@ -21,6 +22,8 @@ app_name = "cabinet"
 urlpatterns = [
     path("", common.home, name="home"),
     path("raspisanie/", common.schedule, name="schedule"),
+    path("obnovleniya/", updates.updates, name="updates"),
+    path("obnovleniya/prochitano/", updates.updates_seen, name="updates_seen"),
 
     # Педагог
     path("pedagog/", teacher.today, name="teacher_today"),

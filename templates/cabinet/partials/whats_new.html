@@ -1,0 +1,34 @@
+{% load static %}
+{% comment %}
+  «Что нового» — один раз после обновления.
+
+  Короткое окно: что изменилось и где теперь лежит, не больше четырёх
+  пунктов и одна картинка. Подробности с картинками к каждому шагу — на
+  странице обновлений. Закрыли окно любым способом (кнопка, Esc, клик
+  мимо) — сервер запоминает версию, и больше оно не всплывёт ни здесь,
+  ни на другом устройстве.
+
+  Окно вне <main>: переходы без перезагрузки его не трогают.
+{% endcomment %}
+<dialog class="whats-new" data-whats-new data-seen-url="{% url 'cabinet:updates_seen' %}"
+        aria-labelledby="whats-new-title">
+  {% csrf_token %}
+  <p class="kicker">Обновление {{ release_notice.version }}</p>
+  <h2 class="whats-new__title" id="whats-new-title">Что нового: {{ release_notice.title|lower }}</h2>
+  {% if release_notice.picture %}
+    <img class="whats-new__picture" src="{% static release_notice.picture.src %}"
+         alt="{{ release_notice.picture.alt }}">
+  {% endif %}
+  <ul class="whats-new__list">
+    {% for change in release_notice.changes %}
+      <li>
+        <strong>{{ change.title }}</strong>
+        {% if change.where %}<span class="whats-new__where">Где: {{ change.where }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+  <div class="btn-row">
+    <button class="btn" type="button" data-whats-new-close autofocus>Понятно</button>
+    <a class="btn btn--quiet" href="{% url 'cabinet:updates' %}" data-whats-new-more>Подробнее, с картинками</a>
+  </div>
+</dialog>

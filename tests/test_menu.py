@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+import re
+
 import pytest
 from django.test import override_settings
 from django.urls import reverse
@@ -59,12 +61,18 @@ def test_group_is_highlighted_when_you_are_inside_it(logged_in, tenant_a):
 
 
 def test_teacher_menu_stays_flat(logged_in, tenant_a):
-    """Шесть пунктов помещаются в строку — прятать их под группы незачем."""
+    """
+    Шесть пунктов помещаются в строку — прятать их под группы незачем.
+
+    Единственная группа — «Ещё» для нижней строки телефона: там помещается
+    пять кнопок, и на компьютере её не видно.
+    """
     body = logged_in(tenant_a.teacher_user).get(
         reverse("cabinet:teacher_today")
     ).content.decode()
 
-    assert "nav-group" not in body
+    groups = re.findall(r'class="nav-group[ "][^"]*', body)
+    assert groups == ['class="nav-group nav-phone-only']
     assert reverse("cabinet:rules") in body
 
 

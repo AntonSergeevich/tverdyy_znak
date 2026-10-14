@@ -19,7 +19,7 @@
       Назад — туда, откуда пришли. Педагог открывает работу из занятия,
       и стрелка в план модуля выкидывала его на экран, где он не был.
     {% endcomment %}
-    <a href="{% url 'cabinet:lesson_journal' back_lesson.pk %}">← Занятие {{ back_lesson.starts_at|date:"d.m" }}</a>
+    <a href="{% url 'cabinet:lesson_journal' back_lesson.pk %}?vkladka=raboty">← Занятие {{ back_lesson.starts_at|date:"d.m" }}</a>
     ·
   {% endif %}
   <a href="{% url 'cabinet:module_plan' item.module.pk item.subject.pk item.group.pk %}">План модуля</a>

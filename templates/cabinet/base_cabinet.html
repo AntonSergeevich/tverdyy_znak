@@ -20,7 +20,7 @@
   Формы, которые ведёт свой скрипт, вдобавок помечаются hx-boost="false":
   иначе boost перехватит отправку раньше собственного обработчика.
 {% endcomment %}
-{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#site-nav"{% if request.impersonator %} class="is-readonly"{% endif %}{% endblock %}
+{% block body_attrs %} hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#site-nav,#account"{% if request.impersonator %} class="is-readonly"{% endif %}{% endblock %}
 
 {% block body %}
 {% if request.impersonator %}
@@ -43,35 +43,15 @@
     </span>
   </div>
 {% endif %}
+{% include "cabinet/partials/icons.html" %}
 {# В кабинетах нет никакой сторонней аналитики: здесь персональные данные детей (ТЗ 7). #}
-<header class="site-header">
+<header class="site-header cabinet-header">
   <a class="logo" href="{% url 'cabinet:home' %}">
     <span class="logo__mark" aria-hidden="true">Ъ</span>
     <span class="logo__text">ТВЁРДЫЙ ЗНАК</span>
   </a>
   {% include "cabinet/partials/nav.html" %}
-  <div class="header-actions">
-    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Тёмная тема" title="Тёмная тема">☾</button>
-    {% comment %}
-      Выход — вне переходов без перезагрузки: он уводит из кабинета,
-      а boost подменил бы только содержимое и оставил шапку кабинета
-      на публичной странице. Выглядело бы как «кнопка не работает».
-    {% endcomment %}
-    {% if request.impersonator %}
-      <form method="post" action="{% url 'accounts:impersonate_stop' %}" hx-boost="false">{% csrf_token %}
-        <button class="btn btn--quiet" type="submit">Вернуться к себе</button>
-      </form>
-    {% else %}
-      <a class="btn btn--quiet" href="{% url 'accounts:profile' %}">Профиль</a>
-      <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}
-        <button class="btn btn--quiet" type="submit">Выйти</button>
-      </form>
-    {% endif %}
-    <button class="nav-toggle" type="button" data-nav-toggle
-            aria-expanded="false" aria-controls="site-nav" aria-label="Меню">
-      <span class="nav-toggle__bars" aria-hidden="true"></span>
-    </button>
-  </div>
+  {% include "cabinet/partials/account.html" %}
 </header>
 
 <main id="main" class="cabinet__body">
@@ -84,6 +64,10 @@
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+
+{% if release_notice.show %}
+  {% include "cabinet/partials/whats_new.html" %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -99,5 +83,6 @@
 <script src="{% static 'js/lesson_meta.js' %}" defer></script>
 <script src="{% static 'js/grade_dial.js' %}" defer></script>
 <script src="{% static 'js/journal.js' %}" defer></script>
+<script src="{% static 'js/cabinet.js' %}" defer></script>
 {% block cabinet_scripts %}{% endblock %}
 {% endblock %}

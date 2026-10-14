@@ -4,26 +4,45 @@
   'use strict';
 
   // ─── Тема ────────────────────────────────────────────────────────────────
+  // Обработчик один на документ: в кабинете переключатель живёт в меню
+  // профиля, а оно подменяется при каждом переходе. Круглая кнопка на
+  // публичном сайте показывает значок, пункт меню — подпись (её
+  // переключает CSS по data-theme, скрипту там делать нечего).
   var root = document.documentElement;
-  var toggle = document.querySelector('[data-theme-toggle]');
   function applyTheme(theme) {
     root.setAttribute('data-theme', theme);
-    if (toggle) {
+    document.querySelectorAll('.theme-toggle[data-theme-toggle]').forEach(function (toggle) {
       var dark = theme === 'dark';
       toggle.textContent = dark ? '☀' : '☾';
       var label = dark ? 'Светлая тема' : 'Тёмная тема';
       toggle.setAttribute('aria-label', label);
       toggle.setAttribute('title', label);
-    }
-  }
-  if (toggle) {
-    toggle.addEventListener('click', function () {
-      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      try { localStorage.setItem('tz-theme', next); } catch (e) { /* приватный режим */ }
-      applyTheme(next);
     });
-    applyTheme(root.getAttribute('data-theme') || 'light');
   }
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest || !event.target.closest('[data-theme-toggle]')) return;
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('tz-theme', next); } catch (e) { /* приватный режим */ }
+    applyTheme(next);
+  });
+  applyTheme(root.getAttribute('data-theme') || 'light');
+
+  // ─── Меню профиля ────────────────────────────────────────────────────────
+  // <details> открывается и закрывается сам; остаётся закрыть его, когда
+  // нажали мимо, выбрали пункт или нажали Esc.
+  function closeAccount(except) {
+    document.querySelectorAll('[data-account][open]').forEach(function (menu) {
+      if (menu !== except) menu.removeAttribute('open');
+    });
+  }
+  document.addEventListener('click', function (event) {
+    var menu = event.target.closest ? event.target.closest('[data-account]') : null;
+    closeAccount(menu);
+    if (menu && event.target.closest('a')) menu.removeAttribute('open');
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeAccount(null);
+  });
 
   // ─── Бургер-меню ─────────────────────────────────────────────────────────
   document.querySelectorAll('[data-nav-toggle]').forEach(function (button) {
@@ -397,4 +416,45 @@
   document.body.addEventListener('htmx:timeout', function () {
     show('Сервер не ответил вовремя. Попробуйте ещё раз.');
   });
+})();
+
+/**
+ * «Что нового» — окно один раз после обновления.
+ *
+ * Как бы окно ни закрыли — кнопкой, Esc, нажатием мимо или переходом
+ * на страницу обновлений, — сервер получает «прочитано», и больше оно
+ * не всплывёт ни здесь, ни на другом устройстве. sendBeacon, а не fetch:
+ * он долетает, даже если человек в ту же секунду ушёл со страницы.
+ */
+(function () {
+  'use strict';
+
+  var dialog = document.querySelector('[data-whats-new]');
+  if (!dialog || typeof dialog.showModal !== 'function') return;
+
+  var told = false;
+  function markSeen() {
+    if (told) return;
+    told = true;
+    var body = new FormData();
+    var token = dialog.querySelector('input[name=csrfmiddlewaretoken]');
+    if (token) body.append('csrfmiddlewaretoken', token.value);
+    var url = dialog.getAttribute('data-seen-url');
+    if (!(navigator.sendBeacon && navigator.sendBeacon(url, body))) {
+      fetch(url, { method: 'POST', body: body, credentials: 'same-origin', keepalive: true });
+    }
+    // Точка «есть обновления» в меню профиля гаснет сразу, не дожидаясь
+    // следующего перехода.
+    document.querySelectorAll('[data-release-dot]').forEach(function (dot) { dot.remove(); });
+  }
+
+  dialog.addEventListener('close', markSeen);
+  dialog.addEventListener('click', function (event) {
+    if (event.target === dialog || event.target.closest('[data-whats-new-close]')) dialog.close();
+    if (event.target.closest('[data-whats-new-more]')) dialog.close();
+  });
+
+  // Не поверх только что открывшейся страницы, а через мгновение после:
+  // так видно, что окно — про кабинет, а не вместо него.
+  setTimeout(function () { if (!dialog.open) dialog.showModal(); }, 400);
 })();

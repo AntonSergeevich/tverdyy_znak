@@ -1,0 +1,72 @@
+{% extends "cabinet/base_cabinet.html" %}{% load static %}
+{% block cabinet_title %}Обновления{% endblock %}
+
+{% block content %}
+{% comment %}
+  Обновления кабинета — как у настоящего продукта: версия, дата, что
+  нового, что переехало и куда, что исправлено. К пунктам — картинки
+  с демо-кабинета, где видно, куда нажимать.
+
+  Каждый видит то, что касается его роли; руководитель — всё, с пометкой,
+  кому это интересно, чтобы знать, что ответить педагогу или родителю.
+{% endcomment %}
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Обновления</h1>
+    <p class="muted">Что изменилось в кабинете и где это теперь</p>
+  </div>
+</div>
+
+<nav class="release-index" aria-label="Версии">
+  {% for entry in entries %}
+    <a href="#{{ entry.release.anchor }}" hx-boost="false">
+      {{ entry.release.version }}{% if entry.is_new %} <span class="badge-new">новое</span>{% endif %}
+    </a>
+  {% endfor %}
+</nav>
+
+{% for entry in entries %}
+  {% with release=entry.release %}
+  <section class="release{% if entry.is_new %} release--new{% endif %}" id="{{ release.anchor }}">
+    <header class="release__head">
+      <span class="release__version">{{ release.version }}</span>
+      <div>
+        <h2 class="release__title">{{ release.title }}</h2>
+        <p class="small muted">{{ release.date|date:"j E Y" }}</p>
+      </div>
+    </header>
+    <p class="release__summary">{{ release.summary }}</p>
+
+    {% if entry.changes %}
+      <ol class="release__changes">
+        {% for change in entry.changes %}
+          <li class="change">
+            <div class="change__text">
+              <p class="change__tags">
+                <span class="change__kind change__kind--{{ change.kind }}">{{ change.kind_label }}</span>
+                {% if sees_everything and change.roles %}
+                  <span class="small muted">{{ change.role_labels|join:", " }}</span>
+                {% endif %}
+              </p>
+              <h3 class="change__title">{{ change.title }}</h3>
+              <p>{{ change.text }}</p>
+              {% if change.where %}<p class="change__where">Где: {{ change.where }}</p>{% endif %}
+            </div>
+            {% for media in change.media %}
+              <figure class="change__media">
+                {% if media.is_video %}
+                  <video src="{% static media.src %}" autoplay muted loop playsinline
+                         aria-label="{{ media.alt }}"></video>
+                {% else %}
+                  <img src="{% static media.src %}" alt="{{ media.alt }}" loading="lazy">
+                {% endif %}
+              </figure>
+            {% endfor %}
+          </li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  </section>
+  {% endwith %}
+{% endfor %}
+{% endblock %}

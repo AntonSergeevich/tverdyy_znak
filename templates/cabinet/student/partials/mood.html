@@ -1,25 +1,40 @@
-<form class="stack" hx-post="{% url 'cabinet:mood_save' %}" hx-select="unset" hx-select-oob="unset" hx-target="#mood-block" hx-swap="innerHTML">
+{% comment %}
+  «Как день» — одна строка смайликов с подписью под каждым.
+
+  Раньше было десять кнопок-слов: пять за сегодня и ещё пять за вчера,
+  и блок занимал полэкрана. Вчерашний день по-прежнему можно отметить —
+  пропуск двух дней подряд убивает привычку, — но он свёрнут в ссылку.
+{% endcomment %}
+<form class="mood-form" hx-post="{% url 'cabinet:mood_save' %}" hx-select="unset" hx-select-oob="unset" hx-target="#mood-block" hx-swap="innerHTML">
   {% csrf_token %}
   <input type="hidden" name="day" value="today">
-  <div class="mood-scale">
+  <div class="mood-scale mood-scale--faces" role="group" aria-label="Как сегодня день">
     {% for value, label in mood_choices %}
       <button type="submit" name="value" value="{{ value }}"
-              aria-pressed="{% if today_mood.value == value %}true{% else %}false{% endif %}">{{ label }}</button>
+              aria-pressed="{% if today_mood.value == value %}true{% else %}false{% endif %}">
+        <span class="mood-face" aria-hidden="true">{% include "cabinet/student/partials/mood_face.html" %}</span>
+        <span class="mood-word">{{ label }}</span>
+      </button>
     {% endfor %}
   </div>
   {% if saved %}<span class="small state--saved">сохранено</span>{% endif %}
 </form>
 
 {% if not yesterday_mood %}
-  {# Пропуск двух дней подряд убивает практику, поэтому вчерашний день можно отметить задним числом. #}
-  <form class="stack" style="margin-top:12px" hx-post="{% url 'cabinet:mood_save' %}" hx-select="unset" hx-select-oob="unset" hx-target="#mood-block" hx-swap="innerHTML">
-    {% csrf_token %}
-    <input type="hidden" name="day" value="yesterday">
-    <span class="small muted">Вчера ({{ yesterday|date:"d.m" }}) не отмечено — можно поставить сейчас, штрафов за пропуск нет:</span>
-    <div class="mood-scale">
-      {% for value, label in mood_choices %}
-        <button type="submit" name="value" value="{{ value }}">{{ label }}</button>
-      {% endfor %}
-    </div>
-  </form>
+  <details class="mood-yesterday">
+    <summary>Вчера ({{ yesterday|date:"d.m" }}) не отмечено — отметить</summary>
+    <form hx-post="{% url 'cabinet:mood_save' %}" hx-select="unset" hx-select-oob="unset" hx-target="#mood-block" hx-swap="innerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="day" value="yesterday">
+      <p class="small muted" style="margin:8px 0">Штрафов за пропуск нет.</p>
+      <div class="mood-scale mood-scale--faces" role="group" aria-label="Как был вчерашний день">
+        {% for value, label in mood_choices %}
+          <button type="submit" name="value" value="{{ value }}">
+            <span class="mood-face" aria-hidden="true">{% include "cabinet/student/partials/mood_face.html" %}</span>
+            <span class="mood-word">{{ label }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </form>
+  </details>
 {% endif %}

@@ -11,24 +11,40 @@
 
   У владельца пунктов набралось столько, что в строку они не помещались и
   заезжали друг за друга. Близкое собрано в группы: наверху одно название,
-  разделы — в раскрывающемся списке. На телефоне раскрывать нечего:
-  бургер и так открыт во всю ширину, поэтому группа там просто подзаголовок
-  над своими пунктами (см. CSS).
+  разделы — в раскрывающемся списке.
+
+  На телефоне то же меню стоит строкой внизу экрана, как в приложениях:
+  значок и подпись, большой палец до них достаёт. Группа там открывается
+  листом снизу. Если разделов больше пяти, лишние уходят под «Ещё» —
+  на компьютере этой кнопки нет, там всё помещается в строку.
 {% endcomment %}
 <nav class="cabinet-nav" id="site-nav" aria-label="Разделы кабинета">
   {% for entry in cabinet_menu %}
     {% if entry.children %}
-      <div class="nav-group{% if entry.is_current %} is-current{% endif %}">
+      <div class="nav-group{% if entry.is_current %} is-current{% endif %}{% if entry.phone_hidden %} nav-desk-only{% endif %}">
         <button type="button" class="nav-group__label" data-nav-group
-                aria-expanded="false">{{ entry.label }}<span class="nav-group__chev" aria-hidden="true">▾</span></button>
+                aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-{{ entry.icon }}"/></svg><span class="nav-label">{{ entry.label }}</span><span class="nav-group__chev" aria-hidden="true">▾</span></button>
         <div class="nav-group__items">
+          <p class="nav-group__title">{{ entry.label }}</p>
           {% for item in entry.children %}
             <a href="{{ item.url }}"{% if item.is_current %} aria-current="page"{% endif %}>{{ item.label }}</a>
           {% endfor %}
         </div>
       </div>
     {% else %}
-      <a href="{{ entry.url }}"{% if entry.is_current %} aria-current="page"{% endif %}>{{ entry.label }}</a>
+      <a href="{{ entry.url }}"{% if entry.is_current %} aria-current="page"{% endif %}{% if entry.phone_hidden %} class="nav-desk-only"{% endif %}><svg class="ico" aria-hidden="true"><use href="#i-{{ entry.icon }}"/></svg><span class="nav-label">{{ entry.label }}</span></a>
     {% endif %}
   {% endfor %}
+  {% if cabinet_more %}
+    <div class="nav-group nav-phone-only{% if cabinet_more.is_current %} is-current{% endif %}">
+      <button type="button" class="nav-group__label" data-nav-group
+              aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-more"/></svg><span class="nav-label">{{ cabinet_more.label }}</span></button>
+      <div class="nav-group__items">
+        <p class="nav-group__title">{{ cabinet_more.label }}</p>
+        {% for item in cabinet_more.children %}
+          <a href="{{ item.url }}"{% if item.is_current %} aria-current="page"{% endif %}>{{ item.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
 </nav>

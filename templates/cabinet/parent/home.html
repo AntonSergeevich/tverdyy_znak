@@ -79,7 +79,13 @@
 
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Динамика по модулям</h2>
 {% if history %}
-  {# Простой график без библиотек: столбцы — средний балл за модуль. #}
+  {% comment %}
+    Простой график без библиотек: столбцы — средний балл за модуль.
+    Из одного столбца сравнивать нечего, а занимал он полэкрана сплошной
+    заливкой — поэтому график появляется со второго модуля, а до тех пор
+    итог виден в таблице ниже.
+  {% endcomment %}
+  {% if dynamics|length > 1 %}
   <div class="bars" role="img" aria-label="Средний балл по модулям">
     {% for point in dynamics %}
       <div class="bars__item">
@@ -91,6 +97,7 @@
       </div>
     {% endfor %}
   </div>
+  {% endif %}
   <div class="table-wrap" style="margin-top:16px">
     <table class="data">
       <thead><tr><th>Модуль</th><th>Предмет</th><th>Баллы</th><th>Уровень</th></tr></thead>
@@ -169,7 +176,7 @@
 <h2 class="label" style="font-size:18px;margin:32px 0 8px">Оплаты</h2>
 {% if payments %}
   <div class="table-wrap">
-    <table class="data">
+    <table class="data data--cards">
       <thead><tr><th>Назначение</th><th>Период</th><th>Сумма</th><th>Статус</th></tr></thead>
       <tbody>
       {% for payment in payments %}

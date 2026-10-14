@@ -641,6 +641,16 @@ def grade_save(request, lesson_id):
     )
 
 
+def _to_works_tab(lesson):
+    """
+    Обратно в занятие — сразу на вкладку «Работы».
+
+    Параметром, а не якорем (#raboty): переход без перезагрузки идёт
+    через XHR, а он якорь из адреса переадресации теряет.
+    """
+    return redirect(reverse("cabinet:lesson_journal", args=[lesson.pk]) + "?vkladka=raboty")
+
+
 @login_required
 @role_required("teacher", "admin", "owner", "platform_admin")
 @require_http_methods(["POST"])
@@ -669,7 +679,7 @@ def lesson_work_add(request, lesson_id):
             "Баллы за работу на уроке ставятся в самом занятии — "
             "кнопкой «Сделать с оцениванием».",
         )
-        return redirect("cabinet:lesson_journal", lesson_id=lesson.pk)
+        return _to_works_tab(lesson)
 
     item = GradeItem(
         organization=organization, module=lesson.module, subject=lesson.subject,
@@ -680,14 +690,14 @@ def lesson_work_add(request, lesson_id):
     )
     if item.max_points is None:
         messages.error(request, "Укажите, на сколько баллов работа.")
-        return redirect("cabinet:lesson_journal", lesson_id=lesson.pk)
+        return _to_works_tab(lesson)
 
     try:
         validate_grade_item(item)
         item.save()
     except ValidationError as exc:
         messages.error(request, _first_message(exc))
-        return redirect("cabinet:lesson_journal", lesson_id=lesson.pk)
+        return _to_works_tab(lesson)
 
     log_audit(
         action=AuditAction.VIEW_STUDENT, request=request, obj=item,
@@ -768,7 +778,7 @@ def item_delete(request, item_id):
         + ". Её место в сотне модуля освободилось.",
     )
     if back is not None:
-        return redirect("cabinet:lesson_journal", lesson_id=back.pk)
+        return _to_works_tab(back)
     return redirect(
         "cabinet:module_plan",
         module_id=item.module_id, subject_id=item.subject_id, group_id=item.group_id,

@@ -1,0 +1,51 @@
+{% comment %}
+  Меню профиля — кружок с инициалами справа в шапке.
+
+  Раньше здесь в ряд стояли тема, «Профиль», «Выйти» и бургер: на телефоне
+  четыре кнопки занимали всю ширину, а сами разделы прятались. Теперь всё,
+  что про «меня», а не про работу, — в одном месте.
+
+  Блок подменяется при каждом переходе вместе с меню (hx-select-oob в
+  base_cabinet): точка «есть обновления» гаснет, как только страница
+  обновлений открыта. Поэтому обработчики здесь — только делегированные.
+{% endcomment %}
+{% with user=request.user %}
+<div class="account" id="account">
+  <details class="account__menu" data-account>
+    <summary class="account__button" aria-label="Профиль, тема, обновления, выход">
+      <span class="account__initials" aria-hidden="true">{% if user.first_name or user.last_name %}{{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}{% else %}{{ user.login|slice:":1"|upper }}{% endif %}</span>
+      {% if release_notice.is_unread %}<span class="account__dot" data-release-dot title="Есть обновления"></span>{% endif %}
+    </summary>
+    <div class="account__panel">
+      <p class="account__who">
+        <strong>{{ user.full_name|default:user.login }}</strong>
+        {% if user.full_name %}<span class="small muted">{{ user.login }}</span>{% endif %}
+      </p>
+      {% if not request.impersonator %}
+        <a class="account__item" href="{% url 'accounts:profile' %}">Профиль</a>
+      {% endif %}
+      <a class="account__item" href="{% url 'cabinet:updates' %}">
+        Обновления
+        {% if release_notice.is_unread %}<span class="badge-new" data-release-dot>новое</span>{% endif %}
+      </a>
+      <button class="account__item" type="button" data-theme-toggle>
+        <span class="when-light">Тёмная тема</span><span class="when-dark">Светлая тема</span>
+      </button>
+      {% comment %}
+        Выход — вне переходов без перезагрузки: он уводит из кабинета,
+        а boost подменил бы только содержимое и оставил шапку кабинета
+        на публичной странице. Выглядело бы как «кнопка не работает».
+      {% endcomment %}
+      {% if request.impersonator %}
+        <form method="post" action="{% url 'accounts:impersonate_stop' %}" hx-boost="false">{% csrf_token %}
+          <button class="account__item" type="submit">Вернуться к себе</button>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}
+          <button class="account__item account__item--quiet" type="submit">Выйти</button>
+        </form>
+      {% endif %}
+    </div>
+  </details>
+</div>
+{% endwith %}
