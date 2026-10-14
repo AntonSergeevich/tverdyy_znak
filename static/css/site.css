@@ -1289,6 +1289,20 @@ details.fieldset[open] > summary::after { content: ' −'; }
 }
 .hw-note--redo { border-left-color: var(--warn); }
 
+/* Подсказка-пояснение: как устроено то, что неочевидно с экрана. */
+.hint-box {
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); padding: 12px clamp(12px, 2vw, 18px);
+  max-width: 78ch; font-size: 15px;
+}
+.hint-box p { margin: 0 0 8px; }
+.hint-box p:last-child { margin-bottom: 0; }
+
+/* Галочки групп в карточке ученика: Django рисует их списком <div>. */
+.field ul.groups-choices, .field div.groups-choices { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.groups-choices label { display: flex; gap: 10px; align-items: center; font-size: 15px; }
+.groups-choices input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+
 /* Удаление работы — внизу её страницы, отдельно от баллов: рядом со
    списком учеников кнопка «удалить» читалась бы как «удалить балл». */
 .item-delete {

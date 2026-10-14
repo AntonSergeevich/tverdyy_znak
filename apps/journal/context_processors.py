@@ -89,6 +89,7 @@ def cabinet_menu(request) -> dict:
                 "Дети",
                 _item("students", "Ученики", "student_card", "student_create",
                       "student_edit", "student_delete"),
+                _item("groups", "Группы", "group_card"),
                 _item("progress_list", "Прогресс", "progress_student"),
             ),
             _group(

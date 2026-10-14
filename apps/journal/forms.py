@@ -14,7 +14,10 @@ from django.contrib.auth import get_user_model
 from apps.accounts.models import Role
 from apps.journal.services.staff import role_choices
 from apps.journal.models import (
+    GRADE_MAX,
+    GRADE_MIN,
     Group,
+    GroupKind,
     Parent,
     Payment,
     Student,
@@ -37,18 +40,48 @@ class PersonForm(forms.Form):
     )
 
 
-class StudentForm(PersonForm):
-    grade_level = forms.TypedChoiceField(
-        label="Класс", coerce=int, choices=[(n, f"{n} класс") for n in range(8, 12)]
+GRADE_CHOICES = [(n, f"{n} класс") for n in range(GRADE_MIN, GRADE_MAX + 1)]
+
+
+def groups_field() -> forms.ModelMultipleChoiceField:
+    """
+    Группы ученика — несколько, галочками.
+
+    Раньше был один выпадающий список, и сохранение карточки стирало все
+    прочие членства: ученик семейного класса, записанный ещё и на «ОГЭ
+    математику», при первой же правке карточки вылетал из курса.
+    """
+    return forms.ModelMultipleChoiceField(
+        label="Группы", queryset=Group.objects.none(), required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "groups-choices"}),
+        help_text="Ученик может быть сразу в нескольких: семейный класс и курс подготовки.",
     )
+
+
+def current_groups():
+    """Группы текущего года: семейный класс первым, потом курсы и клубы."""
+    from django.db.models import Case, IntegerField, Value, When
+
+    return (
+        Group.objects.filter(academic_year__is_current=True)
+        .annotate(
+            kind_order=Case(
+                When(kind=GroupKind.FAMILY_CLASS, then=Value(0)),
+                When(kind=GroupKind.COURSE, then=Value(1)),
+                default=Value(2), output_field=IntegerField(),
+            )
+        )
+        .order_by("kind_order", "name")
+    )
+
+
+class StudentForm(PersonForm):
+    grade_level = forms.TypedChoiceField(label="Класс", coerce=int, choices=GRADE_CHOICES)
     birth_date = forms.DateField(
         label="Дата рождения", required=False, widget=forms.DateInput(attrs={"type": "date"}),
         help_text="Хранится в зашифрованном виде.",
     )
-    group = forms.ModelChoiceField(
-        label="Группа", queryset=Group.objects.none(), required=False,
-        empty_label="Без группы",
-    )
+    groups = groups_field()
     enrolled_on = forms.DateField(
         label="Дата зачисления", required=False, widget=forms.DateInput(attrs={"type": "date"})
     )
@@ -64,7 +97,7 @@ class StudentForm(PersonForm):
 
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["group"].queryset = Group.objects.filter(academic_year__is_current=True)
+        self.fields["groups"].queryset = current_groups()
         self.fields["enrolled_on"].initial = dt.date.today()
         self.fields["status"].initial = StudentStatus.ENROLLED
 
@@ -86,9 +119,7 @@ class StudentForm(PersonForm):
 class StudentEditForm(forms.ModelForm):
     """Правка карточки. Учётную запись здесь не трогаем — для неё свои действия."""
 
-    group = forms.ModelChoiceField(
-        label="Группа", queryset=Group.objects.none(), required=False, empty_label="Без группы"
-    )
+    groups = groups_field()
 
     class Meta:
         model = Student
@@ -104,10 +135,55 @@ class StudentEditForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["group"].queryset = Group.objects.filter(academic_year__is_current=True)
+        self.fields["groups"].queryset = current_groups()
+        # Класс — тем же списком, что при создании: у модели нет choices,
+        # и без этого поле было бы голым числом без рамок.
+        self.fields["grade_level"] = forms.TypedChoiceField(
+            label="Класс", coerce=int, choices=GRADE_CHOICES
+        )
         if self.instance.pk:
-            membership = self.instance.group_memberships.select_related("group").first()
-            self.fields["group"].initial = membership.group if membership else None
+            self.fields["groups"].initial = list(
+                self.instance.group_memberships.filter(
+                    group__academic_year__is_current=True
+                ).values_list("group_id", flat=True)
+            )
+
+
+class GroupForm(forms.ModelForm):
+    """
+    Группа: семейный класс, курс подготовки к ОГЭ, клуб.
+
+    Учебный год не спрашиваем — группа заводится в текущем. Класс
+    необязателен: в семейном классе учатся с 8 по 11, и приписывать группе
+    один — значит соврать; у курса для шестиклассников класс есть.
+    """
+
+    grade_level = forms.TypedChoiceField(
+        label="Класс", coerce=int, choices=[("", "разные классы")] + GRADE_CHOICES,
+        required=False, empty_value=None,
+    )
+
+    class Meta:
+        model = Group
+        fields = ["name", "kind", "grade_level"]
+        labels = {"name": "Название", "kind": "Тип"}
+        widgets = {"name": forms.TextInput(attrs={"placeholder": "ОГЭ: математика"})}
+
+    def __init__(self, *args, organization=None, academic_year=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization
+        self.academic_year = academic_year
+        self.fields["kind"].initial = GroupKind.COURSE
+
+    def clean_name(self):
+        name = (self.cleaned_data.get("name") or "").strip()
+        year = self.academic_year or getattr(self.instance, "academic_year", None)
+        clash = Group.objects.filter(academic_year=year, name__iexact=name)
+        if self.instance.pk:
+            clash = clash.exclude(pk=self.instance.pk)
+        if name and clash.exists():
+            raise forms.ValidationError("Группа с таким названием в этом году уже есть.")
+        return name
 
 
 class DeleteConfirmForm(forms.Form):

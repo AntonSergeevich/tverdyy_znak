@@ -156,10 +156,7 @@ def student_create(request):
                 status=data.get("status") or StudentStatus.ENROLLED,
                 note=data.get("note", ""),
             )
-            if data.get("group"):
-                GroupMembership.objects.create(
-                    organization=organization, group=data["group"], student=student
-                )
+            _sync_groups(request, student, data.get("groups") or [])
             parent_credentials = _maybe_create_parent(request, student, data)
 
         log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=student,
@@ -210,7 +207,7 @@ def student_edit(request, student_id):
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             student = form.save()
-            _sync_group(request, student, form.cleaned_data.get("group"))
+            _sync_groups(request, student, form.cleaned_data.get("groups") or [])
         log_audit(action=AuditAction.PERMISSION_CHANGED, request=request, obj=student,
                   change="student_edited")
         messages.success(request, "Карточка сохранена.")
@@ -223,16 +220,27 @@ def student_edit(request, student_id):
     )
 
 
-def _sync_group(request, student: Student, group) -> None:
-    """Группа у ученика одна: смена группы — это переход, а не добавление."""
-    current = student.group_memberships.select_related("group").first()
-    if current and current.group == group:
-        return
-    student.group_memberships.all().delete()
-    if group is not None:
-        GroupMembership.objects.create(
-            organization=request.organization, group=group, student=student
-        )
+def _sync_groups(request, student: Student, groups) -> None:
+    """
+    Состав групп ученика — тем, что отмечено в карточке.
+
+    Групп у ученика несколько: семейный класс и курс подготовки, например.
+    Раньше группа была одна, и сохранение карточки стирало все прочие
+    членства — ученик вылетал с курса от любой правки фамилии.
+
+    Трогаем только группы текущего учебного года: только их и показывает
+    форма. Членство в группе прошлого года — история, по ней считаны баллы
+    тех модулей, и снимать его из-за того, что в форме его не видно, нельзя.
+    """
+    wanted = {group.pk for group in groups}
+    current = student.group_memberships.filter(group__academic_year__is_current=True)
+    current.exclude(group_id__in=wanted).delete()
+    have = set(current.values_list("group_id", flat=True))
+    for group in groups:
+        if group.pk not in have:
+            GroupMembership.objects.create(
+                organization=request.organization, group=group, student=student
+            )
 
 
 @login_required

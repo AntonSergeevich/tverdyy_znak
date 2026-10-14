@@ -26,7 +26,19 @@
     <legend>Ученик</legend>
     <div class="field-grid">
       {% for field in form %}
-        {% if not field.name|slice:":7" == "parent_" %}
+        {% if field.name == "groups" %}
+          {% comment %}
+            Группы — галочками, и обёртка у них не <label>: у каждой галочки
+            своя метка, а метка внутри метки — некорректная разметка, где
+            нажатие на название группы может отметить совсем другую.
+          {% endcomment %}
+          <div class="field{% if field.errors %} field--error{% endif %}">
+            <span class="field__label">{{ field.label }}</span>
+            {{ field }}
+            {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+            {% if field.errors %}<span class="field__error">{{ field.errors.0 }}</span>{% endif %}
+          </div>
+        {% elif not field.name|slice:":7" == "parent_" %}
           <label class="field{% if field.errors %} field--error{% endif %}">
             <span class="field__label">{{ field.label }}</span>
             {{ field }}

@@ -3,6 +3,7 @@ from django.urls import path
 from apps.journal.views import (
     common,
     exports,
+    groups,
     ktp,
     manage,
     parent,
@@ -123,6 +124,17 @@ urlpatterns = [
 
     # Люди: доступы выдаёт администратор, сами не регистрируются
     path("ucheniki/dobavit/", people.student_create, name="student_create"),
+
+    # Группы: семейный класс, курсы подготовки к ОГЭ, клубы. Раньше новые
+    # группы заводились только через техническую админку.
+    path("gruppy/", groups.groups, name="groups"),
+    path("gruppy/<int:group_id>/", groups.group_card, name="group_card"),
+    path("gruppy/<int:group_id>/dobavit/", groups.group_members_add, name="group_members_add"),
+    path(
+        "gruppy/<int:group_id>/ubrat/<uuid:student_id>/",
+        groups.group_member_remove, name="group_member_remove",
+    ),
+    path("gruppy/<int:group_id>/udalit/", groups.group_delete, name="group_delete"),
     path("ucheniki/<uuid:student_id>/", people.student_card, name="student_card"),
     path("ucheniki/<uuid:student_id>/izmenit/", people.student_edit, name="student_edit"),
     path("ucheniki/<uuid:student_id>/udalit/", people.student_delete, name="student_delete"),

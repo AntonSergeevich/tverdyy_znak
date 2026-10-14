@@ -139,7 +139,17 @@ class Module(TenantModel):
 
 class GroupKind(models.TextChoices):
     FAMILY_CLASS = "family_class", "семейный класс"
+    # ОГЭ по предмету, русский для шестиклассников — отдельные группы
+    # со своим составом. Ученик семейного класса может ходить ещё и на курс:
+    # групп у ученика бывает несколько.
+    COURSE = "course", "курс подготовки"
     CLUB = "club", "клуб самоопределения"
+
+
+# Классы, с которыми работает центр. Семейный класс — с 8 по 11, но курсы
+# шире: русский для шестиклассников — тоже ученики центра. Прежняя рамка
+# 8–11 стояла на ученике и группе и не пускала их в систему вовсе.
+GRADE_MIN, GRADE_MAX = 1, 11
 
 
 class Group(TenantModel):
@@ -152,7 +162,7 @@ class Group(TenantModel):
     )
     grade_level = models.PositiveSmallIntegerField(
         "класс", null=True, blank=True,
-        validators=[MinValueValidator(8), MaxValueValidator(11)],
+        validators=[MinValueValidator(GRADE_MIN), MaxValueValidator(GRADE_MAX)],
     )
     students = models.ManyToManyField(
         "journal.Student", through="journal.GroupMembership", related_name="groups",
@@ -207,7 +217,7 @@ class Student(SoftDeleteTenantModel):
     first_name = models.CharField("имя", max_length=80)
     middle_name = models.CharField("отчество", max_length=80, blank=True)
     grade_level = models.PositiveSmallIntegerField(
-        "класс", validators=[MinValueValidator(8), MaxValueValidator(11)]
+        "класс", validators=[MinValueValidator(GRADE_MIN), MaxValueValidator(GRADE_MAX)]
     )
     birth_date = EncryptedDateField("дата рождения", null=True, blank=True)
     document_info = EncryptedCharField("документ", blank=True, default="")

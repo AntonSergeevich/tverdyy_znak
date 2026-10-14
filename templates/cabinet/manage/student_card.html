@@ -20,9 +20,9 @@
     <div class="stat__value" style="font-size:20px">{{ student.get_status_display }}</div>
   </div>
   <div class="stat">
-    <div class="stat__label">Группа</div>
+    <div class="stat__label">Группы</div>
     <div class="stat__value" style="font-size:20px">
-      {% for link in student.group_memberships.all %}{{ link.group.name }}{% empty %}—{% endfor %}
+      {% for link in student.group_memberships.all %}<a href="{% url 'cabinet:group_card' link.group_id %}">{{ link.group.name }}</a>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
     </div>
   </div>
   <div class="stat">

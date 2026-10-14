@@ -1,0 +1,70 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}Группы{% endblock %}
+
+{% block content %}
+{% comment %}
+  Группы центра: семейный класс, курсы подготовки, клубы.
+
+  Раздела не было: группа заводилась один раз при создании организации,
+  а новые — только через техническую админку. Курс «ОГЭ: математика» или
+  «6 класс: русский язык» руководитель завести не мог, хотя расписание,
+  баллы и домашнее для курса нужны те же, что для класса.
+{% endcomment %}
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Группы</h1>
+    <p class="muted">{% if year %}{{ year.title }}{% else %}учебный год не заведён{% endif %}</p>
+  </div>
+</div>
+
+{% if groups %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Группа</th><th>Тип</th><th>Класс</th><th>Учеников</th><th>Занятий</th></tr></thead>
+      <tbody>
+        {% for group in groups %}
+          <tr>
+            <td><a href="{% url 'cabinet:group_card' group.pk %}">{{ group.name }}</a></td>
+            <td class="muted">{{ group.get_kind_display }}</td>
+            <td>{% if group.grade_level %}{{ group.grade_level }}{% else %}<span class="muted">разные</span>{% endif %}</td>
+            <td class="numeral">{{ group.members }}</td>
+            <td class="numeral">{{ group.lessons_count }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">Групп в этом учебном году пока нет.</p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Новая группа</h2>
+<form method="post" hx-boost="false" class="grid grid--tight" style="align-items:flex-end">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="field{% if field.errors %} field--invalid{% endif %}">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<p class="field-error">{{ field.errors.0 }}</p>{% endif %}
+    </div>
+  {% endfor %}
+  <button class="btn" type="submit" style="flex:0 0 auto">Завести группу</button>
+</form>
+
+{% comment %}
+  Самое неочевидное — про предметы. Итог модуля считается по ученику и
+  предмету, а не по группе: если курс ведёт тот же предмет, что и семейный
+  класс, баллы ученика за класс и за курс сложатся в одну сотню.
+{% endcomment %}
+<div class="hint-box" style="margin-top:20px">
+  <p><strong>Как это работает.</strong> Ученик может быть сразу в нескольких
+  группах — например, в семейном классе и на курсе «ОГЭ: математика».
+  Состав группы собирается на её странице или галочками в карточке ученика.</p>
+  <p>Для курса заведите <strong>отдельный предмет</strong> в разделе
+  <a href="{% url 'cabinet:subjects' %}">«Предметы»</a> — например,
+  «ОГЭ: математика». Если взять тот же предмет, что в семейном классе, баллы
+  ученика за класс и за курс сложатся в одну сотню.</p>
+  <p>Занятия группы ставятся в <a href="{% url 'cabinet:schedule_builder' %}">расписании</a>:
+  вверху выберите нужную группу.</p>
+</div>
+{% endblock %}

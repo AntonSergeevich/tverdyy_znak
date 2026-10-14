@@ -1,0 +1,96 @@
+{% extends "cabinet/base_cabinet.html" %}
+{% block cabinet_title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+<p class="small muted" style="margin-bottom:8px"><a href="{% url 'cabinet:groups' %}">← Группы</a></p>
+
+<div class="page-title">
+  <div>
+    <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">{{ group.name }}</h1>
+    <p class="muted">
+      {{ group.get_kind_display }}{% if group.grade_level %} · {{ group.grade_level }} класс{% endif %}
+      · учеников {{ members|length }} · занятий {{ lessons_count }}
+    </p>
+  </div>
+  <a class="btn btn--quiet" href="{% url 'cabinet:schedule_builder' %}?group={{ group.pk }}">Расписание группы</a>
+</div>
+
+<h2 class="label" style="font-size:18px;margin:24px 0 8px">Состав</h2>
+{% if members %}
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        {% for student in members %}
+          <tr>
+            <td><a href="{% url 'cabinet:student_card' student.pk %}">{{ student.full_name|default:student.short_name }}</a></td>
+            <td class="muted">{{ student.grade_level }} класс</td>
+            <td style="text-align:right">
+              {% comment %}
+                Баллы ученика при этом не трогаем: они записаны за ним, а не
+                за членством, и в итогах модуля остаются.
+              {% endcomment %}
+              <form method="post" hx-boost="false"
+                    action="{% url 'cabinet:group_member_remove' group.pk student.pk %}"
+                    onsubmit="return confirm('Убрать {{ student.short_name|escapejs }} из группы? Выставленные баллы останутся.');">
+                {% csrf_token %}
+                <button class="link-btn" type="submit">убрать из группы</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">В группе пока никого нет — отметьте учеников ниже.</p>
+{% endif %}
+
+{% if candidates %}
+  <h2 class="label" style="font-size:18px;margin:32px 0 8px">Добавить учеников</h2>
+  <form method="post" hx-boost="false" action="{% url 'cabinet:group_members_add' group.pk %}">
+    {% csrf_token %}
+    <div class="checkbox-grid">
+      {% for student in candidates %}
+        <label class="checkbox">
+          <input type="checkbox" name="students" value="{{ student.pk }}">
+          <span>{{ student.short_name }} <span class="small muted">· {{ student.grade_level }} кл.</span></span>
+        </label>
+      {% endfor %}
+    </div>
+    <button class="btn" type="submit" style="margin-top:12px">Добавить отмеченных</button>
+  </form>
+  <p class="small muted" style="margin-top:8px">
+    Нужного ученика нет в списке — сначала заведите его в разделе
+    <a href="{% url 'cabinet:student_create' %}">«Ученики»</a>. Ученик
+    остаётся и в своих прежних группах.
+  </p>
+{% else %}
+  <p class="small muted" style="margin-top:16px">
+    Все ученики уже в этой группе. Новых заводят в разделе
+    <a href="{% url 'cabinet:student_create' %}">«Ученики»</a>.
+  </p>
+{% endif %}
+
+<h2 class="label" style="font-size:18px;margin:32px 0 8px">Название и тип</h2>
+<form method="post" hx-boost="false" class="grid grid--tight" style="align-items:flex-end">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="field{% if field.errors %} field--invalid{% endif %}">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<p class="field-error">{{ field.errors.0 }}</p>{% endif %}
+    </div>
+  {% endfor %}
+  <button class="btn btn--quiet" type="submit" style="flex:0 0 auto">Сохранить</button>
+</form>
+
+<section class="item-delete">
+  <form method="post" hx-boost="false" action="{% url 'cabinet:group_delete' group.pk %}"
+        onsubmit="return confirm('Удалить группу «{{ group.name|escapejs }}»?');">
+    {% csrf_token %}
+    <button class="btn btn--quiet btn--danger" type="submit">Удалить группу</button>
+    <span class="small muted">— только если у неё нет занятий, работ и КТП: иначе
+      удаление унесло бы баллы, и система откажет.</span>
+  </form>
+</section>
+{% endblock %}

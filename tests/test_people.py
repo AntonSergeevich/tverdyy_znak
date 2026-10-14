@@ -223,7 +223,8 @@ def test_student_edit_moves_between_groups_without_duplicating(admin_client, ten
             "last_name": tenant_a.student.last_name, "first_name": tenant_a.student.first_name,
             "middle_name": "", "grade_level": "10", "birth_date": "",
             "status": "enrolled", "enrolled_on": "", "attestation_partner": "", "note": "",
-            "group": str(other.pk),
+            # Сняли галочку со старой группы и поставили на новую — переход.
+            "groups": [str(other.pk)],
         },
     )
 
