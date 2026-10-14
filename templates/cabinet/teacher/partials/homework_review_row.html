@@ -12,6 +12,9 @@
             {% elif mark.needs_redo %}review-row--redo
             {% elif mark.is_done %}review-row--wait{% endif %}"
      id="review-{{ homework.pk }}-{{ row.student.pk }}"
+     data-swipe-row
+     data-swipe-right="[data-verdict=accepted]" data-swipe-right-label="✓ Зачтено"
+     data-swipe-left="[data-verdict=redo]" data-swipe-left-label="Доделать"
      data-student="{{ row.student.pk }}"
      data-name="{{ row.student.short_name }}"
      {% if item %}data-max="{{ item.max_points|machine_number }}"
@@ -71,7 +74,7 @@
             hx-select="unset" hx-select-oob="unset"
             hx-include="closest .review-row"
             hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
-            hx-vals='{"verdict": "accepted"}'>
+            hx-vals='{"verdict": "accepted"}' data-verdict="accepted">
       Зачтено
     </button>
     <button class="btn btn--sm btn--quiet" type="button"
@@ -79,7 +82,7 @@
             hx-select="unset" hx-select-oob="unset"
             hx-include="closest .review-row"
             hx-target="#homework-review-{{ homework.pk }}" hx-swap="outerHTML"
-            hx-vals='{"verdict": "redo"}'>
+            hx-vals='{"verdict": "redo"}' data-verdict="redo">
       Доделать
     </button>
     {% if mark.is_checked %}

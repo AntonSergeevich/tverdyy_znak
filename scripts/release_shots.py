@@ -65,8 +65,60 @@ def _go(page, path):
 def _frame(page, top=0, height=None) -> Image.Image:
     shot = Image.open(io.BytesIO(page.screenshot()))
     scale = shot.width // PHONE["width"]
-    bottom = shot.height if height is None else min(shot.height, (top + height) * scale)
-    return shot.crop((0, top * scale, shot.width, bottom)).convert("RGB")
+    if height is None:
+        return shot.crop((0, top * scale, shot.width, shot.height)).convert("RGB")
+    # Кадры одной анимации обязаны быть одного размера: у нижнего края
+    # экрана окно сдвигается вверх, а не обрезается.
+    top = max(0, min(top * scale, shot.height - height * scale))
+    return shot.crop((0, top, shot.width, top + height * scale)).convert("RGB")
+
+
+def _press(page, selector):
+    """
+    Палец на элемент — синтетические pointer-события, как у тач-экрана.
+
+    Касание — в левый верхний угол, где подпись: с полей ввода жест
+    намеренно не начинается.
+    """
+    box = page.locator(selector).first.bounding_box()
+    x, y = box["x"] + 40, box["y"] + 22
+    page.evaluate(
+        """([x, y]) => {
+          const target = document.elementFromPoint(x, y);
+          target.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y }));
+          window.__swipe = { target, x, y };
+        }""",
+        [x, y],
+    )
+
+
+def _drag(page, dx):
+    page.evaluate(
+        """(dx) => {
+          const s = window.__swipe;
+          for (let i = 1; i <= 8; i++) {
+            document.dispatchEvent(new PointerEvent('pointermove', {
+              bubbles: true, pointerType: 'touch', isPrimary: true,
+              clientX: s.x + dx * i / 8, clientY: s.y }));
+          }
+          s.dx = dx;
+        }""",
+        dx,
+    )
+    page.wait_for_timeout(120)
+
+
+def _release(page):
+    page.evaluate(
+        """() => {
+          const s = window.__swipe;
+          document.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true, pointerType: 'touch', isPrimary: true,
+            clientX: s.x + s.dx, clientY: s.y }));
+        }"""
+    )
+    page.wait_for_timeout(900)
 
 
 def _save(target: Path, frames: list[Image.Image], step_ms: int = 1700):
@@ -101,16 +153,7 @@ def shots_2_0(browser, out: Path):
     context, page = _login(browser, "teacher")
 
     # Вкладки занятия — по очереди.
-    # Ближайшее прошедшее занятие демо-педагога — из расписания пару недель назад.
-    lesson = None
-    for weeks_back in range(0, 6):
-        _go(page, f"/kabinet/raspisanie/?n=-{weeks_back}")
-        lesson = page.evaluate(
-            "() => { const a = document.querySelector('a[href*=\"/zanyatie/\"]');"
-            " return a ? a.getAttribute('href') : null; }"
-        )
-        if lesson:
-            break
+    lesson = _demo_lesson(page)
     _go(page, lesson)
     frames = []
     for tab in ("ucheniki", "domashnee", "raboty"):
@@ -134,7 +177,97 @@ def shots_2_0(browser, out: Path):
     context.close()
 
 
-VERSIONS = {"2.0": shots_2_0}
+def _demo_lesson(page, latest=False):
+    """Прошедшее занятие демо-педагога — из расписания за последние недели."""
+    pick = "a[a.length - 1]" if latest else "a[0]"
+    for weeks_back in range(0, 6):
+        _go(page, f"/kabinet/raspisanie/?n=-{weeks_back}")
+        lesson = page.evaluate(
+            "() => { const a = [...document.querySelectorAll('a[href*=\"/zanyatie/\"]')];"
+            f" return a.length ? {pick}.getAttribute('href') : null; }}"
+        )
+        if lesson:
+            return lesson
+    raise SystemExit("В демо-базе нет занятий педагога — запустите seed_demo.")
+
+
+def shots_2_1(browser, out: Path):
+    # Педагог задаёт домашнее на демо-занятии — чтобы было что проверять
+    # и что отметить ученику.
+    context, page = _login(browser, "teacher")
+    # Последнее занятие — в текущем модуле: задание из прошлого модуля
+    # ученик уже не видит.
+    lesson = _demo_lesson(page, latest=True)
+    _go(page, lesson + "?vkladka=domashnee")
+    area = page.locator("#lesson-homework textarea").first
+    if not area.input_value().strip():
+        area.fill("§12, задачи 3–7 письменно")
+        page.locator("#lesson-homework button[type=submit]").first.click()
+        page.wait_for_timeout(800)
+    _go(page, lesson + "?vkladka=domashnee")
+    page.evaluate("document.querySelectorAll('details.hw-archive').forEach(d => d.open = true)")
+    row = ".review-row[data-swipe-row]"
+    page.locator(row).first.scroll_into_view_if_needed()
+    page.evaluate("window.scrollBy(0, -120)")
+    page.wait_for_timeout(200)
+    top = int(page.locator(row).first.bounding_box()["y"]) - 90
+    frames = [_frame(page, top=top, height=330)]
+    _press(page, row)
+    _drag(page, 70)
+    frames.append(_frame(page, top=top, height=330))
+    _drag(page, 170)
+    frames.append(_frame(page, top=top, height=330))
+    _release(page)
+    page.evaluate("window.scrollBy(0, -120)")
+    top = int(page.locator(row).first.bounding_box()["y"]) - 90
+    frames.append(_frame(page, top=top, height=330))
+    _save(out / "review-swipe.webp", frames, step_ms=1200)
+    context.close()
+
+    # Ученик смахивает карточку задания.
+    context, page = _login(browser, "student1")
+    _go(page, "/kabinet/uchenik/")
+    card = "#homework-board [data-swipe-row]"
+    if page.locator(card).count():
+        page.locator(card).first.scroll_into_view_if_needed()
+        page.wait_for_timeout(200)
+        top = max(0, int(page.locator(card).first.bounding_box()["y"]) - 70)
+        frames = [_frame(page, top=top, height=360)]
+        _press(page, card)
+        _drag(page, 180)
+        frames.append(_frame(page, top=top, height=360))
+        _release(page)
+        _go(page, "/kabinet/uchenik/")
+        page.locator("#homework-board").scroll_into_view_if_needed()
+        page.wait_for_timeout(200)
+        top = max(0, int(page.locator("#homework-board").bounding_box()["y"]) - 70)
+        frames.append(_frame(page, top=top, height=360))
+        _save(out / "homework-swipe.webp", frames, step_ms=1300)
+        # Демо-ученик возвращается к «не сделано» — снимки можно переснимать.
+        page.locator("#homework-board button:has-text('Убрать отметку')").first.click()
+        page.wait_for_timeout(500)
+    context.close()
+
+    # «Отменить»: руководитель убирает ученика из курса и возвращает.
+    context, page = _login(browser, "owner")
+    _go(page, "/kabinet/gruppy/")
+    for link in page.locator("table a[href*='/gruppy/']").all():
+        href = link.get_attribute("href")
+        _go(page, href)
+        if page.locator("button:has-text('убрать из группы')").count():
+            break
+        _go(page, "/kabinet/gruppy/")
+    page.locator("button:has-text('убрать из группы')").first.click()
+    page.wait_for_load_state("networkidle")
+    _clean(page)
+    page.wait_for_timeout(400)
+    _save(out / "undo.webp", [_frame(page, top=PHONE["height"] - 330)])
+    page.locator("[data-undo-toast] button").first.click()
+    page.wait_for_load_state("networkidle")
+    context.close()
+
+
+VERSIONS = {"2.0": shots_2_0, "2.1": shots_2_1}
 
 
 def main():

@@ -1940,3 +1940,57 @@ body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { pos
   table.data--cards td > .btn, table.data--cards td > form { margin-left: auto; }
   .table-wrap:has(> table.data--cards) { overflow-x: visible; }
 }
+
+/* ─── Плашка «Отменить» ────────────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: 20px; z-index: 110;
+  transform: translate(-50%, 12px); opacity: 0;
+  display: flex; align-items: center; gap: 14px;
+  width: max-content; max-width: min(560px, calc(100vw - 24px));
+  padding: 10px 10px 10px 16px; border-radius: 12px;
+  background: var(--ink); color: var(--paper); font-size: 15px; line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(20, 17, 14, .28);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.toast form { margin: 0; flex: 0 0 auto; }
+.toast__text { flex: 1 1 auto; }
+.toast__action {
+  flex: 0 0 auto; min-height: 40px; padding: 0 14px; border-radius: 8px;
+  border: 0; background: var(--accent); color: #fff;
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.toast.is-busy .toast__action { opacity: .6; pointer-events: none; }
+@media (max-width: 760px) {
+  .toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ─── Свайпы ───────────────────────────────────────────────────────────── */
+/* Вертикальная прокрутка остаётся браузеру, горизонталь — нашему жесту. */
+[data-swipe-row], [data-swipe-nav] { touch-action: pan-y; }
+[data-swipe-row] { position: relative; }
+[data-swipe-row].is-swiping { z-index: 2; user-select: none; }
+[data-swipe-row].is-settling { transition: transform .2s ease; }
+/* Подсказка проступает из-под строки с той стороны, откуда она уехала. */
+[data-swipe-row][data-swipe-dir]::before {
+  content: attr(data-swipe-hint);
+  position: absolute; top: 0; bottom: 0; width: 100vw;
+  display: flex; align-items: center; padding: 0 18px;
+  font-weight: 700; font-size: 15px; color: #fff; background: var(--ink-3);
+  transition: background .12s ease;
+}
+[data-swipe-row][data-swipe-dir="right"]::before { right: 100%; justify-content: flex-end; }
+[data-swipe-row][data-swipe-dir="left"]::before { left: 100%; justify-content: flex-start; }
+[data-swipe-row].is-armed[data-swipe-dir="right"]::before { background: var(--ok); }
+[data-swipe-row].is-armed[data-swipe-dir="left"]::before { background: var(--accent); }
+/* Подсказка шириной в экран не должна наезжать на соседнее — режем по списку. */
+.review-list, #homework-board, .swipe-clip { overflow-x: clip; }
+/* Подсказка про жест — только там, где есть палец. */
+.swipe-tip { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .swipe-tip { display: block; font-size: 13px; color: var(--ink-3); margin: 6px 0 10px; }
+}
+@media (prefers-reduced-motion: reduce) { [data-swipe-row].is-settling { transition: none; } }
+/* Пустая неделя короткая — зона жеста не меньше полэкрана. */
+.week-swipe { min-height: 50vh; }

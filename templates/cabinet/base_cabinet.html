@@ -63,6 +63,9 @@
     </div>
   {% endif %}
   {% block content %}{% endblock %}
+  {% if undo.item %}
+    {% include "cabinet/partials/undo_toast.html" with offer=undo.item %}
+  {% endif %}
 </main>
 
 {% if release_notice.show %}

@@ -20,7 +20,8 @@
             {% elif mark.needs_redo %}homework-card--redo
             {% elif mark.is_done %}homework-card--review
             {% elif item.is_overdue %}homework-card--late{% endif %}"
-     id="homework-{{ item.pk }}">
+     id="homework-{{ item.pk }}"
+     {% if not readonly and not mark.is_accepted %}{% if not mark.is_done or mark.is_checked %}data-swipe-row data-swipe-right="[data-swipe-done]" data-swipe-right-label="✓ Сделал"{% endif %}{% endif %}>
   <p class="small muted">
     {{ item.lesson.subject.name }} · задано {{ item.lesson.starts_at|date:"d.m" }}
     {% if item.due_date %} · сдать до {{ item.due_date|date:"d.m.Y" }}{% endif %}
@@ -69,7 +70,8 @@
           hx-target="#homework-board" hx-swap="outerHTML">
       {% csrf_token %}
       <input type="hidden" name="done" value="{% if mark.is_done and not mark.is_checked %}0{% else %}1{% endif %}">
-      <button class="btn {% if mark.is_done and not mark.is_checked %}btn--quiet{% endif %}" type="submit">
+      <button class="btn {% if mark.is_done and not mark.is_checked %}btn--quiet{% endif %}" type="submit"
+              {% if not mark.is_done or mark.is_checked %}data-swipe-done{% endif %}>
         {% if mark.is_done and not mark.is_checked %}Убрать отметку
         {% elif mark.needs_redo %}Доделал — отправить снова
         {% else %}Сделал{% endif %}

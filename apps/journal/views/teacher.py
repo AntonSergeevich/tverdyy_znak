@@ -20,7 +20,9 @@ from django.views.decorators.http import require_http_methods
 
 from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
+from apps.journal import undo
 from apps.journal.access import (
+    accessible_grade_items,
     accessible_groups,
     assert_can_grade,
     get_grade_item_or_403,
@@ -52,6 +54,7 @@ from apps.journal.services.grading import (
     enable_lesson_grading,
     free_lesson_slots,
     points_budget,
+    restore_work,
     set_grade,
     student_module_points,
     validate_grade_item,
@@ -771,18 +774,52 @@ def item_delete(request, item_id):
         url = reverse("cabinet:item_journal", args=[item.pk])
         return redirect(f"{url}?from={back.pk}" if back else url)
 
-    messages.success(
-        request,
-        f"Работа «{title}» удалена"
-        + (f" вместе с баллами: {removed}" if removed else "")
-        + ". Её место в сотне модуля освободилось.",
-    )
+    if removed:
+        messages.success(
+            request,
+            f"Работа «{title}» удалена вместе с баллами: {removed}. "
+            "Её место в сотне модуля освободилось.",
+        )
+    else:
+        # Пустую работу удаляем без вопроса — и сразу даём вернуть.
+        undo.offer(
+            request,
+            f"Работа «{title}» удалена, место в сотне освободилось.",
+            reverse("cabinet:item_restore", args=[item.pk]),
+            {"from": back.pk} if back else {},
+        )
+    return _after_work_change(item, back)
+
+
+def _after_work_change(item, back):
     if back is not None:
         return _to_works_tab(back)
     return redirect(
         "cabinet:module_plan",
         module_id=item.module_id, subject_id=item.subject_id, group_id=item.group_id,
     )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def item_restore(request, item_id):
+    """«Отменить» после удаления работы — вернуть её на место."""
+    organization = request.organization
+    item = (
+        accessible_grade_items(request.user, organization, deleted=True)
+        .filter(pk=item_id).first()
+    )
+    if item is None:
+        raise Http404("Такой удалённой работы нет.")
+    back = _came_from_lesson(request, item)
+    try:
+        restore_work(item, actor=request.user, request=request)
+    except ValidationError as exc:
+        messages.error(request, _first_message(exc))
+    else:
+        messages.success(request, f"Работа «{item.title or item.get_kind_display()}» снова на месте.")
+    return _after_work_change(item, back)
 
 
 @login_required

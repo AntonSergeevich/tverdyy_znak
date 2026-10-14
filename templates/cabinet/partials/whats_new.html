@@ -2,7 +2,7 @@
 {% comment %}
   «Что нового» — один раз после обновления.
 
-  Короткое окно: что изменилось и где теперь лежит, не больше четырёх
+  Короткое окно: что изменилось и где теперь лежит, не больше пяти
   пунктов и одна картинка. Подробности с картинками к каждому шагу — на
   странице обновлений. Закрыли окно любым способом (кнопка, Esc, клик
   мимо) — сервер запоминает версию, и больше оно не всплывёт ни здесь,
@@ -13,8 +13,8 @@
 <dialog class="whats-new" data-whats-new data-seen-url="{% url 'cabinet:updates_seen' %}"
         aria-labelledby="whats-new-title">
   {% csrf_token %}
-  <p class="kicker">Обновление {{ release_notice.version }}</p>
-  <h2 class="whats-new__title" id="whats-new-title">Что нового: {{ release_notice.title|lower }}</h2>
+  <p class="kicker">{{ release_notice.versions_label }}</p>
+  <h2 class="whats-new__title" id="whats-new-title">{{ release_notice.title }}</h2>
   {% if release_notice.picture %}
     <img class="whats-new__picture" src="{% static release_notice.picture.src %}"
          alt="{{ release_notice.picture.alt }}">

@@ -16,10 +16,12 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
+from apps.journal import undo
 from apps.journal.forms import GroupForm
 from apps.journal.models import (
     AcademicYear,
@@ -148,7 +150,10 @@ def group_members_add(request, group_id):
             action=AuditAction.PERMISSION_CHANGED, request=request, obj=group,
             change="group_members_added", count=added,
         )
-        messages.success(request, f"Добавлено в группу: {added}.")
+        if request.POST.get("undo") == "1":
+            messages.success(request, "Вернули в группу.")
+        else:
+            messages.success(request, f"Добавлено в группу: {added}.")
     else:
         messages.error(request, "Никто не выбран — отметьте учеников в списке.")
     return redirect("cabinet:group_card", group_id=group.pk)
@@ -172,7 +177,14 @@ def group_member_remove(request, group_id, student_id):
         action=AuditAction.PERMISSION_CHANGED, request=request, obj=group,
         change="group_member_removed", student=str(student.pk),
     )
-    messages.success(request, f"{student.short_name} больше не в группе «{group.name}».")
+    # Без «Вы уверены?»: убрали сразу, а вернуть можно одной кнопкой —
+    # членство восстанавливается заново, баллы и так никуда не уходили.
+    undo.offer(
+        request,
+        f"{student.short_name} больше не в группе «{group.name}».",
+        reverse("cabinet:group_members_add", args=[group.pk]),
+        {"students": student.pk, "undo": 1},
+    )
     return redirect("cabinet:group_card", group_id=group.pk)
 
 

@@ -253,6 +253,7 @@ class AuditAction(models.TextChoices):
     PASSWORD_CHANGED = "password_changed", "смена пароля"
     PLAN_IMPORTED = "plan_imported", "загрузка тематического планирования"
     WORK_DELETED = "work_deleted", "удаление работы модуля"
+    WORK_RESTORED = "work_restored", "возврат удалённой работы модуля"
 
 
 class AuditLog(models.Model):

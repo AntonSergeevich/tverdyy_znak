@@ -1,0 +1,14 @@
+{% comment %}
+  Плашка «Отменить» (apps/journal/undo.py). Внутри <main>: приезжает вместе
+  со страницей, на которую вернуло действие, и сама гаснет (cabinet.js).
+{% endcomment %}
+<div class="toast toast--undo" data-undo-toast role="status">
+  <span class="toast__text">{{ offer.text }}</span>
+  <form method="post" action="{{ offer.url }}">
+    {% csrf_token %}
+    {% for name, value in offer.fields.items %}
+      <input type="hidden" name="{{ name }}" value="{{ value }}">
+    {% endfor %}
+    <button class="toast__action" type="submit">Отменить</button>
+  </form>
+</div>

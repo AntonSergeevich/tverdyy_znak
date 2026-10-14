@@ -29,9 +29,9 @@
                 Баллы ученика при этом не трогаем: они записаны за ним, а не
                 за членством, и в итогах модуля остаются.
               {% endcomment %}
-              <form method="post" hx-boost="false"
-                    action="{% url 'cabinet:group_member_remove' group.pk student.pk %}"
-                    onsubmit="return confirm('Убрать {{ student.short_name|escapejs }} из группы? Выставленные баллы останутся.');">
+              {# Без подтверждения: после нажатия появится «Отменить». #}
+              <form method="post"
+                    action="{% url 'cabinet:group_member_remove' group.pk student.pk %}">
                 {% csrf_token %}
                 <button class="link-btn" type="submit">убрать из группы</button>
               </form>

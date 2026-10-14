@@ -8,11 +8,14 @@
 </div>
 
 <div class="btn-row" style="margin-bottom:12px">
-  <a class="btn btn--quiet" href="?n={{ offset|add:'-1' }}">← Предыдущая неделя</a>
+  <a class="btn btn--quiet" href="?n={{ offset|add:'-1' }}" data-week-prev>← Предыдущая неделя</a>
   {% if offset %}<a class="btn btn--quiet" href="{% url 'cabinet:schedule' %}">Текущая неделя</a>{% endif %}
-  <a class="btn btn--quiet" href="?n={{ offset|add:'1' }}">Следующая неделя →</a>
+  <a class="btn btn--quiet" href="?n={{ offset|add:'1' }}" data-week-next>Следующая неделя →</a>
 </div>
 
+<p class="swipe-tip">Листайте недели пальцем: влево — следующая, вправо — предыдущая.</p>
+{# Жест листает и пустую неделю: иначе на ней он вдруг перестал бы работать. #}
+<div class="week-swipe" data-swipe-nav data-swipe-next="[data-week-next]" data-swipe-prev="[data-week-prev]">
 {% if has_lessons %}
   {# Расшифровка точек — один раз сверху, а не подписью у каждого занятия. #}
   <p class="week__legend small muted">
@@ -87,6 +90,7 @@
     {% endif %}
   </div>
 {% endif %}
+</div>
 
 {% if has_lessons and external_url %}
   <p class="muted" style="margin-top:24px">

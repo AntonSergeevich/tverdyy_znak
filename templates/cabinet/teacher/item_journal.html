@@ -86,8 +86,8 @@
         </button>
       </form>
     {% else %}
-      <form method="post" hx-boost="false" action="{% url 'cabinet:item_delete' item.pk %}"
-            onsubmit="return confirm('Удалить работу «{{ item.title|default:item.get_kind_display|escapejs }}»?');">
+      {# Без вопроса: удаление мягкое, и после него появится «Отменить». #}
+      <form method="post" action="{% url 'cabinet:item_delete' item.pk %}">
         {% csrf_token %}
         {% if back_lesson %}<input type="hidden" name="from" value="{{ back_lesson.pk }}">{% endif %}
         <button class="btn btn--quiet btn--danger" type="submit">Удалить эту работу</button>

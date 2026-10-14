@@ -57,7 +57,7 @@ def test_dialog_appears_once_for_an_old_timer(logged_in, tenant_a):
 
     body = _home(browser, "cabinet:teacher_today")
     assert DIALOG in body
-    assert f"Обновление {releases.CURRENT.version}" in body
+    assert releases.CURRENT.version in body
 
     assert browser.post(reverse("cabinet:updates_seen")).status_code == 204
 
@@ -82,9 +82,11 @@ def test_dialog_speaks_about_the_reader_role(logged_in, tenant_a):
     teacher = _home(logged_in(_old_timer(tenant_a.teacher_user)), "cabinet:teacher_today")
     parent = _home(logged_in(_old_timer(tenant_a.parent_user)), "cabinet:parent_home")
 
-    lesson_tabs = "Занятие разложено по вкладкам"
-    assert lesson_tabs in teacher
-    assert lesson_tabs not in parent
+    for_staff = next(
+        change.title for change in releases.CURRENT.changes if change.roles == releases.STAFF
+    )
+    assert for_staff in teacher
+    assert for_staff not in parent
 
 
 def test_updates_page_lists_versions_and_counts_as_read(logged_in, tenant_a):
@@ -109,12 +111,14 @@ def test_account_menu_marks_unread_updates(logged_in, tenant_a):
 
 
 def test_missed_versions_are_told_together():
-    """Пропустил две версии — узнает про обе; первое окно — только про последнюю."""
+    """Пропустил несколько версий — узнает про все в одном окне; история 1.x — никогда."""
+    announced = [release for release in releases.RELEASES if release.announce]
+    assert len(announced) >= 2
     user = User(release_seen="", created_at=timezone.now() - dt.timedelta(days=400))
-    assert releases.unseen_releases(user) == [releases.CURRENT]
+    assert releases.unseen_releases(user) == announced
 
-    user.release_seen = releases.RELEASES[2].version
-    assert releases.unseen_releases(user) == list(releases.RELEASES[:2])
+    user.release_seen = announced[1].version
+    assert releases.unseen_releases(user) == announced[:1]
 
     user.release_seen = releases.CURRENT.version
     assert releases.unseen_releases(user) == []

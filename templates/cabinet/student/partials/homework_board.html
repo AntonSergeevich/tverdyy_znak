@@ -19,6 +19,7 @@
 
   {% if board.todo %}
     <h3 class="hw-head">Сделать <span class="hw-count">{{ board.todo|length }}</span></h3>
+    <p class="swipe-tip">Сделали — смахните карточку вправо.</p>
     <div class="stack">
       {% for item in board.todo %}
         {% include "cabinet/student/partials/homework_card.html" %}

@@ -7,7 +7,9 @@
      data-slot
      data-day="{{ cell.day|date:'Y-m-d' }}"
      data-time="{{ cell.time }}"
-     data-duration="{{ cell.duration }}">
+     data-duration="{{ cell.duration }}"{% if cell.lesson %}
+     data-lesson-subject="{{ cell.lesson.subject_id }}"
+     data-lesson-teacher="{{ cell.lesson.teacher_id|default:'' }}"{% endif %}>
   {% if cell.lesson %}
     <span class="slot__subject">{{ cell.lesson.subject.name }}</span>
     {% comment %}

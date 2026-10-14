@@ -8,7 +8,10 @@
       <a class="chip" href="?child={{ child.pk }}" {% if child.pk == student.pk %}aria-current="true"{% endif %}>{{ child.short_name }}</a>
     {% endfor %}
   </div>
+  <p class="swipe-tip">Между детьми можно листать пальцем влево и вправо.</p>
 {% endif %}
+{# Несколько детей — листаются жестом: влево следующий, вправо предыдущий. #}
+<div{% if children|length > 1 %} data-swipe-nav data-swipe-next=".chips [aria-current=true] + .chip" data-swipe-prev=".chips .chip:has(+ [aria-current=true])"{% endif %}>
 
 {% comment %}
   Общий прогресс — первое, на что смотрит родитель. Он отвечает на вопрос
@@ -212,4 +215,5 @@
 {% else %}
   <p class="muted">Начислений пока нет.</p>
 {% endif %}
+</div>
 {% endblock %}

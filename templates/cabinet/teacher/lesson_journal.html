@@ -49,7 +49,7 @@
     </button>
   </div>
 
-  <section class="tabs__panel" role="tabpanel" data-tab-panel="ucheniki" aria-label="Ученики">
+  <section class="tabs__panel" role="tabpanel" data-tab-panel="ucheniki" data-swipe-nav data-swipe-next="tab:next" data-swipe-prev="tab:prev" aria-label="Ученики">
     <div id="lesson-header">
       {% include "cabinet/teacher/partials/lesson_header.html" %}
     </div>
@@ -60,7 +60,7 @@
     {% include "cabinet/teacher/partials/journal_body.html" %}
   </section>
 
-  <section class="tabs__panel" role="tabpanel" data-tab-panel="domashnee" aria-label="Домашнее">
+  <section class="tabs__panel" role="tabpanel" data-tab-panel="domashnee" data-swipe-nav data-swipe-next="tab:next" data-swipe-prev="tab:prev" aria-label="Домашнее">
     {% include "cabinet/teacher/partials/lesson_homework.html" %}
 
     {% comment %}
@@ -95,7 +95,7 @@
     {% endif %}
   </section>
 
-  <section class="tabs__panel" role="tabpanel" data-tab-panel="raboty" aria-label="Работы">
+  <section class="tabs__panel" role="tabpanel" data-tab-panel="raboty" data-swipe-nav data-swipe-next="tab:next" data-swipe-prev="tab:prev" aria-label="Работы">
     {% include "cabinet/teacher/partials/lesson_works.html" %}
   </section>
 </div>

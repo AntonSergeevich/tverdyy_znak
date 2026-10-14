@@ -46,6 +46,7 @@ urlpatterns = [
     path("pedagog/rabota/<uuid:item_id>/ball/", teacher.item_grade_save, name="item_grade_save"),
     path("pedagog/rabota/<uuid:item_id>/vsem/", teacher.item_grade_bulk, name="item_grade_bulk"),
     path("pedagog/rabota/<uuid:item_id>/udalit/", teacher.item_delete, name="item_delete"),
+    path("pedagog/rabota/<uuid:item_id>/vernut/", teacher.item_restore, name="item_restore"),
     path("pedagog/zanyatie/<uuid:lesson_id>/tema/", teacher.lesson_topic_save, name="lesson_topic_save"),
     path("pedagog/zanyatie/<uuid:lesson_id>/domashnee/", teacher.lesson_homework_save, name="lesson_homework_save"),
     # Проверка домашнего: зачтено или нужно доделать. Там же, где педагог

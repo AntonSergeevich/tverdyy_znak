@@ -95,7 +95,7 @@ def accessible_groups(user, organization) -> QuerySet[Group]:
     return base.none()
 
 
-def accessible_grade_items(user, organization) -> QuerySet[GradeItem]:
+def accessible_grade_items(user, organization, *, deleted: bool = False) -> QuerySet[GradeItem]:
     """
     Работы модуля, баллы по которым пользователю можно выставлять.
 
@@ -108,8 +108,11 @@ def accessible_grade_items(user, organization) -> QuerySet[GradeItem]:
     дали бы доступ педагогу, который ведёт этот предмет другой группе,
     а эту группу — по другому предмету: каждое условие выполнено,
     а нужного занятия нет.
+
+    `deleted=True` — только мягко удалённые: их возвращает «Отменить».
     """
-    base = GradeItem.objects.filter(organization=organization).select_related(
+    manager = GradeItem.all_objects.filter(deleted_at__isnull=False) if deleted else GradeItem.objects
+    base = manager.filter(organization=organization).select_related(
         "module", "subject", "group", "lesson"
     )
     if user is None or not user.is_authenticated:

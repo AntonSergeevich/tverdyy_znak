@@ -6,15 +6,28 @@
   <h1 class="h-display" style="font-size:clamp(24px,3vw,36px)">Ученики</h1>
   <div class="btn-row">
     <a class="btn" href="{% url 'cabinet:student_create' %}">Добавить ученика</a>
-    <form method="get" class="btn-row">
-      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Фамилия" aria-label="Поиск" style="width:auto">
-      <button class="btn btn--quiet" type="submit">Найти</button>
+    {% comment %}
+      Поиск по мере набора: список под полем меняется сам, кнопка «Найти»
+      не нужна. Меняется только список — поле остаётся, курсор и
+      клавиатура на телефоне никуда не деваются. Адрес обновляется, так что
+      «назад» и обновление страницы возвращают к тому же поиску.
+    {% endcomment %}
+    <form method="get" class="btn-row live-search" role="search">
+      {% if show_deleted %}<input type="hidden" name="deleted" value="1">{% endif %}
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Найти по фамилии или имени"
+             aria-label="Поиск ученика" autocomplete="off"
+             hx-get="{% url 'cabinet:students' %}" hx-include="closest form"
+             hx-trigger="input changed delay:250ms, search"
+             hx-target="#students-list" hx-select="#students-list" hx-select-oob="unset"
+             hx-swap="outerHTML" hx-push-url="true">
+      <noscript><button class="btn btn--quiet" type="submit">Найти</button></noscript>
     </form>
     <a class="btn btn--quiet" href="?deleted=1">Удалённые</a>
     <a class="btn btn--quiet" href="{% url 'cabinet:export_students' %}">Выгрузить xlsx</a>
   </div>
 </div>
 
+<div id="students-list">
 {% if students %}
   <div class="table-wrap">
     <table class="data data--cards">
@@ -28,11 +41,17 @@
   </div>
 {% else %}
   <div class="empty-state">
+    {% if q %}
+      <p class="empty-state__title">Никого не нашли по «{{ q }}»</p>
+      <p>Проверьте написание или наберите первые буквы фамилии.</p>
+    {% else %}
     <p class="empty-state__title">{% if show_deleted %}Удалённых учеников нет{% else %}Учеников пока нет{% endif %}</p>
     <p>{% if not show_deleted %}Ученики заводятся администратором после подписания договора.{% endif %}</p>
-    {% if not show_deleted %}
+    {% endif %}
+    {% if not show_deleted and not q %}
       <p style="margin-top:12px"><a class="btn" href="{% url 'cabinet:student_create' %}">Добавить первого ученика</a></p>
     {% endif %}
   </div>
 {% endif %}
+</div>
 {% endblock %}

@@ -325,6 +325,14 @@
     var slot = button.closest('[data-slot]');
     var body = new FormData();
     if (force) body.append('force', '1');
+    // Что стояло в клетке — чтобы «Отменить» поставило это же обратно.
+    var was = {
+      day: slot.getAttribute('data-day'),
+      time: slot.getAttribute('data-time'),
+      duration: slot.getAttribute('data-duration') || '40',
+      subject: slot.getAttribute('data-lesson-subject'),
+      teacher: slot.getAttribute('data-lesson-teacher'),
+    };
 
     fetch(button.getAttribute('data-clear-url'), {
       method: 'POST',
@@ -338,6 +346,14 @@
       if (result.ok) {
         replaceSlot(slot, result.text);
         say('Убрано');
+        // Без вопроса «точно?» — зато с «Отменить». Занятие с баллами
+        // отменой не вернуть (баллы ушли с ним), поэтому там вопрос остаётся.
+        if (!force && window.tzToast) {
+          window.tzToast('Занятие убрано из расписания.', {
+            label: 'Отменить',
+            run: function () { restore(was); },
+          });
+        }
         return;
       }
       // 409 с needs_force: за занятие уже ставили баллы. Спрашиваем один
@@ -349,6 +365,34 @@
         return;
       }
       say(payload.error || 'Не получилось убрать.', 'error');
+    });
+  }
+
+  // Вернуть убранное занятие в ту же клетку.
+  function restore(was) {
+    var body = new FormData();
+    body.append('group', grid.getAttribute('data-group'));
+    body.append('day', was.day);
+    body.append('time', was.time);
+    body.append('duration', was.duration);
+    if (was.subject) body.append('subject', was.subject);
+    if (was.teacher) body.append('teacher', was.teacher);
+    fetch(grid.getAttribute('data-set-url'), {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf() },
+      body: body,
+    }).then(function (response) {
+      return response.text().then(function (text) { return { ok: response.ok, text: text }; });
+    }).then(function (result) {
+      var slot = grid.querySelector('[data-slot][data-day="' + was.day + '"][data-time="' + was.time + '"]');
+      if (result.ok && slot) {
+        replaceSlot(slot, result.text);
+        say('Вернули');
+        return;
+      }
+      say(readPayload(result.text).error || 'Не получилось вернуть.', 'error');
+    }).catch(function () {
+      say('Не удалось вернуть — проверьте связь.', 'error');
     });
   }
 

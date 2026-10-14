@@ -234,13 +234,13 @@ class _ReleaseNotice:
 
     @cached_property
     def changes(self) -> list:
-        """Не больше четырёх пунктов: окно — чтобы заметить, читать — на странице."""
+        """Не больше пяти пунктов: окно — чтобы заметить, читать — на странице."""
         found = []
         for release in self.pending:
             # Строго своё, даже руководителю: на странице он видит всё,
             # а в окне — то, что поменялось у него самого.
             found.extend(c for c in release.changes if c.is_for(self._audiences))
-        return found[:4]
+        return found[:5]
 
     @cached_property
     def picture(self):
@@ -263,7 +263,16 @@ class _ReleaseNotice:
 
     @property
     def title(self) -> str:
-        return self.pending[0].title if self.pending else ""
+        if len(self.pending) > 1:
+            return "Что нового в кабинете"
+        return f"Что нового: {self.pending[0].title.lower()}" if self.pending else ""
+
+    @property
+    def versions_label(self) -> str:
+        """«Обновление 2.1» или «Обновления 2.0–2.1», если пропущено несколько."""
+        if len(self.pending) > 1:
+            return f"Обновления {self.pending[-1].version}–{self.pending[0].version}"
+        return f"Обновление {self.version}"
 
 
 def release_notice(request) -> dict:

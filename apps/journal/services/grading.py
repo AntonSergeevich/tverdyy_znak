@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from typing import Iterable
 
@@ -778,3 +779,27 @@ LEVEL_LABELS = {
     Level.ELEVATED: "продвинутый",
     Level.ADVANCED: "высокий",
 }
+
+
+def restore_work(item: GradeItem, *, actor=None, request=None) -> None:
+    """
+    Вернуть работу, удалённую по ошибке, — кнопкой «Отменить».
+
+    Возвращается только работа без баллов: удаление с баллами идёт через
+    подтверждение, и отмены у него нет. Пока работа лежала удалённой, её
+    место в сотне могли занять, — тогда честно говорим, что не помещается.
+    """
+    # Баллы, снятые в ту же минуту, что и работа, — снятые вместе с ней.
+    removed_with_it = Grade.all_objects.filter(
+        grade_item=item,
+        deleted_at__gte=item.deleted_at - timedelta(minutes=1),
+    )
+    if removed_with_it.exists():
+        raise ValidationError({"item": "Эту работу удалили вместе с баллами — вернуть её отсюда нельзя."})
+    validate_grade_item(item)
+    item.restore()
+    log_audit(
+        action=AuditAction.WORK_RESTORED, request=request,
+        organization=item.organization, actor=actor, obj=item,
+        title=item.title or item.get_kind_display(),
+    )
