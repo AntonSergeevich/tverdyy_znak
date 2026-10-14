@@ -15,6 +15,12 @@
   <a class="btn btn--quiet" href="{% url 'cabinet:schedule_builder' %}?group={{ group.pk }}">Расписание группы</a>
 </div>
 
+{% comment %}
+  На компьютере ученика можно перетащить сюда из списка «Добавить
+  учеников» за ⋮⋮. На телефоне — галочками: тащить через пол-экрана
+  пальцем дольше, чем отметить.
+{% endcomment %}
+<section class="group-members" data-drop-zone data-drop-refresh>
 <h2 class="label" style="font-size:18px;margin:24px 0 8px">Состав</h2>
 {% if members %}
   <div class="table-wrap">
@@ -44,6 +50,7 @@
 {% else %}
   <p class="muted">В группе пока никого нет — отметьте учеников ниже.</p>
 {% endif %}
+</section>
 
 {% if candidates %}
   <h2 class="label" style="font-size:18px;margin:32px 0 8px">Добавить учеников</h2>
@@ -51,7 +58,10 @@
     {% csrf_token %}
     <div class="checkbox-grid">
       {% for student in candidates %}
-        <label class="checkbox">
+        <label class="checkbox" data-drag-item
+               data-drag-url="{% url 'cabinet:group_members_add' group.pk %}"
+               data-drag-values='{"students": "{{ student.pk }}"}'>
+          <span class="drag-handle" data-drag-handle title="Перетащите в состав" aria-hidden="true">⋮⋮</span>
           <input type="checkbox" name="students" value="{{ student.pk }}">
           <span>{{ student.short_name }} <span class="small muted">· {{ student.grade_level }} кл.</span></span>
         </label>

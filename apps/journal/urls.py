@@ -73,6 +73,10 @@ urlpatterns = [
         "pedagog/modul/<int:module_id>/<int:subject_id>/<int:group_id>/deystvie/",
         teacher.module_plan_action, name="module_plan_action",
     ),
+    path(
+        "pedagog/modul/<int:module_id>/<int:subject_id>/<int:group_id>/poryadok/",
+        teacher.works_reorder, name="works_reorder",
+    ),
 
     # Регламент оценивания смотрят все, включая родителей и учеников, —
     # поэтому адрес не «педагогический».
@@ -83,6 +87,7 @@ urlpatterns = [
     path("pedagog/ktp/zagruzit/", ktp.plan_upload, name="ktp_upload"),
     path("pedagog/ktp/<uuid:plan_id>/", ktp.plan_detail, name="ktp_detail"),
     path("pedagog/ktp/<uuid:plan_id>/razmetka/", ktp.plan_remap, name="ktp_remap"),
+    path("pedagog/ktp/<uuid:plan_id>/poryadok/", ktp.plan_reorder, name="ktp_reorder"),
     path("pedagog/ktp/<uuid:plan_id>/privyazat/", ktp.plan_attach, name="ktp_attach"),
     path("pedagog/ktp/<uuid:plan_id>/udalit/", ktp.plan_delete, name="ktp_delete"),
     path("pedagog/ktp/<uuid:plan_id>/fayl/", ktp.plan_source, name="ktp_source"),
@@ -114,6 +119,7 @@ urlpatterns = [
     path("raspisanie/konstruktor/", scheduler.builder, name="schedule_builder"),
     path("raspisanie/konstruktor/postavit/", scheduler.slot_set, name="slot_set"),
     path("raspisanie/konstruktor/<uuid:lesson_id>/ubrat/", scheduler.slot_clear, name="slot_clear"),
+    path("raspisanie/konstruktor/<uuid:lesson_id>/perenesti/", scheduler.slot_move, name="slot_move"),
     path("raspisanie/konstruktor/kopirovat/", scheduler.week_copy, name="week_copy"),
     path("raspisanie/konstruktor/ochistit/", scheduler.week_clear, name="week_clear"),
     path("raspisanie/konstruktor/blok/", scheduler.block_create, name="block_create"),
@@ -146,6 +152,7 @@ urlpatterns = [
 
     # Справочник предметов: список не зашит в код
     path("predmety/", subjects_views.subjects, name="subjects"),
+    path("predmety/poryadok/", subjects_views.subjects_reorder, name="subjects_reorder"),
     path("predmety/dobavit/", subjects_views.subject_create, name="subject_create"),
     path("predmety/<int:subject_id>/izmenit/", subjects_views.subject_edit, name="subject_edit"),
     path("predmety/<int:subject_id>/udalit/", subjects_views.subject_delete, name="subject_delete"),

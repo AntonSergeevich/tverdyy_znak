@@ -4,10 +4,11 @@
       <thead>
         <tr><th>Название</th><th>Сокращение</th><th>Часов</th><th>Занятий</th><th></th></tr>
       </thead>
-      <tbody>
+      {# Порядок — перетаскиванием за ⋮⋮; в этом порядке предметы идут по всему кабинету. #}
+      <tbody data-sortable data-sort-url="{% url 'cabinet:subjects_reorder' %}">
         {% for row in rows %}
-          <tr>
-            <td><strong>{{ row.name }}</strong></td>
+          <tr data-sort-id="{{ row.pk }}">
+            <td><span class="sort-handle" data-sort-handle title="Перетащите, чтобы поменять порядок" aria-hidden="true">⋮⋮</span><strong>{{ row.name }}</strong></td>
             <td class="muted">{{ row.short_name|default:"—" }}</td>
             <td class="numeral">{{ row.weekly_hours }}</td>
             <td class="numeral muted">{{ row.lessons_count }}</td>

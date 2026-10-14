@@ -27,6 +27,7 @@ from playwright.sync_api import sync_playwright
 BASE = "http://127.0.0.1:8123"
 PASSWORD = "demo-parol-12345"
 PHONE = {"width": 390, "height": 844}
+DESK = {"width": 1280, "height": 800}
 ROOT = Path(__file__).resolve().parent.parent
 CHROMIUM = "/opt/pw-browsers/chromium"
 
@@ -36,11 +37,14 @@ def _clean(page):
     page.evaluate("document.querySelectorAll('#djDebugRoot,#djDebug').forEach(n => n.remove())")
 
 
-def _login(browser, who):
-    context = browser.new_context(
-        viewport=PHONE, is_mobile=True, has_touch=True, device_scale_factor=2,
-        color_scheme="light",
-    )
+def _login(browser, who, desk=False):
+    if desk:
+        context = browser.new_context(viewport=DESK, color_scheme="light")
+    else:
+        context = browser.new_context(
+            viewport=PHONE, is_mobile=True, has_touch=True, device_scale_factor=2,
+            color_scheme="light",
+        )
     page = context.new_page()
     page.goto(f"{BASE}/vhod/")
     _clean(page)
@@ -64,7 +68,7 @@ def _go(page, path):
 
 def _frame(page, top=0, height=None) -> Image.Image:
     shot = Image.open(io.BytesIO(page.screenshot()))
-    scale = shot.width // PHONE["width"]
+    scale = shot.width // page.viewport_size["width"]
     if height is None:
         return shot.crop((0, top * scale, shot.width, shot.height)).convert("RGB")
     # Кадры одной анимации обязаны быть одного размера: у нижнего края
@@ -267,7 +271,110 @@ def shots_2_1(browser, out: Path):
     context.close()
 
 
-VERSIONS = {"2.0": shots_2_0, "2.1": shots_2_1}
+def _mouse_drag(page, source, target, frames, crop):
+    """Мышью: взять, пронести (кадр в пути), отпустить (кадр после)."""
+    a = page.locator(source).first.bounding_box()
+    b = page.locator(target).first.bounding_box()
+    sx, sy = a["x"] + min(40, a["width"] / 2), a["y"] + min(16, a["height"] / 2)
+    tx, ty = b["x"] + b["width"] / 2, b["y"] + min(60, b["height"] / 2)
+    page.mouse.move(sx, sy)
+    page.mouse.down()
+    page.mouse.move(sx + 8, sy + 8, steps=3)
+    page.mouse.move((sx + tx) / 2 + 40, (sy + ty) / 2, steps=8)
+    page.wait_for_timeout(150)
+    frames.append(_frame(page, **crop))
+    page.mouse.move(tx, ty, steps=8)
+    page.wait_for_timeout(150)
+    page.mouse.up()
+    page.wait_for_timeout(900)
+    frames.append(_frame(page, **crop))
+
+
+def _to_jpeg_size(frames, width=1100):
+    """Широкие кадры компьютера ужимаем: на странице обновлений им хватит 1100 px."""
+    out = []
+    for frame in frames:
+        if frame.width > width:
+            frame = frame.resize((width, round(frame.height * width / frame.width)), Image.LANCZOS)
+        out.append(frame)
+    return out
+
+
+def shots_2_2(browser, out: Path):
+    context, page = _login(browser, "owner", desk=True)
+
+    # Доска заявок: карточка из «новой» — в «диагностика назначена».
+    _go(page, "/kabinet/zayavki/")
+    source = "[data-lead-column] .lead-card"
+    crop = {"top": 140, "height": 520}
+    frames = [_frame(page, **crop)]
+    first_column = page.evaluate(
+        "() => { const c = document.querySelector('[data-lead-column] .lead-card');"
+        " return c ? c.closest('[data-lead-column]').dataset.leadColumn : null; }"
+    )
+    if first_column:
+        order = [value for value in page.evaluate(
+            "() => [...document.querySelectorAll('[data-lead-column]')].map(c => c.dataset.leadColumn)"
+        )]
+        target = order[min(order.index(first_column) + 1, len(order) - 2)]
+        _mouse_drag(page, f"[data-lead-column={first_column}] .lead-card",
+                    f"[data-lead-column={target}]", frames, crop)
+        _save(out / "leads-board.webp", _to_jpeg_size(frames), step_ms=1300)
+        # Демо-заявка возвращается на место — снимок можно переснять.
+        page.select_option(f"[data-lead-column={target}] .lead-card select[name=status]", first_column)
+        page.wait_for_timeout(800)
+
+    # Перенос занятия в расписании.
+    _go(page, "/kabinet/raspisanie/konstruktor/")
+    group = page.evaluate(
+        "() => { const o = [...document.querySelectorAll('select[name=group] option')]"
+        ".find(o => /Семейный/.test(o.textContent)); return o ? o.value : ''; }"
+    )
+    _go(page, f"/kabinet/raspisanie/konstruktor/?group={group}")
+    if not page.locator(".slot[data-move-url]").count():
+        card = page.locator("[data-teacher]").first.bounding_box()
+        slot = page.locator(".slot:not(.slot--filled)").nth(1).bounding_box()
+        page.mouse.move(card["x"] + 30, card["y"] + 20)
+        page.mouse.down()
+        page.mouse.move(card["x"] + 40, card["y"] + 30, steps=3)
+        page.mouse.move(slot["x"] + slot["width"] / 2, slot["y"] + slot["height"] / 2, steps=10)
+        page.mouse.up()
+        page.wait_for_timeout(900)
+    lesson = page.locator(".slot[data-move-url]").first
+    home = lesson.get_attribute("id")
+    crop = {"top": 280, "height": 420}
+    frames = [_frame(page, **crop)]
+    target = page.locator(".slot:not(.slot--filled)").nth(9).get_attribute("id")
+    _mouse_drag(page, f"#{home}", f"#{target}", frames, crop)
+    _save(out / "schedule-move.webp", _to_jpeg_size(frames), step_ms=1300)
+    # И обратно — демо-расписание остаётся каким было.
+    _mouse_drag(page, f"#{target}", f"#{home}", [], crop)
+
+    # Порядок предметов за ⋮⋮.
+    _go(page, "/kabinet/predmety/")
+    rows = page.locator("tbody[data-sortable]").nth(1).locator("[data-sort-id]")
+    rows.nth(0).scroll_into_view_if_needed()
+    page.evaluate("window.scrollBy(0, 160)")
+    page.wait_for_timeout(200)
+    top = int(rows.nth(0).bounding_box()["y"]) - 60
+    crop = {"top": max(0, top), "height": 330}
+    frames = [_frame(page, **crop)]
+    handle = rows.nth(0).locator("[data-sort-handle]").bounding_box()
+    below = rows.nth(2).bounding_box()
+    page.mouse.move(handle["x"] + 12, handle["y"] + 16)
+    page.mouse.down()
+    page.mouse.move(handle["x"] + 14, handle["y"] + 40, steps=4)
+    page.mouse.move(handle["x"] + 14, below["y"] + below["height"] - 6, steps=8)
+    page.wait_for_timeout(150)
+    frames.append(_frame(page, **crop))
+    page.mouse.up()
+    page.wait_for_timeout(800)
+    frames.append(_frame(page, **crop))
+    _save(out / "sort.webp", _to_jpeg_size(frames), step_ms=1300)
+    context.close()
+
+
+VERSIONS = {"2.0": shots_2_0, "2.1": shots_2_1, "2.2": shots_2_2}
 
 
 def main():

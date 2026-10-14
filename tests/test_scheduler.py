@@ -828,3 +828,108 @@ def test_a_block_cell_does_not_complain_about_a_missing_teacher(admin_client, te
     assert "Обед" in body
     assert "без педагога" not in body
     assert "slot--block" in body
+
+
+def _place(admin_client, tenant, day, time):
+    admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(tenant.group.pk), "teacher": str(tenant.teacher.pk),
+            "subject": str(tenant.subject.pk), "day": day.isoformat(), "time": time,
+        },
+    )
+    local = dt.datetime.combine(day, dt.time.fromisoformat(time + ":00"))
+    return Lesson.all_objects.get(
+        organization=tenant.organization, group=tenant.group,
+        starts_at=timezone.make_aware(local, tenant.organization.tzinfo),
+    )
+
+
+def test_a_lesson_is_moved_with_its_topic_and_points(admin_client, tenant_a):
+    """
+    Раньше занятие можно было только убрать и поставить заново — тема,
+    домашнее и баллы уходили вместе с ним. Перенос двигает само занятие.
+    """
+    from apps.journal.models import GradeItem, GradeItemKind
+
+    monday = _monday_inside_module(tenant_a)
+    lesson = _place(admin_client, tenant_a, monday, "09:30")
+    Lesson.all_objects.filter(pk=lesson.pk).update(topic="Квадратные уравнения")
+    GradeItem.all_objects.create(
+        organization=tenant_a.organization, module=lesson.module, subject=lesson.subject,
+        group=lesson.group, lesson=lesson, kind=GradeItemKind.LESSON,
+        title="Занятие", max_points=5, due_date=monday,
+    )
+    tuesday = monday + dt.timedelta(days=1)
+
+    response = admin_client.post(
+        reverse("cabinet:slot_move", args=[lesson.pk]),
+        {"day": tuesday.isoformat(), "time": "11:10", "duration": "40"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert tenant_a.subject.name in payload["to"]
+    assert "slot--filled" not in payload["from"]
+    lesson.refresh_from_db()
+    local = lesson.starts_at.astimezone(tenant_a.organization.tzinfo)
+    assert (local.date(), local.hour, local.minute) == (tuesday, 11, 10)
+    assert lesson.topic == "Квадратные уравнения"
+    assert GradeItem.all_objects.get(lesson=lesson).due_date == tuesday
+
+
+def test_a_lesson_is_not_moved_onto_another(admin_client, tenant_a):
+    monday = _monday_inside_module(tenant_a)
+    first = _place(admin_client, tenant_a, monday, "09:30")
+    _place(admin_client, tenant_a, monday, "10:20")
+
+    response = admin_client.post(
+        reverse("cabinet:slot_move", args=[first.pk]),
+        {"day": monday.isoformat(), "time": "10:20"},
+    )
+
+    assert response.status_code == 409
+    assert "уже стоит" in response.json()["error"]
+    first.refresh_from_db()
+    assert first.starts_at.astimezone(tenant_a.organization.tzinfo).hour == 9
+
+
+def test_a_moved_lesson_cannot_double_book_the_teacher(admin_client, tenant_a):
+    from apps.core.tenancy import organization_context
+    from apps.journal.models import Group
+
+    monday = _monday_inside_module(tenant_a)
+    lesson = _place(admin_client, tenant_a, monday, "09:30")
+    with organization_context(tenant_a.organization):
+        other = Group.objects.create(
+            organization=tenant_a.organization, academic_year=tenant_a.year, name="Другая",
+        )
+    admin_client.post(
+        reverse("cabinet:slot_set"),
+        {
+            "group": str(other.pk), "teacher": str(tenant_a.teacher.pk),
+            "subject": str(tenant_a.subject.pk), "day": monday.isoformat(), "time": "12:00",
+        },
+    )
+
+    response = admin_client.post(
+        reverse("cabinet:slot_move", args=[lesson.pk]),
+        {"day": monday.isoformat(), "time": "12:00"},
+    )
+
+    assert response.status_code == 409
+    assert "уже ведёт" in response.json()["error"]
+
+
+def test_moving_is_closed_for_teachers(client, tenant_a):
+    with override_settings(TWO_FACTOR_ENABLED=False):
+        client.defaults["HTTP_HOST"] = tenant_a.host
+        client.post(
+            reverse("accounts:login"),
+            {"username": tenant_a.teacher_user.email, "password": PASSWORD},
+        )
+    response = client.post(
+        reverse("cabinet:slot_move", args=[tenant_a.lesson.pk]),
+        {"day": timezone.localdate().isoformat(), "time": "09:30"},
+    )
+    assert response.status_code in (302, 403)

@@ -1447,9 +1447,10 @@ details.fieldset[open] > summary::after { content: ' −'; }
 .plan-list { display: grid; gap: 2px; background: var(--line); border: 1px solid var(--line); }
 .plan-row {
   display: grid; gap: 10px 12px; align-items: end;
-  grid-template-columns: minmax(160px, 1fr) 150px 88px 160px auto;
+  grid-template-columns: 24px minmax(160px, 1fr) 150px 88px 160px auto;
   background: var(--surface); padding: 12px clamp(10px, 1.6vw, 16px);
 }
+.plan-row > .sort-handle { align-self: center; width: 24px; }
 .plan-row__cell { display: grid; gap: 2px; min-width: 0; }
 .plan-row .input { width: 100%; min-width: 0; }
 .plan-row__actions { display: flex; gap: 6px; align-self: end; }
@@ -1459,6 +1460,7 @@ details.fieldset[open] > summary::after { content: ' −'; }
 @media (max-width: 900px) {
   .plan-row { grid-template-columns: 1fr 1fr; }
   .plan-row__cell--wide, .plan-row__actions { grid-column: 1 / -1; }
+  .plan-row > .sort-handle { grid-column: 1 / -1; width: 100%; min-height: 28px; justify-content: flex-start; }
   .plan-row__actions .btn { flex: 1 1 auto; }
 }
 /* Метка оценивания в расписании — точка, а не надпись: в узкой колонке
@@ -1994,3 +1996,82 @@ body.is-readonly form:not([action*="impersonate"]):not([action*="logout"]) { pos
 @media (prefers-reduced-motion: reduce) { [data-swipe-row].is-settling { transition: none; } }
 /* Пустая неделя короткая — зона жеста не меньше полэкрана. */
 .week-swipe { min-height: 50vh; }
+/* Поставленное занятие можно взять и перенести. */
+.slot[data-move-url] { cursor: grab; touch-action: pan-y; }
+.slot[data-move-url]:active { cursor: grabbing; }
+
+/* ─── Перетаскивание ───────────────────────────────────────────────────── */
+[data-drag-item], [data-sort-handle], [data-sortable] [data-sort-id]:not(:has([data-sort-handle])) {
+  cursor: grab; -webkit-touch-callout: none; user-select: none;
+}
+.is-dragging, .is-dragging * { cursor: grabbing !important; user-select: none !important; }
+.drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 130; pointer-events: none; margin: 0;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .22); opacity: .96; rotate: 1.5deg;
+  background: var(--surface); display: block;
+}
+tr.drag-ghost { display: table; }
+.is-lifted { opacity: .35; }
+.drag-placeholder { background: var(--mark); outline: 2px dashed var(--accent); outline-offset: -2px; }
+.drag-placeholder td { padding: 0; border: 0; }
+.is-drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; background: var(--mark); }
+.is-saving { opacity: .6; }
+.sort-handle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; min-height: 40px; color: var(--ink-3); font-size: 18px; letter-spacing: -2px;
+  cursor: grab; touch-action: none; flex: 0 0 auto;
+}
+.sort-handle:hover { color: var(--accent); }
+
+/* ─── Доска заявок ─────────────────────────────────────────────────────── */
+.lead-board {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr);
+  gap: 12px; overflow-x: auto; padding-bottom: 12px;
+  scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+}
+.lead-column {
+  background: color-mix(in srgb, var(--ink-3) 7%, transparent);
+  border: 1px solid var(--line); padding: 10px; min-height: 240px;
+  display: flex; flex-direction: column; gap: 8px; scroll-snap-align: start;
+}
+.lead-column__title {
+  font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2);
+  display: flex; justify-content: space-between; align-items: center; margin: 2px 4px 4px;
+}
+.lead-column__count {
+  min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: var(--ink-2);
+}
+.lead-column__list { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-height: 60px; }
+.lead-card {
+  position: relative; background: var(--surface); border: 1px solid var(--line);
+  padding: 10px 12px; display: grid; gap: 4px; font-size: 15px;
+}
+.lead-card--error { border-color: var(--accent-2); }
+.lead-card__head { display: flex; gap: 8px; align-items: baseline; padding-right: 22px; }
+.lead-card__phone { font-weight: 600; }
+.lead-card__comment { color: var(--ink-2); }
+.lead-card__reason { color: var(--warn); }
+.lead-card__form { display: grid; gap: 6px; margin-top: 4px; }
+.input--sm { min-height: 36px; padding: 4px 8px; font-size: 14px; }
+.lead-card__remove {
+  position: absolute; top: 4px; right: 4px; width: 32px; height: 32px;
+  border: 0; background: none; color: var(--ink-3); font-size: 20px; cursor: pointer;
+}
+.lead-card__remove:hover { color: var(--accent-2); }
+@media (max-width: 760px) {
+  .lead-board { grid-auto-columns: 82%; margin: 0 calc(var(--pad-x) * -1); padding: 0 var(--pad-x) 12px; }
+}
+/* Ручка «перетащить в состав» — только там, где есть мышь. */
+.drag-handle { display: none; color: var(--ink-3); cursor: grab; letter-spacing: -2px; padding: 0 2px; }
+@media (hover: hover) and (pointer: fine) { .drag-handle { display: inline; } }
+.group-members { padding: 2px 0 8px; }
+label[data-drag-item] { cursor: pointer; user-select: auto; }
+/* На широком экране все шесть этапов видны сразу, без прокрутки вбок. */
+@media (min-width: 1100px) {
+  .lead-board { grid-auto-flow: row; grid-template-columns: repeat(6, minmax(0, 1fr)); overflow-x: visible; }
+  .lead-card { font-size: 14px; }
+}
+/* Перетаскивание по сетке не должно выделять текст клеток синим. */
+[data-grid], .deck-card { user-select: none; -webkit-user-select: none; }

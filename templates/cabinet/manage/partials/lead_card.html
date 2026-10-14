@@ -1,0 +1,49 @@
+{% comment %}
+  Карточка заявки на доске. Её несут мышью или пальцем в колонку другого
+  этапа (cabinet.js) — или меняют этап списком внизу, если тащить неудобно.
+
+  Отказ без причины не сохраняется: воронка без причин ничего не объясняет.
+  Тогда карточка возвращается на место с полем «Причина отказа».
+{% endcomment %}
+<article class="lead-card{% if error %} lead-card--error{% endif %}" id="lead-card-{{ lead.pk }}"
+         data-drag-item data-lead-status="{{ lead.status }}"
+         data-drag-url="{% url 'cabinet:lead_status' lead.pk %}">
+  <p class="lead-card__head">
+    <strong>{{ lead.name }}</strong>
+    <span class="small muted">{{ lead.grade }} кл.</span>
+  </p>
+  <a class="lead-card__phone" href="tel:+{{ lead.phone }}">{{ lead.phone_display }}</a>
+  <p class="small muted">
+    {{ lead.created_at|date:"d.m H:i" }} · звонить {{ lead.get_call_window_display }}
+  </p>
+  {% if lead.comment %}<p class="small lead-card__comment">{{ lead.comment|truncatechars:140 }}</p>{% endif %}
+  {% if lead.status == "declined" and lead.decline_reason %}
+    <p class="small lead-card__reason">Причина: {{ lead.decline_reason }}</p>
+  {% endif %}
+
+  <form class="lead-card__form" hx-post="{% url 'cabinet:lead_status' lead.pk %}"
+        hx-select="unset" hx-select-oob="unset"
+        hx-target="#lead-card-{{ lead.pk }}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="view" value="card">
+    <select class="input input--sm" name="status" aria-label="Этап заявки"
+            onchange="if (this.value !== 'declined') this.form.requestSubmit()">
+      {% for value, label in statuses %}
+        <option value="{{ value }}" {% if value == wanted_status|default:lead.status %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% if error or wanted_status == "declined" %}
+      <input class="input input--sm" type="text" name="decline_reason" value="{{ lead.decline_reason }}"
+             placeholder="Причина отказа" aria-label="Причина отказа" required>
+      {% if error %}<span class="field-error">{{ error }}</span>{% endif %}
+      <button class="btn btn--sm" type="submit">Сохранить отказ</button>
+    {% endif %}
+  </form>
+
+  <button class="lead-card__remove" type="button" aria-label="Убрать заявку {{ lead.name }}"
+          hx-post="{% url 'cabinet:lead_delete' lead.pk %}" hx-select="unset" hx-select-oob="unset"
+          hx-target="#lead-card-{{ lead.pk }}" hx-swap="delete"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          data-undo-url="{% url 'cabinet:lead_restore' lead.pk %}"
+          data-undo-text="Заявка «{{ lead.name }}» убрана.">×</button>
+</article>

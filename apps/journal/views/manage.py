@@ -114,8 +114,15 @@ def dashboard(request):
 @login_required
 @role_required(*MANAGER_ROLES)
 def leads(request):
+    """
+    Заявки — доской по этапам или списком.
+
+    Доска: колонка на этап, карточку переносят в следующий этап мышью или
+    пальцем. Список остаётся для поиска по этапу и для удалённых.
+    """
     status = request.GET.get("status") or ""
     show_deleted = request.GET.get("deleted") == "1"
+    as_list = show_deleted or bool(status) or request.GET.get("vid") == "spisok"
     if show_deleted:
         queryset = Lead.all_objects.filter(
             organization=request.organization, deleted_at__isnull=False
@@ -125,11 +132,21 @@ def leads(request):
         if status in dict(Lead.Status.choices):
             queryset = queryset.filter(status=status)
     log_audit(action=AuditAction.VIEW_LEAD, request=request, scope="list", status=status or "all")
+    found = list(queryset[:200])
+    columns = []
+    if not as_list:
+        for value, label in Lead.Status.choices:
+            columns.append({
+                "value": value, "label": label,
+                "leads": [lead for lead in found if lead.status == value],
+            })
     return render(
         request,
         "cabinet/manage/leads.html",
         {
-            "leads": list(queryset[:200]),
+            "leads": found,
+            "columns": columns,
+            "as_list": as_list,
             "statuses": Lead.Status.choices,
             "active_status": status,
             "show_deleted": show_deleted,
@@ -141,9 +158,18 @@ def leads(request):
 @role_required(*MANAGER_ROLES)
 @require_http_methods(["POST"])
 def lead_status(request, lead_id):
+    """
+    Сменить этап заявки — списком в строке или переносом карточки на доске.
+
+    С доски приходит только этап: причину отказа, которой в запросе нет,
+    не стираем. Отказ без причины не сохраняется — карточка возвращается
+    с полем для неё.
+    """
     lead = get_object_or_404(Lead.objects.all(), pk=lead_id)
-    lead.status = request.POST.get("status") or lead.status
-    lead.decline_reason = (request.POST.get("decline_reason") or "").strip()[:250]
+    wanted = request.POST.get("status") or lead.status
+    lead.status = wanted
+    if "decline_reason" in request.POST:
+        lead.decline_reason = (request.POST.get("decline_reason") or "").strip()[:250]
     lead.status_changed_at = timezone.now()
     error = ""
     try:
@@ -154,10 +180,15 @@ def lead_status(request, lead_id):
     except ValidationError as exc:
         error = next((m for msgs in exc.message_dict.values() for m in msgs), "Ошибка сохранения.")
         lead.refresh_from_db()
+    # Карточка доски или строка списка — смотря откуда пришли.
+    on_board = request.POST.get("view") == "card"
     return render(
         request,
-        "cabinet/manage/partials/lead_row.html",
-        {"lead": lead, "statuses": Lead.Status.choices, "error": error},
+        "cabinet/manage/partials/lead_card.html" if on_board else "cabinet/manage/partials/lead_row.html",
+        {
+            "lead": lead, "statuses": Lead.Status.choices, "error": error,
+            "wanted_status": wanted if error else "",
+        },
         status=422 if error else 200,
     )
 

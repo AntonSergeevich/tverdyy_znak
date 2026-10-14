@@ -112,7 +112,13 @@
 
     var slot = slotAt(x, y);
     clearHover(null);
-    if (slot && page) page.place(slot, card, false);
+    if (!slot || !page) return;
+    // Поставленное занятие переносится, карточка — ставится.
+    if (card.hasAttribute('data-move-url')) {
+      if (slot !== card) page.move(card, slot);
+      return;
+    }
+    page.place(slot, card, false);
   }
 
   function abortDrag() {
@@ -148,6 +154,25 @@
     abortDrag();
     cancelPress();
   });
+
+  // Поставленное занятие тоже берётся в руку — чтобы перенести его в другую
+  // клетку со всем, что к нему относится. Клетки подменяются после каждого
+  // изменения, поэтому слушатель один на документ, а не на каждой клетке.
+  document.addEventListener('pointerdown', function (event) {
+    if (event.button) return;
+    var slot = event.target.closest('[data-slot][data-move-url]');
+    if (!slot || event.target.closest('[data-clear-url]')) return;
+    press = { card: slot, x: event.clientX, y: event.clientY, timer: null };
+    if (event.pointerType === 'mouse') return;
+    press.timer = setTimeout(function () {
+      if (press && press.card === slot) beginDrag(slot, press.x, press.y);
+    }, HOLD_MS);
+  });
+
+  // Пока занятие в руке, палец не листает страницу.
+  document.addEventListener('touchmove', function (event) {
+    if (drag && drag.card.hasAttribute('data-move-url')) event.preventDefault();
+  }, { passive: false });
 
   // ── Смена недели без рывка ────────────────────────────────────────────────
   //
@@ -291,7 +316,40 @@
     });
   }
 
-  page = { say: say, place: place };
+  // Перенести занятие из клетки в клетку.
+  function move(from, to) {
+    var body = new FormData();
+    body.append('day', to.getAttribute('data-day'));
+    body.append('time', to.getAttribute('data-time'));
+    body.append('duration', to.getAttribute('data-duration') || '40');
+    from.classList.add('slot--busy');
+    to.classList.add('slot--busy');
+    fetch(from.getAttribute('data-move-url'), {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf() },
+      body: body,
+    }).then(function (response) {
+      return response.text().then(function (text) { return { ok: response.ok, text: text }; });
+    }).then(function (result) {
+      from.classList.remove('slot--busy');
+      to.classList.remove('slot--busy');
+      var payload = readPayload(result.text);
+      if (!result.ok) {
+        say(payload.error || 'Не получилось перенести.', 'error');
+        return;
+      }
+      if (payload.unchanged) return;
+      replaceSlot(from, payload.from);
+      replaceSlot(to, payload.to);
+      say('Перенесено — тема, домашнее и баллы вместе с занятием');
+    }).catch(function () {
+      from.classList.remove('slot--busy');
+      to.classList.remove('slot--busy');
+      say('Не удалось перенести — проверьте связь и попробуйте ещё раз.', 'error');
+    });
+  }
+
+  page = { say: say, place: place, move: move };
 
   function readPayload(text) {
     try { return JSON.parse(text); } catch (e) { return {}; }

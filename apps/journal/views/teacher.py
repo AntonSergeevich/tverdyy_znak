@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models
 from django.db.models import Prefetch
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -46,6 +46,7 @@ from apps.journal.models import (
 from apps.journal.services import homework as homework_service
 from apps.journal.services import ktp as ktp_service
 from apps.journal.services import workload
+from apps.journal.services.ordering import apply_order
 from apps.journal.services.grading import (
     GradesInTheWay,
     create_default_structure,
@@ -1287,3 +1288,22 @@ def my_hours(request):
             "reviews": profile.published_reviews,
         },
     )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def works_reorder(request, module_id, subject_id, group_id):
+    """Порядок работ в плане модуля — перетаскиванием за ручку."""
+    organization = request.organization
+    module = get_object_or_404(Module, pk=module_id)
+    subject = get_object_or_404(Subject, pk=subject_id)
+    group = get_object_or_404(accessible_groups(request.user, organization), pk=group_id)
+    try:
+        apply_order(
+            GradeItem.objects.filter(module=module, subject=subject, group=group),
+            request.POST.get("order"),
+        )
+    except ValidationError as exc:
+        return HttpResponse(exc.messages[0], status=400)
+    return HttpResponse(status=204)

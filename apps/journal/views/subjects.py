@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Count
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
@@ -17,6 +19,7 @@ from apps.accounts.permissions import role_required
 from apps.core.audit import AuditAction, log_audit
 from apps.journal.forms import DeleteConfirmForm, SubjectForm
 from apps.journal.models import AcademicYear, GradeItem, Lesson, Subject, SubjectKind
+from apps.journal.services.ordering import apply_order
 
 MANAGER_ROLES = ("admin", "owner", "platform_admin")
 
@@ -118,3 +121,15 @@ def subject_delete(request, subject_id):
             "blocked": blocked,
         },
     )
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def subjects_reorder(request):
+    """Порядок предметов — перетаскиванием в списке. В этом порядке они идут по всему кабинету."""
+    try:
+        apply_order(Subject.objects.all(), request.POST.get("order"))
+    except ValidationError as exc:
+        return HttpResponse(exc.messages[0], status=400)
+    return HttpResponse(status=204)

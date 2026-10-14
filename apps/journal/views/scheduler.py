@@ -20,6 +20,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -373,6 +374,121 @@ def slot_clear(request, lesson_id):
             "group": group,
         },
     )
+
+
+def _cell_html(request, group, day, time, duration, lesson=None) -> str:
+    return render_to_string(
+        "cabinet/manage/partials/slot.html",
+        {
+            "cell": {
+                "day": day, "time": time, "duration": duration,
+                "key": f"{day.isoformat()}-{time.replace(':', '')}",
+                "lesson": lesson,
+            },
+            "group": group,
+        },
+        request=request,
+    )
+
+
+@login_required
+@role_required(*MANAGER_ROLES)
+@require_http_methods(["POST"])
+def slot_move(request, lesson_id):
+    """
+    Перенести поставленное занятие в другую клетку.
+
+    Раньше занятие можно было только убрать и поставить заново — и вместе
+    с ним уходили тема, домашнее задание и баллы, а строка КТП теряла
+    привязку. Перенос двигает само занятие: всё, что к нему относится,
+    едет вместе с ним.
+
+    Не переносим туда, где это сломало бы другое: в занятую клетку (сначала
+    освободите её), к педагогу, который в это время ведёт другую группу,
+    и в другой модуль, если за занятие уже ставили баллы, — они остались
+    бы в сотне старого модуля.
+    """
+    organization = request.organization
+    lesson = get_object_or_404(
+        Lesson.objects.select_related("group", "subject", "teacher", "module"), pk=lesson_id
+    )
+    try:
+        day = dt.date.fromisoformat(request.POST.get("day", ""))
+        time = request.POST.get("time", "")
+        start = dt.time.fromisoformat(time + ":00")
+        duration = int(request.POST.get("duration") or lesson.duration_minutes)
+    except ValueError:
+        return JsonResponse({"error": "Неверные дата или время."}, status=400)
+
+    module = _module_for(organization, day)
+    if module is None:
+        return JsonResponse(
+            {"error": f"{day:%d.%m.%Y} не входит ни в один учебный модуль."}, status=400
+        )
+    graded = hasattr(lesson, "grade_item")
+    if graded and module.pk != lesson.module_id:
+        return JsonResponse(
+            {
+                "error": (
+                    f"За это занятие уже ставили баллы в «{lesson.module}». В другой "
+                    "модуль его не перенести — баллы остались бы в старом."
+                )
+            },
+            status=409,
+        )
+
+    starts_at = timezone.make_aware(dt.datetime.combine(day, start), organization.tzinfo)
+    old = timezone.localtime(lesson.starts_at)
+    if starts_at == lesson.starts_at:
+        return JsonResponse({"unchanged": True})
+
+    taken = (
+        Lesson.objects.filter(group=lesson.group, starts_at=starts_at)
+        .exclude(pk=lesson.pk).select_related("subject").first()
+    )
+    if taken is not None:
+        return JsonResponse(
+            {
+                "error": (
+                    f"В этой клетке уже стоит «{taken.subject.name}». Уберите его "
+                    "или перенесите в другое место — и тогда сюда."
+                )
+            },
+            status=409,
+        )
+    conflict = _busy_elsewhere(lesson.teacher, starts_at, lesson.group) if lesson.teacher else None
+    if conflict is not None:
+        return JsonResponse(
+            {
+                "error": (
+                    f"{lesson.teacher.short_name} в это время уже ведёт "
+                    f"{conflict.subject.name} у группы «{conflict.group.name}»."
+                )
+            },
+            status=409,
+        )
+
+    with transaction.atomic():
+        lesson.starts_at = starts_at
+        lesson.duration_minutes = duration
+        lesson.module = module
+        lesson.save(update_fields=["starts_at", "duration_minutes", "module", "updated_at"])
+        # Дата места под баллы за занятие — дата самого занятия.
+        if graded and lesson.grade_item.due_date == old.date():
+            lesson.grade_item.due_date = day
+            lesson.grade_item.save(update_fields=["due_date", "updated_at"])
+
+    log_audit(
+        action=AuditAction.PERMISSION_CHANGED, request=request, obj=lesson,
+        change="lesson_moved", was=old.isoformat(),
+    )
+    return JsonResponse({
+        "from": _cell_html(
+            request, lesson.group, old.date(), f"{old:%H:%M}",
+            dict(SLOTS).get(f"{old:%H:%M}", duration),
+        ),
+        "to": _cell_html(request, lesson.group, day, time, duration, lesson),
+    })
 
 
 @login_required

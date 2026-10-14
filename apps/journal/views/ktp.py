@@ -16,7 +16,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
@@ -25,6 +25,7 @@ from apps.core.audit import AuditAction, log_audit
 from apps.journal.access import accessible_groups, is_manager
 from apps.journal.models import AcademicYear, Group, Subject, ThematicPlan
 from apps.journal.services import ktp as ktp_service
+from apps.journal.services.ordering import apply_order
 
 
 def _current_year(organization) -> AcademicYear | None:
@@ -251,3 +252,22 @@ def plan_source(request, plan_id):
     return FileResponse(
         plan.source.open("rb"), as_attachment=True, filename=plan.source_name or "ktp.xlsx"
     )
+
+
+@login_required
+@role_required("teacher", "admin", "owner", "platform_admin")
+@require_http_methods(["POST"])
+def plan_reorder(request, plan_id):
+    """
+    Порядок строк КТП — перетаскиванием.
+
+    Порядок здесь не косметика: темы раскладываются по занятиям «n-я строка
+    на n-е занятие». Файл пришёл с перепутанными строками — их ставят на
+    место здесь, а не правят файл и не загружают заново.
+    """
+    plan = _plan_or_404(plan_id)
+    try:
+        apply_order(plan.entries.all(), request.POST.get("order"))
+    except ValidationError as exc:
+        return HttpResponse(exc.messages[0], status=400)
+    return HttpResponse(status=204)

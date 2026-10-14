@@ -17,14 +17,17 @@
 {% if error %}<div class="form-error" role="alert" style="margin-top:12px">{{ error }}</div>{% endif %}
 
 {% if items %}
-  <div class="plan-list">
+  {# Порядок работ — перетаскиванием за ⋮⋮. #}
+  <div class="plan-list" data-sortable
+       data-sort-url="{% url 'cabinet:works_reorder' module.pk subject.pk group.pk %}">
     {% for item in items %}
-      <form class="plan-row"
+      <form class="plan-row" data-sort-id="{{ item.pk }}"
             hx-post="{% url 'cabinet:module_plan_action' module.pk subject.pk group.pk %}"
             hx-select="unset" hx-select-oob="unset"
             hx-target="#plan-items" hx-swap="innerHTML">
         {% csrf_token %}
         <input type="hidden" name="item" value="{{ item.pk }}">
+        <span class="sort-handle" data-sort-handle title="Перетащите, чтобы поменять порядок" aria-hidden="true">⋮⋮</span>
 
         <label class="plan-row__cell plan-row__cell--wide">
           <span class="small muted">Работа</span>

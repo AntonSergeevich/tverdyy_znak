@@ -9,7 +9,10 @@
      data-time="{{ cell.time }}"
      data-duration="{{ cell.duration }}"{% if cell.lesson %}
      data-lesson-subject="{{ cell.lesson.subject_id }}"
-     data-lesson-teacher="{{ cell.lesson.teacher_id|default:'' }}"{% endif %}>
+     data-lesson-teacher="{{ cell.lesson.teacher_id|default:'' }}"
+     data-move-url="{% url 'cabinet:slot_move' cell.lesson.pk %}"
+     data-name="{{ cell.lesson.subject.name }}"
+     title="Перетащите, чтобы перенести"{% endif %}>
   {% if cell.lesson %}
     <span class="slot__subject">{{ cell.lesson.subject.name }}</span>
     {% comment %}

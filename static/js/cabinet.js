@@ -330,3 +330,400 @@
     event.stopPropagation();
   }, true);
 })();
+
+/**
+ * Перетаскивание в кабинете — мышью и пальцем, одним механизмом.
+ *
+ * Два вида:
+ *
+ * Перенос между зонами — [data-drag-item] в [data-drop-zone]. Доска заявок:
+ * карточку несут в колонку другого этапа. На отпускании карточка сразу
+ * встаёт в новую колонку, а на сервер уходит POST на data-drag-url
+ * карточки со значениями зоны (data-drop-values, JSON). Ответ — новая
+ * разметка карточки. Не приняли — карточка возвращается, причина в плашке.
+ *
+ * Порядок внутри списка — [data-sortable] с элементами [data-sort-id].
+ * Берут за ручку [data-sort-handle] (или за весь элемент, если ручки нет).
+ * Пока несут, остальные расступаются; на отпускании на data-sort-url
+ * уходит новый порядок (order=id,id,…).
+ *
+ * Мышью берут с первого движения, пальцем — после короткого удержания,
+ * иначе любая прокрутка уносила бы карточку с собой. Кнопки, ссылки и поля
+ * внутри карточки работают как обычно: с них перетаскивание не начинается.
+ */
+(function () {
+  'use strict';
+
+  var HOLD_MS = 260;
+  var SLIP_PX = 8;
+  var EDGE_PX = 70;
+  var CONTROLS = 'a, button, input, select, textarea, label, [contenteditable]';
+
+  var press = null;   // между нажатием и взятием
+  var drag = null;    // пока в руке
+
+  function csrf() {
+    var input = document.querySelector('input[name=csrfmiddlewaretoken]');
+    if (input) return input.value;
+    var match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  function toast(text) {
+    if (window.tzToast) window.tzToast(text);
+  }
+
+  function buzz() {
+    if (!navigator.vibrate) return;
+    try { navigator.vibrate(12); } catch (e) { /* не всякий браузер умеет */ }
+  }
+
+  function grabbable(event) {
+    // Ручка переноса — внутри подписи или строки, где всё остальное нажимается.
+    var moveHandle = event.target.closest('[data-drag-handle]');
+    if (moveHandle && moveHandle.closest('[data-drag-item]')) {
+      return { kind: 'move', item: moveHandle.closest('[data-drag-item]') };
+    }
+    var handle = event.target.closest('[data-sort-handle]');
+    if (handle) {
+      var sortItem = handle.closest('[data-sort-id]');
+      if (sortItem && sortItem.closest('[data-sortable]')) return { kind: 'sort', item: sortItem };
+    }
+    if (event.target.closest(CONTROLS)) return null;
+    var item = event.target.closest('[data-drag-item]');
+    if (item) return { kind: 'move', item: item };
+    var plain = event.target.closest('[data-sort-id]');
+    if (plain && !plain.querySelector('[data-sort-handle]') && plain.closest('[data-sortable]')) {
+      return { kind: 'sort', item: plain };
+    }
+    return null;
+  }
+
+  function begin(x, y) {
+    var item = press.item;
+    var rect = item.getBoundingClientRect();
+    var ghost = item.cloneNode(true);
+    ghost.removeAttribute('id');
+    ghost.classList.add('drag-ghost');
+    ghost.style.width = rect.width + 'px';
+    // Строка таблицы вне таблицы теряет ширины колонок — переносим их.
+    if (item.tagName === 'TR') {
+      Array.prototype.forEach.call(item.children, function (cell, index) {
+        if (ghost.children[index]) ghost.children[index].style.width = cell.getBoundingClientRect().width + 'px';
+      });
+    }
+    document.body.appendChild(ghost);
+    drag = {
+      kind: press.kind, item: item, ghost: ghost,
+      dx: x - rect.left, dy: y - rect.top,
+      home: item.parentNode, next: item.nextSibling,
+      scroller: item.closest('[data-drag-scroll]'),
+    };
+    if (drag.kind === 'sort') {
+      var holder = document.createElement(item.tagName === 'TR' ? 'tr' : 'div');
+      holder.className = 'drag-placeholder';
+      if (item.tagName === 'TR') {
+        holder.innerHTML = '<td colspan="99"></td>';
+      }
+      holder.style.height = rect.height + 'px';
+      item.parentNode.insertBefore(holder, item);
+      item.classList.add('is-lifted');
+      item.style.display = 'none';
+      drag.holder = holder;
+    } else {
+      item.classList.add('is-lifted');
+    }
+    document.documentElement.classList.add('is-dragging');
+    press = null;
+    buzz();
+    follow(x, y);
+  }
+
+  function zoneAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el ? el.closest('[data-drop-zone]') : null;
+  }
+
+  function follow(x, y) {
+    drag.ghost.style.transform = 'translate(' + (x - drag.dx) + 'px,' + (y - drag.dy) + 'px)';
+
+    if (drag.kind === 'move') {
+      var zone = zoneAt(x, y);
+      document.querySelectorAll('.is-drop-target').forEach(function (z) {
+        if (z !== zone) z.classList.remove('is-drop-target');
+      });
+      if (zone) zone.classList.add('is-drop-target');
+    } else {
+      var list = drag.holder.parentNode;
+      var siblings = Array.prototype.filter.call(list.children, function (el) {
+        return el !== drag.holder && el !== drag.item && el.hasAttribute('data-sort-id');
+      });
+      var before = null;
+      for (var i = 0; i < siblings.length; i++) {
+        var box = siblings[i].getBoundingClientRect();
+        if (y < box.top + box.height / 2) { before = siblings[i]; break; }
+      }
+      if (before) list.insertBefore(drag.holder, before);
+      else if (siblings.length) list.insertBefore(drag.holder, siblings[siblings.length - 1].nextSibling);
+    }
+
+    // У края — подкручиваем: страницу по вертикали, доску по горизонтали.
+    if (y < EDGE_PX) window.scrollBy(0, -16);
+    else if (y > window.innerHeight - EDGE_PX) window.scrollBy(0, 16);
+    if (drag.scroller) {
+      var area = drag.scroller.getBoundingClientRect();
+      if (x < area.left + EDGE_PX) drag.scroller.scrollLeft -= 18;
+      else if (x > area.right - EDGE_PX) drag.scroller.scrollLeft += 18;
+    }
+  }
+
+  function cleanup(state) {
+    state.ghost.remove();
+    state.item.classList.remove('is-lifted');
+    state.item.style.display = '';
+    document.documentElement.classList.remove('is-dragging');
+    document.querySelectorAll('.is-drop-target').forEach(function (z) { z.classList.remove('is-drop-target'); });
+  }
+
+  function putBack(state) {
+    state.home.insertBefore(state.item, state.next);
+  }
+
+  function post(url, values) {
+    var body = new FormData();
+    Object.keys(values).forEach(function (key) { body.append(key, values[key]); });
+    return fetch(url, {
+      method: 'POST', body: body, credentials: 'same-origin',
+      headers: { 'X-CSRFToken': csrf(), 'HX-Request': 'true' },
+    }).then(function (response) {
+      return response.text().then(function (text) { return { ok: response.ok, status: response.status, text: text }; });
+    });
+  }
+
+  function readError(text) {
+    try { return JSON.parse(text).error || ''; } catch (e) { /* не JSON */ }
+    if (text && text.length < 300 && text.indexOf('<') !== 0) return text;
+    return '';
+  }
+
+  function drop(x, y) {
+    var state = drag;
+    drag = null;
+    cleanup(state);
+
+    swallowClick();
+
+    if (state.kind === 'move') {
+      var zone = zoneAt(x, y);
+      if (!zone || zone === state.home.closest('[data-drop-zone]')) return;
+      var values = {};
+      try {
+        values = Object.assign(
+          JSON.parse(zone.getAttribute('data-drop-values') || '{}'),
+          JSON.parse(state.item.getAttribute('data-drag-values') || '{}')
+        );
+      } catch (e) { values = {}; }
+
+      // Зона, после которой проще перечитать страницу, чем собирать её
+      // по кускам (состав группы): отправляем и обновляем <main>.
+      if (zone.hasAttribute('data-drop-refresh')) {
+        state.item.classList.add('is-saving');
+        post(state.item.getAttribute('data-drag-url'), values).then(function (result) {
+          if (!result.ok) {
+            state.item.classList.remove('is-saving');
+            toast(readError(result.text) || 'Не получилось.');
+            return;
+          }
+          if (window.htmx) {
+            window.htmx.ajax('GET', location.pathname + location.search,
+              { target: '#main', select: '#main', swap: 'outerHTML' });
+          }
+        }).catch(function () {
+          state.item.classList.remove('is-saving');
+          toast('Нет связи с сервером.');
+        });
+        return;
+      }
+
+      var target = zone.querySelector('[data-drop-list]') || zone;
+      target.insertBefore(state.item, target.firstChild);
+      state.item.classList.add('is-saving');
+      post(state.item.getAttribute('data-drag-url'), values).then(function (result) {
+        state.item.classList.remove('is-saving');
+        if (result.ok || result.status === 422) {
+          var holder = document.createElement('div');
+          holder.innerHTML = result.text.trim();
+          var fresh = holder.firstElementChild;
+          if (fresh && fresh.hasAttribute('data-drag-item')) {
+            state.item.replaceWith(fresh);
+            if (window.htmx) window.htmx.process(fresh);
+            if (result.status === 422) {
+              putBack({ item: fresh, home: state.home, next: state.next });
+              var field = fresh.querySelector('input, select');
+              if (field) field.focus();
+            }
+          }
+          document.dispatchEvent(new CustomEvent('tz:dropped', { detail: { zone: zone } }));
+          return;
+        }
+        putBack(state);
+        toast(readError(result.text) || 'Не получилось перенести.');
+      }).catch(function () {
+        state.item.classList.remove('is-saving');
+        putBack(state);
+        toast('Нет связи с сервером — карточка осталась на месте.');
+      });
+      return;
+    }
+
+    // Порядок.
+    var list = state.holder.parentNode;
+    list.insertBefore(state.item, state.holder);
+    state.holder.remove();
+    var sortable = state.item.closest('[data-sortable]');
+    var order = Array.prototype.map.call(
+      sortable.querySelectorAll('[data-sort-id]'), function (el) { return el.getAttribute('data-sort-id'); }
+    );
+    if (state.item.nextSibling === state.next && state.item.parentNode === state.home) return;
+    post(sortable.getAttribute('data-sort-url'), { order: order.join(',') }).then(function (result) {
+      if (result.ok) return;
+      putBack(state);
+      toast(readError(result.text) || 'Порядок не сохранился.');
+    }).catch(function () {
+      putBack(state);
+      toast('Нет связи с сервером — порядок не сохранился.');
+    });
+  }
+
+  // Отпустили над подписью или ссылкой — щелчком это не считается.
+  var swallowing = false;
+  function swallowClick() {
+    swallowing = true;
+    setTimeout(function () { swallowing = false; }, 350);
+  }
+  document.addEventListener('click', function (event) {
+    if (!swallowing) return;
+    swallowing = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+
+  function abort() {
+    if (!drag) return;
+    var state = drag;
+    drag = null;
+    cleanup(state);
+    if (state.holder) state.holder.remove();
+    putBack(state);
+  }
+
+  document.addEventListener('pointerdown', function (event) {
+    if (event.button || drag) return;
+    var found = grabbable(event);
+    if (!found) return;
+    press = { item: found.item, kind: found.kind, x: event.clientX, y: event.clientY, timer: null };
+    // За ручку берут сразу, и пальцем тоже: ручка ничем другим не занята,
+    // прокручивать за неё страницу никто не станет.
+    press.immediate = !!event.target.closest('[data-sort-handle], [data-drag-handle]');
+    if (event.pointerType === 'mouse' || press.immediate) return;
+    press.timer = setTimeout(function () {
+      if (press) begin(press.x, press.y);
+    }, HOLD_MS);
+  });
+
+  document.addEventListener('pointermove', function (event) {
+    if (drag) { follow(event.clientX, event.clientY); return; }
+    if (!press) return;
+    var slipped = Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y);
+    if (slipped < SLIP_PX) return;
+    if (event.pointerType === 'mouse' || press.immediate) {
+      event.preventDefault();
+      begin(event.clientX, event.clientY);
+    } else {
+      // Палец поехал раньше, чем карточка поднялась, — это прокрутка.
+      clearTimeout(press.timer);
+      press = null;
+    }
+  });
+
+  document.addEventListener('pointerup', function (event) {
+    if (press) { clearTimeout(press.timer); press = null; }
+    if (drag) drop(event.clientX, event.clientY);
+  });
+  document.addEventListener('pointercancel', function () {
+    if (press) { clearTimeout(press.timer); press = null; }
+    abort();
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') abort();
+  });
+
+  // Пока карточка в руке, палец не листает страницу.
+  document.addEventListener('touchmove', function (event) {
+    if (drag) event.preventDefault();
+  }, { passive: false });
+
+  // Долгое нажатие на телефоне открыло бы меню «скопировать» поверх.
+  document.addEventListener('contextmenu', function (event) {
+    if (drag || (press && event.target.closest('[data-drag-item], [data-sort-id]'))) event.preventDefault();
+  });
+})();
+
+/**
+ * Доска заявок: карточка — в колонке своего этапа, счётчики — верные.
+ *
+ * Этап меняют и переносом, и списком в карточке. После списка карточка
+ * приходит с сервера на старое место — переставляем её в колонку этапа,
+ * который у неё теперь записан. Убранную заявку можно вернуть из плашки.
+ */
+(function () {
+  'use strict';
+
+  function recount(board) {
+    board.querySelectorAll('[data-lead-column]').forEach(function (column) {
+      var count = column.querySelector('[data-count]');
+      if (count) count.textContent = column.querySelectorAll('[data-drag-item]').length;
+    });
+  }
+
+  function settle() {
+    var board = document.querySelector('.lead-board');
+    if (!board) return;
+    board.querySelectorAll('[data-lead-status]').forEach(function (card) {
+      if (card.classList.contains('lead-card--error')) return;
+      var column = card.closest('[data-lead-column]');
+      var wanted = card.getAttribute('data-lead-status');
+      if (column && column.getAttribute('data-lead-column') !== wanted) {
+        var target = board.querySelector('[data-lead-column="' + wanted + '"] [data-drop-list]');
+        if (target) target.insertBefore(card, target.firstChild);
+      }
+    });
+    recount(board);
+  }
+
+  document.body.addEventListener('htmx:afterSettle', settle);
+  document.addEventListener('tz:dropped', settle);
+
+  // Убрать заявку — сразу, с «Отменить».
+  document.body.addEventListener('htmx:afterRequest', function (event) {
+    var button = event.detail.elt;
+    if (!button || !button.hasAttribute || !button.hasAttribute('data-undo-url')) return;
+    if (!event.detail.successful) return;
+    settle();
+    if (!window.tzToast) return;
+    window.tzToast(button.getAttribute('data-undo-text') || 'Убрано.', {
+      label: 'Отменить',
+      run: function () {
+        var body = new FormData();
+        var token = document.querySelector('input[name=csrfmiddlewaretoken]');
+        if (token) body.append('csrfmiddlewaretoken', token.value);
+        fetch(button.getAttribute('data-undo-url'), { method: 'POST', body: body, credentials: 'same-origin' })
+          .then(function () {
+            if (window.htmx) {
+              window.htmx.ajax('GET', location.pathname + location.search, { target: '#main', select: '#main', swap: 'outerHTML' });
+            }
+          });
+      },
+    });
+  });
+})();
