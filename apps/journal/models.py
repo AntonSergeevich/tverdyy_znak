@@ -1274,3 +1274,47 @@ class Payment(SoftDeleteTenantModel):
 
     def __str__(self) -> str:
         return f"{self.student} · {self.title} · {self.amount} ₽"
+
+
+class BackdateGrant(TenantModel):
+    """
+    Временное разрешение педагогу выставлять баллы задним числом.
+
+    Обычно педагог ставит баллы не позже чем через `grade_backdate_days`
+    после работы — это защита от правки оценок задним числом. Но педагог,
+    который не успел выставить баллы за прошлый модуль, не должен ни ждать
+    программиста, ни просить руководителя переносить его оценки руками.
+    Руководитель открывает выставление одному педагогу, за один модуль и
+    на несколько дней — потом доступ закрывается сам. Всё — в журнале
+    действий: кто, кому, за что и до какого времени.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="backdate_grants", verbose_name="педагог",
+    )
+    module = models.ForeignKey(
+        Module, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="backdate_grants", verbose_name="модуль",
+        help_text="Пусто — любые работы, иначе только этого модуля.",
+    )
+    until = models.DateTimeField("открыто до")
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="открыл",
+    )
+    revoked_at = models.DateTimeField("закрыто раньше срока", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "выставление задним числом"
+        verbose_name_plural = "выставление задним числом"
+        ordering = ["-until"]
+        indexes = [models.Index(fields=["organization", "user", "until"])]
+
+    def __str__(self) -> str:
+        return f"{self.user} · {self.module or 'все модули'} · до {self.until:%d.%m %H:%M}"
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None and self.until > timezone.now()

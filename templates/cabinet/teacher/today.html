@@ -7,6 +7,19 @@
   <span class="muted">{{ teacher.short_name|default:"" }}</span>
 </div>
 
+{% if backdate_grant %}
+  <div class="message backdate-banner" style="margin-bottom:16px">
+    Руководитель открыл вам выставление баллов задним числом
+    {% if backdate_grant.module %}за {{ backdate_grant.module }}{% else %}за прошлые модули{% endif %}
+    до <strong>{{ backdate_grant.until|date:"d.m H:i" }}</strong>.
+    {% if backdate_weeks_back is not None %}
+      <a href="{% url 'cabinet:schedule' %}?n={{ backdate_weeks_back }}">Открыть расписание того модуля →</a>
+    {% else %}
+      Нужные занятия — в «Расписании», листайте недели назад.
+    {% endif %}
+  </div>
+{% endif %}
+
 {% if lessons %}
   <div class="journal-list">
     {% for lesson in lessons %}

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.journal.views import (
+    backdate,
     common,
     exports,
     groups,
@@ -166,6 +167,8 @@ urlpatterns = [
     path("sotrudniki/dvoyniki/", people.staff_twins, name="staff_twins"),
     path("sotrudniki/<uuid:user_id>/svesti/", people.staff_merge, name="staff_merge"),
     path("sotrudniki/<uuid:user_id>/ubrat/", people.staff_remove, name="staff_remove"),
+    path("sotrudniki/<uuid:user_id>/zadnim-chislom/", backdate.backdate_open, name="backdate_open"),
+    path("zadnim-chislom/<uuid:grant_id>/zakryt/", backdate.backdate_close, name="backdate_close"),
 
     # Пароль показывается отдельной страницей после перехода: ответом
     # на саму отправку формы он ломался и в кабинете, и при обновлении.

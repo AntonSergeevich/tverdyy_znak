@@ -2075,3 +2075,13 @@ label[data-drag-item] { cursor: pointer; user-select: auto; }
 }
 /* Перетаскивание по сетке не должно выделять текст клеток синим. */
 [data-grid], .deck-card { user-select: none; -webkit-user-select: none; }
+
+/* ─── Баллы задним числом ─────────────────────────────────────────────── */
+.backdate-card__form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 12px; }
+.backdate-card__form .field { margin: 0; min-width: 200px; flex: 0 1 auto; }
+.backdate-card__open {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between;
+  margin-top: 10px; padding: 10px 12px; border-left: 3px solid var(--ok); background: var(--mark);
+}
+.backdate-card__open form { margin: 0; }
+.backdate-banner { border-left: 3px solid var(--ok); }

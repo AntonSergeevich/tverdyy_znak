@@ -82,8 +82,15 @@ def test_dialog_speaks_about_the_reader_role(logged_in, tenant_a):
     teacher = _home(logged_in(_old_timer(tenant_a.teacher_user)), "cabinet:teacher_today")
     parent = _home(logged_in(_old_timer(tenant_a.parent_user)), "cabinet:parent_home")
 
+    # Первый пункт, который окно покажет педагогу, но не родителю.
+    shown_to_teacher = [
+        change
+        for release in releases.RELEASES if release.announce
+        for change in release.changes if change.is_for({releases.TEACHER})
+    ][:5]
     for_staff = next(
-        change.title for change in releases.CURRENT.changes if change.roles == releases.STAFF
+        change.title for change in shown_to_teacher
+        if change.roles and releases.PARENT not in change.roles
     )
     assert for_staff in teacher
     assert for_staff not in parent

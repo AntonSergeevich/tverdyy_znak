@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import datetime as dt
+
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -49,6 +51,7 @@ from apps.journal.services import workload
 from apps.journal.services.ordering import apply_order
 from apps.journal.services.grading import (
     GradesInTheWay,
+    active_backdate_grant,
     create_default_structure,
     delete_work,
     disable_lesson_grading,
@@ -93,10 +96,21 @@ def today(request):
         upcoming = upcoming.filter(teacher=profile)
     upcoming = upcoming[:8]
 
+    # Руководитель открыл выставление задним числом — педагог должен об этом
+    # узнать сразу, с первого экрана, и попасть в нужные недели одним нажатием.
+    grant = active_backdate_grant(request.user, organization)
+    backdate_weeks_back = None
+    if grant is not None and grant.module is not None:
+        this_monday = day - dt.timedelta(days=day.weekday())
+        module_monday = grant.module.starts_on - dt.timedelta(days=grant.module.starts_on.weekday())
+        backdate_weeks_back = (module_monday - this_monday).days // 7
+
     return render(
         request,
         "cabinet/teacher/today.html",
         {
+            "backdate_grant": grant,
+            "backdate_weeks_back": backdate_weeks_back,
             "day": day,
             "lessons": list(lessons),
             "upcoming": list(upcoming),

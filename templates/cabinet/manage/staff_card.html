@@ -136,6 +136,68 @@
   </div>
 </form>
 
+{% if backdate %}
+  {% comment %}
+    Педагог не успел выставить баллы за прошлый модуль, а обычный срок
+    ({{ backdate.limit }} дней) прошёл. Открываем ему одному, за один модуль
+    и на несколько дней — потом закроется само. Всё попадает в журнал действий.
+  {% endcomment %}
+  <div class="card backdate-card" id="backdate" style="margin-top:24px">
+    <p class="card__title">Баллы задним числом</p>
+    <p class="small muted">
+      Обычно баллы ставят не позже чем через {{ backdate.limit }} дней после работы.
+      Если педагог не успел, откройте ему выставление за модуль на несколько
+      дней — потом доступ закроется сам.
+    </p>
+    {% for grant in backdate.active %}
+      <div class="backdate-card__open">
+        <span>
+          ✓ Открыто {% if grant.module %}за {{ grant.module }}{% else %}за любые модули{% endif %}
+          до <strong>{{ grant.until|date:"d.m H:i" }}</strong>
+        </span>
+        <form method="post" action="{% url 'cabinet:backdate_close' grant.pk %}">
+          {% csrf_token %}
+          <button class="btn btn--sm btn--quiet" type="submit">Закрыть сейчас</button>
+        </form>
+      </div>
+    {% endfor %}
+    <form method="post" action="{% url 'cabinet:backdate_open' person.pk %}" class="backdate-card__form">
+      {% csrf_token %}
+      <label class="field">
+        <span class="field__label">Модуль</span>
+        <select class="input" name="module">
+          {% for module in backdate.modules %}
+            <option value="{{ module.pk }}"{% if module == backdate.default_module %} selected{% endif %}>
+              {{ module }} · {{ module.starts_on|date:"d.m" }}–{{ module.ends_on|date:"d.m" }}
+            </option>
+          {% endfor %}
+          <option value="">все модули</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">На сколько</span>
+        <select class="input" name="days">
+          {% for days in backdate.days %}
+            <option value="{{ days }}"{% if days == 3 %} selected{% endif %}>
+              {{ days }} {% if days == 1 %}день{% elif days == 3 %}дня{% else %}дней{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn" type="submit">Открыть выставление</button>
+    </form>
+    {% if backdate.past %}
+      <p class="small muted" style="margin-top:10px">
+        Раньше:
+        {% for grant in backdate.past %}
+          {% if grant.module %}{{ grant.module }}{% else %}все модули{% endif %}
+          до {{ grant.until|date:"d.m" }}{% if grant.revoked_at %} (закрыто {{ grant.revoked_at|date:"d.m" }}){% endif %}{% if not forloop.last %}; {% endif %}
+        {% endfor %}
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
+
 {% if twin %}
   {% comment %}
     Один и тот же педагог, заведённый дважды, показывается на сайте дважды,

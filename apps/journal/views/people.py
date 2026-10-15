@@ -54,6 +54,7 @@ from apps.journal.models import (
     Teacher,
 )
 from apps.journal.services import duplicates
+from apps.journal.views.backdate import staff_card_context as backdate_context
 from apps.journal.services import onboarding
 from apps.journal.services import staff as staff_service
 from apps.journal.services.grading import get_scale
@@ -673,6 +674,7 @@ def _staff_card_page(request, form, teacher_form, target, teacher, roles_now, ca
             "may_merge": request.user.has_role(
                 request.organization, Role.OWNER, Role.PLATFORM_ADMIN
             ) or request.user.is_superuser,
+            "backdate": backdate_context(request, target, teacher),
         },
     )
 

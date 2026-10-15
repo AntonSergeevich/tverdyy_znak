@@ -374,7 +374,25 @@ def shots_2_2(browser, out: Path):
     context.close()
 
 
-VERSIONS = {"2.0": shots_2_0, "2.1": shots_2_1, "2.2": shots_2_2}
+def shots_2_3(browser, out: Path):
+    # Блок «Баллы задним числом» в карточке демо-педагога.
+    context, page = _login(browser, "owner")
+    _go(page, "/kabinet/sotrudniki/")
+    link = page.locator("table a[href*='/sotrudniki/']").filter(has_text="Петров").first
+    _go(page, link.get_attribute("href"))
+    # Блок — под шапку, чтобы кнопку не закрыло нижнее меню.
+    page.evaluate(
+        "() => window.scrollTo({top: document.querySelector('#backdate').getBoundingClientRect().top"
+        " + window.scrollY - 80, behavior: 'instant'})"
+    )
+    page.wait_for_timeout(250)
+    top = int(page.locator("#backdate").bounding_box()["y"]) - 10
+    height = int(page.locator("#backdate").bounding_box()["height"]) + 20
+    _save(out / "backdate.webp", [_frame(page, top=max(0, top), height=min(height, 700))])
+    context.close()
+
+
+VERSIONS = {"2.0": shots_2_0, "2.1": shots_2_1, "2.2": shots_2_2, "2.3": shots_2_3}
 
 
 def main():

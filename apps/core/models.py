@@ -254,6 +254,8 @@ class AuditAction(models.TextChoices):
     PLAN_IMPORTED = "plan_imported", "загрузка тематического планирования"
     WORK_DELETED = "work_deleted", "удаление работы модуля"
     WORK_RESTORED = "work_restored", "возврат удалённой работы модуля"
+    BACKDATE_OPENED = "backdate_opened", "открыто выставление баллов задним числом"
+    BACKDATE_CLOSED = "backdate_closed", "закрыто выставление баллов задним числом"
 
 
 class AuditLog(models.Model):

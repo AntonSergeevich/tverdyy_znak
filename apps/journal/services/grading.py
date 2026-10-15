@@ -14,12 +14,13 @@ from typing import Iterable
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.core.audit import AuditAction, log_audit
 from apps.journal.models import (
+    BackdateGrant,
     Grade,
     GradeItem,
     GradeItemKind,
@@ -599,8 +600,28 @@ def past_modules(*, student, current) -> list[dict]:
 
 
 # ─── Выставление балла ──────────────────────────────────────────────────────
-def _can_backdate(user, organization) -> bool:
+def can_open_backdating(user, organization) -> bool:
+    """Владелец сам ставит баллы задним числом — он же и открывает это педагогу."""
     return bool(user and (user.is_superuser or user.has_role(organization, Role.OWNER)))
+
+
+def active_backdate_grant(user, organization, module=None):
+    """Действующее разрешение педагогу ставить баллы задним числом (за этот модуль)."""
+    if not (user and user.is_authenticated):
+        return None
+    grants = BackdateGrant.objects.filter(
+        organization=organization, user=user, revoked_at__isnull=True, until__gt=timezone.now(),
+    )
+    if module is not None:
+        grants = grants.filter(Q(module__isnull=True) | Q(module=module))
+    return grants.order_by("-until").first()
+
+
+def _can_backdate(user, organization, grade_item=None) -> bool:
+    if can_open_backdating(user, organization):
+        return True
+    module = grade_item.module if grade_item is not None else None
+    return active_backdate_grant(user, organization, module) is not None
 
 
 def check_grade_allowed(*, grade_item: GradeItem, points: Decimal, actor, when=None) -> None:
@@ -625,10 +646,11 @@ def check_grade_allowed(*, grade_item: GradeItem, points: Decimal, actor, when=N
     if reference_date is not None:
         days_late = (timezone.localdate() - reference_date).days
         limit = organization.grade_backdate_days
-        if days_late > limit and not _can_backdate(actor, organization):
+        if days_late > limit and not _can_backdate(actor, organization, grade_item):
             raise PermissionDenied(
                 f"Выставить балл задним числом можно в течение {limit} дней. "
-                f"С даты работы прошло {days_late}. Обратитесь к владельцу организации."
+                f"С даты работы прошло {days_late}. Руководитель может открыть вам "
+                "выставление за этот модуль на несколько дней — в вашей карточке сотрудника."
             )
 
 
