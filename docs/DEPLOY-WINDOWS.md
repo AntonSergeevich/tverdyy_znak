@@ -479,3 +479,78 @@ ssh tz@85.198.66.41 "cd /srv/tverdyy-znak && docker compose exec backup sh /scri
 
 Восстановление из бэкапа и проверка миграций на копии боевой базы —
 в [DEPLOY.md](DEPLOY.md), разделы 5 и 6.
+
+## 12. Резервные копии: Яндекс Диск и этот компьютер
+
+Сервер может исчезнуть вместе со всеми копиями, которые лежат на нём же.
+Так и случилось в ноябре 2026: копии были, но только на том сервере.
+Теперь копий три слоя:
+
+1. **Сервер.** Контейнер `backup` снимает дамп базы в 03, 09, 15 и 21 час
+   по Красноярску (`BACKUP_HOURS_UTC=20,2,8,14`) и шифрует его ключом `age`.
+2. **Яндекс Диск.** Каждый зашифрованный дамп сразу уходит туда
+   (`deploy/scripts/yadisk.sh`). Незашифрованный не уходит никогда.
+3. **Компьютер.** `deploy/windows/backup-pull.ps1` забирает новые копии
+   с Диска при входе в Windows и каждый час. Он ничего не удаляет: если
+   Диск очистят или он будет недоступен, копии на компьютере останутся.
+
+### Один раз: ключ шифрования
+
+```powershell
+winget install FiloSottile.age
+age-keygen -o $env:USERPROFILE\tz-backup-key.txt
+```
+
+Строку `Public key: age1…` — в `.env` на сервере: `BACKUP_AGE_RECIPIENT=age1…`.
+
+Файл `tz-backup-key.txt` — приватный ключ. Без него копии не расшифровать
+никому, в том числе вам. Хранить на этом компьютере и ещё в одном месте
+(флешка, распечатка в сейфе). **Не** на сервере и **не** на Яндекс Диске.
+
+### Один раз: Яндекс Диск
+
+1. Лучше отдельный аккаунт Яндекса только под копии.
+2. id.yandex.ru → Безопасность → Пароли приложений → «Файлы (WebDAV)».
+3. В `.env` на сервере:
+
+   ```
+   YADISK_LOGIN=tz-backup@yandex.ru
+   YADISK_APP_PASSWORD=пароль-приложения
+   BACKUP_HOURS_UTC=20,2,8,14
+   ```
+
+4. Пересобрать контейнеры (`tz-deploy`): в образ добавлен `age`.
+5. Проверить вручную — в конце должно быть «выгружено на Яндекс Диск»:
+
+   ```powershell
+   ssh tz@СЕРВЕР "cd /srv/tverdyy-znak && docker compose exec backup sh /scripts/backup.sh"
+   ```
+
+### Один раз: этот компьютер
+
+```powershell
+cd путь\к\tverdyy_znak
+powershell -ExecutionPolicy Bypass -File deploy\windows\backup-pull-setup.ps1
+```
+
+Спросит логин Яндекса и пароль приложения (хранится зашифрованным средствами
+Windows), заведёт задание в Планировщике и сразу сделает первый запуск.
+Копии — в `Документы\TverdyyZnak-backups`, журнал — `pull.log` там же.
+Раз в час на долю секунды может мелькнуть окно PowerShell — это он.
+
+Если копии перестали приходить или Диск не отвечает больше 30 часов,
+появится окно с предупреждением.
+
+Убрать: `... backup-pull-setup.ps1 -Uninstall`.
+
+### Восстановление из копии с компьютера
+
+```powershell
+age -d -i $env:USERPROFILE\tz-backup-key.txt -o tz.dump Документы\TverdyyZnak-backups\tz-20261111T200000Z.dump.age
+scp tz.dump tz@СЕРВЕР:/srv/tverdyy-znak/tz.dump
+ssh tz@СЕРВЕР "cd /srv/tverdyy-znak && docker compose cp tz.dump backup:/backups/tz.dump && docker compose exec backup sh /scripts/restore.sh /backups/tz.dump tverdyy_znak"
+```
+
+И не забыть: без того же `FIELD_ENCRYPTION_KEYS`, что был в `.env`, даты
+рождения и документы учеников не прочитаются. `.env` с сервера хранить
+так же, как ключ `age`, — отдельно от сервера.

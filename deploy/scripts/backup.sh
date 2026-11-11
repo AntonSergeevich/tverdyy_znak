@@ -1,5 +1,6 @@
 #!/bin/sh
-# Бэкап PostgreSQL: дамп, шифрование, ротация 30 дней, выгрузка за пределы VPS.
+# Бэкап PostgreSQL: дамп, шифрование, ротация 30 дней, выгрузка за пределы VPS
+# (Яндекс Диск — yadisk.sh; или rclone/scp — BACKUP_REMOTE_TARGET).
 #
 # Бэкап, который не восстанавливали, бэкапом не является — сценарий
 # восстановления лежит рядом: restore.sh. Проверять раз в квартал.
@@ -11,6 +12,11 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 DUMP="${BACKUP_DIR}/tz-${STAMP}.dump"
 
 mkdir -p "$BACKUP_DIR"
+if [ ! -w "$BACKUP_DIR" ]; then
+    echo "НЕТ ПРАВ НА ЗАПИСЬ В ${BACKUP_DIR} (пользователь $(id -un)) — дамп не сделать." >&2
+    echo "Том создан от root: docker compose exec -u root backup chown app:app ${BACKUP_DIR}" >&2
+    exit 1
+fi
 
 # Параметры подключения берём из DATABASE_URL.
 export PGPASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}"
@@ -47,10 +53,36 @@ if [ -n "${BACKUP_REMOTE_TARGET:-}" ]; then
         scp -o StrictHostKeyChecking=accept-new "$ARTIFACT" "$BACKUP_REMOTE_TARGET" \
             && echo "выгружено в $BACKUP_REMOTE_TARGET"
     fi
-else
-    echo "ВНИМАНИЕ: BACKUP_REMOTE_TARGET не задан — копии за пределами VPS нет." >&2
+elif [ -z "${YADISK_LOGIN:-}" ]; then
+    echo "ВНИМАНИЕ: ни BACKUP_REMOTE_TARGET, ни Яндекс Диск не заданы — копии за пределами VPS нет." >&2
+fi
+
+# Копия на Яндекс Диск (WebDAV, пароль приложения). Оттуда её каждый час
+# забирает компьютер владельца — deploy/windows/backup-pull.ps1, — и копия
+# переживает и потерю сервера, и недоступность Яндекса.
+#
+# Только зашифрованная: открытый дамп с персональными данными детей в
+# облако не уходит, что бы ни было в .env.
+UPLOAD_FAILED=0
+if [ -n "${YADISK_LOGIN:-}" ] && [ -n "${YADISK_APP_PASSWORD:-}" ]; then
+    case "$ARTIFACT" in
+        *.age|*.gpg)
+            sh /scripts/yadisk.sh upload "$ARTIFACT" || UPLOAD_FAILED=1
+            sh /scripts/yadisk.sh rotate || echo "ВНИМАНИЕ: старые копии на Яндекс Диске не убраны." >&2
+            ;;
+        *)
+            echo "ВНИМАНИЕ: дамп не зашифрован — на Яндекс Диск не выгружаю." >&2
+            echo "Задайте BACKUP_AGE_RECIPIENT (публичный ключ age)." >&2
+            UPLOAD_FAILED=1
+            ;;
+    esac
 fi
 
 # Ротация.
 find "$BACKUP_DIR" -name 'tz-*.dump*' -type f -mtime "+${KEEP_DAYS}" -delete
 echo "[$(date -u)] хранится файлов: $(find "$BACKUP_DIR" -name 'tz-*.dump*' | wc -l)"
+
+if [ "$UPLOAD_FAILED" = 1 ]; then
+    echo "КОПИЯ НА ЯНДЕКС ДИСК НЕ ВЫГРУЖЕНА" >&2
+    exit 1
+fi

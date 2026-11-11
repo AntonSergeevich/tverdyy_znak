@@ -22,8 +22,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Приложение работает от непривилегированного пользователя, не от root.
 RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --create-home app
 
+# age — шифрование бэкапов в контейнере backup. Без него backup.sh молча
+# оставлял дампы с персональными данными детей открытыми.
 RUN apt-get update && apt-get install --no-install-recommends -y \
-        libpq5 postgresql-client gettext curl \
+        libpq5 postgresql-client gettext curl age \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /wheels /wheels
@@ -34,8 +36,11 @@ WORKDIR /app
 COPY --chown=app:app . /app
 
 # Каталоги, которые монтируются томами: права выставляем заранее.
-RUN mkdir -p /app/staticfiles /app/media /app/private-media /app/logs \
-    && chown -R app:app /app/staticfiles /app/media /app/private-media /app/logs
+# /backups — тоже: новый том Docker наследует владельца этой папки из образа.
+# Без неё том создавался от root, а контейнер backup работает от app и не
+# мог записать ни одного дампа (те же грабли, что с beat, см. CLAUDE.md).
+RUN mkdir -p /app/staticfiles /app/media /app/private-media /app/logs /backups \
+    && chown -R app:app /app/staticfiles /app/media /app/private-media /app/logs /backups
 
 USER app
 
